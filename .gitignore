@@ -22,3 +22,46 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+# --------------------------
+# FRONTEND (React)
+# --------------------------
+node_modules
+build
+.env
+.env.*
+.DS_Store
+Thumbs.db
+
+# --------------------------
+# BACKEND (Node/Express)
+# --------------------------
+backend/node_modules
+backend/.env
+backend/.env.*
+backend/logs
+backend/*.log
+backend/dist
+backend/build
+backend/tmp
+backend/.cache
+
+# Prisma
+backend/prisma/dev.db
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# --------------------------
+# Common
+# --------------------------
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.lock
+
+# Editor settings
+.vscode
+.idea
