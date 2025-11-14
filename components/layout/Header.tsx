@@ -3,6 +3,16 @@
 import React from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import Button from '../ui/Button';
+import { Role } from '../../types';
+
+const formatRole = (role: Role) => {
+    switch (role) {
+        case Role.ADMIN_HR: return 'Admin HR';
+        case Role.MANAGER: return 'Manager';
+        case Role.EMPLOYEE: return 'Employee';
+        default: return role;
+    }
+}
 
 const Header: React.FC = () => {
     const { view, user, employees, logout } = useAppContext();
@@ -25,7 +35,7 @@ const Header: React.FC = () => {
                     />
                     <div className="ml-3">
                         <p className="text-sm font-semibold text-slate-800">{user.name}</p>
-                        <p className="text-xs text-slate-500">{user.role}</p>
+                        <p className="text-xs text-slate-500">{formatRole(user.role)}</p>
                     </div>
                 </div>
                 <div className="h-10 border-l border-slate-200"></div>

@@ -9,7 +9,7 @@ const login = async (email, password) => {
         throw new Error('Invalid credentials');
     }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
 
     if (!isMatch) {
         throw new Error('Invalid credentials');
@@ -19,7 +19,7 @@ const login = async (email, password) => {
         id: user.id,
         name: user.name,
         role: user.role,
-        employeeId: user.employee_id,
+        employeeId: user.employeeId,
     };
     
     const token = generateToken(payload);
