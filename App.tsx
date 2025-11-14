@@ -7,13 +7,29 @@ import EmployeeProfile from './components/employees/EmployeeProfile';
 import AttendanceReport from './components/attendance/AttendanceReport';
 import TeamSnapshot from './components/attendance/TeamSnapshot';
 import { View } from './types';
+import Login from './components/auth/Login';
 
 const App: React.FC = () => {
   return (
     <AppProvider>
-      <Main />
+      <AuthGate />
     </AppProvider>
   );
+};
+
+const AuthGate: React.FC = () => {
+  const { user, loading } = useAppContext();
+
+  if (loading && !user) {
+    // A simple loading state before we know if user is logged in or not
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+  
+  if (!user) {
+    return <Login />;
+  }
+
+  return <Main />;
 };
 
 const Main: React.FC = () => {

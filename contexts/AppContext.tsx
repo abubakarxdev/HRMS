@@ -1,11 +1,11 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User, Role, View, Employee, AttendanceRecord, ApprovalRequest, PublicHoliday } from '../types';
 import { api } from '../services/apiService';
-import { ROLES } from '../constants';
 
 interface AppContextType {
-  user: User;
-  setUserRole: (role: Role) => void;
+  user: User | null;
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => void;
   view: View;
   setView: (view: View, employeeId?: string) => void;
   employees: Employee[];
@@ -32,7 +32,7 @@ interface AppProviderProps {
 }
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User>({ id: 'user-1', name: 'Admin User', role: Role.ADMIN_HR, employeeId: 'emp-005' });
+  const [user, setUser] = useState<User | null>(null);
   const [view, setViewInternal] = useState<View>(View.DASHBOARD);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -41,18 +41,54 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   
-  const setUserRole = (role: Role) => {
-    // In a real app, this would be a full login flow. Here we just switch roles.
-    const employeeForRole = employees.find(e => {
-        if (role === Role.ADMIN_HR) return e.department === 'Human Resources';
-        if (role === Role.MANAGER) return employees.some(emp => emp.managerId === e.id);
-        return e.department !== 'Human Resources' && !employees.some(emp => emp.managerId === e.id);
-    }) || employees[0];
-
-    setUser({ id: `user-${employeeForRole.id}`, name: employeeForRole.name, role, employeeId: employeeForRole.id });
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    setUser(null);
     setViewInternal(View.DASHBOARD);
+    setSelectedEmployeeId(null);
+    setEmployees([]);
+    setAttendance([]);
+    setApprovals([]);
+    setHolidays([]);
+  }, []);
+
+  useEffect(() => {
+    const checkUserSession = async () => {
+      setLoading(true);
+      try {
+        const userProfile = await api.getProfile();
+        if (userProfile) {
+          setUser(userProfile);
+        }
+      } catch (error) {
+        console.error("Session check failed:", error);
+        logout();
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkUserSession();
+  }, [logout]);
+
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    setLoading(true);
+    try {
+      const loggedInUser = await api.login(email, password);
+      if (loggedInUser) {
+        setUser(loggedInUser);
+        setViewInternal(View.DASHBOARD);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Login failed:", error);
+      return false;
+    } finally {
+      setLoading(false);
+    }
   };
-  
+
   const setView = (newView: View, employeeId?: string) => {
     setViewInternal(newView);
     if (employeeId) {
@@ -63,75 +99,64 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const fetchEmployees = useCallback(async () => {
-    setLoading(true);
-    const data = await api.getEmployees();
-    setEmployees(data);
-    setLoading(false);
+    try {
+        const data = await api.getEmployees();
+        setEmployees(data);
+    } catch (error) {
+        console.error("Failed to fetch employees", error);
+    }
   }, []);
 
   const fetchAttendance = useCallback(async () => {
-    const data = await api.getAllAttendance();
-    setAttendance(data);
+    try {
+      const data = await api.getAllAttendance();
+      setAttendance(data);
+    } catch(e) { console.error(e); }
   }, []);
 
   const fetchApprovals = useCallback(async () => {
-    const data = await api.getApprovalRequests();
-    setApprovals(data);
+    try {
+      const data = await api.getApprovalRequests();
+      setApprovals(data);
+    } catch(e) { console.error(e); }
   }, []);
   
   const fetchHolidays = useCallback(async () => {
-    const data = await api.getPublicHolidays();
-    setHolidays(data);
+    try {
+      const data = await api.getPublicHolidays();
+      setHolidays(data);
+    } catch (e) { console.error(e); }
   }, []);
 
-  const updateEmployee = async (employeeData: Employee) => {
-    await api.updateEmployee(employeeData);
-    await fetchEmployees(); // Refresh list
-  };
-
-  const addEmployee = async (employeeData: Omit<Employee, 'id' | 'avatar'>) => {
-    await api.addEmployee(employeeData);
-    await fetchEmployees();
-  };
-
-  const handleApproval = async (id: string, status: 'Approved' | 'Rejected') => {
-    await api.updateApprovalStatus(id, status);
-    await fetchApprovals();
-  };
-
-  const performClockAction = async (employeeId: string, action: 'in' | 'out', time?: string, breakHours?: number) => {
-    if (action === 'in') {
-      await api.clockIn(employeeId, time);
-    } else {
-      await api.clockOut(employeeId, time, breakHours);
-    }
-    await fetchAttendance();
-  };
-
-  const fixMissingClockOut = async (recordId: string, clockOutTime: string) => {
-    await api.fixMissingClockOut(recordId, clockOutTime);
-    await fetchAttendance();
-  };
-
-  const addHoliday = async (holiday: PublicHoliday) => {
-    await api.addPublicHoliday(holiday);
-    await fetchHolidays();
-  };
-  
   useEffect(() => {
-    // FIX: Corrected typo from `constfetchAllData` to `const fetchAllData`.
-    const fetchAllData = async () => {
-      setLoading(true);
-      await Promise.all([fetchEmployees(), fetchAttendance(), fetchApprovals(), fetchHolidays()]);
-      setLoading(false);
+    if (user) {
+      const fetchAllData = async () => {
+        setLoading(true);
+        // Mocking data fetching for now, replace with API calls
+        await new Promise(res => setTimeout(res, 500));
+        setEmployees([]);
+        setAttendance([]);
+        setApprovals([]);
+        setHolidays([]);
+        // await Promise.all([fetchEmployees(), fetchAttendance(), fetchApprovals(), fetchHolidays()]);
+        setLoading(false);
+      }
+      fetchAllData();
     }
-    fetchAllData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user, fetchEmployees, fetchAttendance, fetchApprovals, fetchHolidays]);
+
+  // Placeholder implementations for actions
+  const updateEmployee = async (employeeData: Employee) => { console.log('updateEmployee', employeeData); };
+  const addEmployee = async (employeeData: Omit<Employee, 'id' | 'avatar'>) => { console.log('addEmployee', employeeData); };
+  const handleApproval = async (id: string, status: 'Approved' | 'Rejected') => { console.log('handleApproval', id, status); };
+  const performClockAction = async (employeeId: string, action: 'in' | 'out', time?: string, breakHours?: number) => { console.log('performClockAction', employeeId, action); };
+  const fixMissingClockOut = async (recordId: string, clockOutTime: string) => { console.log('fixMissingClockOut', recordId, clockOutTime); };
+  const addHoliday = async (holiday: PublicHoliday) => { console.log('addHoliday', holiday); };
+  
 
   return (
     <AppContext.Provider value={{
-      user, setUserRole,
+      user, login, logout,
       view, setView,
       employees,
       attendance,

@@ -1,118 +1,151 @@
+import { Employee, AttendanceRecord, ApprovalRequest, AuditLog, PublicHoliday, User, Role } from '../types';
+import { jwtDecode } from 'jwt-decode';
 
-import { Employee, AttendanceRecord, ApprovalRequest, AuditLog, PublicHoliday } from '../types';
+const API_BASE_URL = 'http://localhost:5001/api'; // Backend server URL
 
-// --- SEED DATA ---
-let employees: Employee[] = [
-  { id: 'emp-001', name: 'Alice Johnson', email: 'alice.j@example.com', position: 'Senior Frontend Engineer', department: 'Technology', managerId: 'emp-002', hireDate: '2022-03-15', avatar: 'https://picsum.photos/seed/alice/200', status: 'Active', nid: 'encrypted_nid_1', bankDetails: 'encrypted_bank_1' },
-  { id: 'emp-002', name: 'Bob Williams', email: 'bob.w@example.com', position: 'Engineering Manager', department: 'Technology', hireDate: '2021-08-01', avatar: 'https://picsum.photos/seed/bob/200', status: 'Active', nid: 'encrypted_nid_2', bankDetails: 'encrypted_bank_2' },
-  { id: 'emp-003', name: 'Charlie Brown', email: 'charlie.b@example.com', position: 'UI/UX Designer', department: 'Design', managerId: 'emp-002', hireDate: '2023-01-20', avatar: 'https://picsum.photos/seed/charlie/200', status: 'Active', nid: 'encrypted_nid_3', bankDetails: 'encrypted_bank_3' },
-  { id: 'emp-004', name: 'Diana Prince', email: 'diana.p@example.com', position: 'HR Specialist', department: 'Human Resources', managerId: 'emp-005', hireDate: '2022-09-10', avatar: 'https://picsum.photos/seed/diana/200', status: 'Active', nid: 'encrypted_nid_4', bankDetails: 'encrypted_bank_4' },
-  { id: 'emp-005', name: 'Ethan Hunt', email: 'ethan.h@example.com', position: 'HR Director', department: 'Human Resources', hireDate: '2020-05-25', avatar: 'https://picsum.photos/seed/ethan/200', status: 'Active', nid: 'encrypted_nid_5', bankDetails: 'encrypted_bank_5' },
-];
+interface DecodedToken {
+  id: string;
+  name: string;
+  role: Role;
+  employeeId: string;
+  iat: number;
+  exp: number;
+}
 
-let attendance: AttendanceRecord[] = [
-  { id: 'att-001', employeeId: 'emp-001', date: '2024-07-28', clockIn: '09:02', clockOut: '17:30', status: 'Present', breakHours: 0.5 },
-  { id: 'att-002', employeeId: 'emp-003', date: '2024-07-28', clockIn: '08:55', clockOut: '17:35', status: 'Present', breakHours: 1 },
-  { id: 'att-003', employeeId: 'emp-004', date: '2024-07-28', clockIn: null, clockOut: null, status: 'On Leave' },
-  { id: 'att-004', employeeId: 'emp-001', date: '2024-07-29', clockIn: '08:58', clockOut: '17:25', status: 'Present', breakHours: 1 },
-];
+const getToken = () => localStorage.getItem('token');
 
-let approvals: ApprovalRequest[] = [
-  { id: 'appr-001', employeeId: 'emp-003', employeeName: 'Charlie Brown', type: 'Attendance Correction', date: '2024-07-26', details: 'Forgot to clock out. Actual clock out time: 18:00', status: 'Pending' },
-  { id: 'appr-002', employeeId: 'emp-001', employeeName: 'Alice Johnson', type: 'Leave Request', date: '2024-08-05', details: 'Family event.', status: 'Pending' },
-];
-
-let auditLogs: { [employeeId: string]: AuditLog[] } = {
-  'emp-001': [
-    { id: 'log-001', timestamp: '2024-07-20 10:00', user: 'Diana Prince (HR)', action: 'UPDATE', details: 'Updated bank details.' },
-    { id: 'log-002', timestamp: '2022-03-15 09:00', user: 'System', action: 'CREATE', details: 'Employee record created.' },
-  ]
+const getAuthHeader = () => {
+  const token = getToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
 };
 
-let holidays: PublicHoliday[] = [
-  { date: '2024-01-01', name: "New Year's Day" },
-  { date: '2024-12-25', name: 'Christmas Day' },
-];
+const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+      ...options.headers,
+    },
+  });
 
-const simulateDelay = <T,>(data: T): Promise<T> => {
-  // FIX: Handle undefined, as JSON.stringify(undefined) is not valid for JSON.parse.
-  // We convert undefined to null, which is a valid JSON value.
-  const serializableData = data === undefined ? null : data;
-  return new Promise(resolve => setTimeout(() => resolve(JSON.parse(JSON.stringify(serializableData))), 500));
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+    throw new Error(errorData.message || 'API request failed');
+  }
+  // Handle cases with no content in response body
+  if (response.status === 204) {
+      return null as T;
+  }
+
+  return response.json();
 };
 
-// --- API FUNCTIONS ---
 
 export const api = {
-  getEmployees: () => simulateDelay(employees),
-  getEmployeeById: (id: string) => simulateDelay(employees.find(e => e.id === id)),
-  updateEmployee: (employeeData: Employee) => {
-    employees = employees.map(e => e.id === employeeData.id ? employeeData : e);
-    return simulateDelay(employeeData);
-  },
-  addEmployee: (employeeData: Omit<Employee, 'id' | 'avatar'>) => {
-    const newEmployee: Employee = {
-      ...employeeData,
-      id: `emp-${String(Date.now()).slice(-4)}`,
-      avatar: `https://picsum.photos/seed/${employeeData.name.split(' ')[0]}/200`,
-    };
-    employees.push(newEmployee);
-    return simulateDelay(newEmployee);
-  },
-  getAttendanceForEmployee: (employeeId: string) => simulateDelay(attendance.filter(a => a.employeeId === employeeId)),
-  getAllAttendance: () => simulateDelay(attendance),
-  clockIn: (employeeId: string, time?: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    let record = attendance.find(a => a.employeeId === employeeId && a.date === today);
-    const clockInTime = time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit'});
-    if (!record) {
-      record = { id: `att-${Date.now()}`, employeeId, date: today, clockIn: clockInTime, clockOut: null, status: 'Present' };
-      attendance.push(record);
-    } else if (!record.clockIn) {
-      record.clockIn = clockInTime;
-      record.status = 'Present';
+  login: async (email: string, password: string): Promise<User | null> => {
+    const { token } = await request<{ token: string }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (token) {
+      localStorage.setItem('token', token);
+      const decoded: DecodedToken = jwtDecode(token);
+      return {
+        id: `user-${decoded.employeeId}`,
+        name: decoded.name,
+        role: decoded.role,
+        employeeId: decoded.employeeId,
+      };
     }
-    return simulateDelay(record);
+    return null;
   },
-  clockOut: (employeeId: string, time?: string, breakHours?: number) => {
-    const today = new Date().toISOString().split('T')[0];
-    const record = attendance.find(a => a.employeeId === employeeId && a.date === today);
-    if (record && record.clockIn) {
-      record.clockOut = time || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit'});
-      if (breakHours !== undefined) {
-        record.breakHours = breakHours;
-      }
+
+  getProfile: async (): Promise<User | null> => {
+    if (!getToken()) return null;
+    
+    // In a real app, you might have a dedicated /me endpoint.
+    // For now, we decode the token which is safe for non-sensitive UI data.
+    const token = getToken();
+    if(token) {
+      const decoded: DecodedToken = jwtDecode(token);
+      return {
+        id: `user-${decoded.employeeId}`,
+        name: decoded.name,
+        role: decoded.role,
+        employeeId: decoded.employeeId,
+      };
     }
-    return simulateDelay(record);
+    return null;
   },
-  fixMissingClockOut: (recordId: string, clockOutTime: string) => {
-    const record = attendance.find(a => a.id === recordId);
-    if (record) {
-      record.clockOut = clockOutTime;
-    }
-    return simulateDelay(record);
-  },
-  getTodayAttendanceForEmployee: (employeeId: string) => {
-     const today = new Date().toISOString().split('T')[0];
-     const record = attendance.find(a => a.employeeId === employeeId && a.date === today);
-     return simulateDelay(record);
-  },
-  getApprovalRequests: () => simulateDelay(approvals),
-  updateApprovalStatus: (id: string, status: 'Approved' | 'Rejected') => {
-    const request = approvals.find(a => a.id === id);
-    if (request) {
-      request.status = status;
-    }
-    return simulateDelay(request);
-  },
-  getAuditLogsForEmployee: (employeeId: string) => simulateDelay(auditLogs[employeeId] || []),
   
-  getPublicHolidays: () => simulateDelay(holidays),
-  addPublicHoliday: (holiday: PublicHoliday) => {
-    if (!holidays.some(h => h.date === holiday.date)) {
-      holidays.push(holiday);
-      holidays.sort((a, b) => a.date.localeCompare(b.date));
-    }
-    return simulateDelay(holiday);
-  },
+  // The following functions are placeholders and need to be implemented in the backend.
+  getEmployees: (): Promise<Employee[]> => request('/employees'),
+  getEmployeeById: (id: string): Promise<Employee> => request(`/employees/${id}`),
+  updateEmployee: (employeeData: Employee): Promise<Employee> => request(`/employees/${employeeData.id}`, {
+    method: 'PUT',
+    body: JSON.stringify(employeeData),
+  }),
+  addEmployee: (employeeData: Omit<Employee, 'id' | 'avatar'>): Promise<Employee> => request('/employees', {
+    method: 'POST',
+    body: JSON.stringify(employeeData),
+  }),
+
+  getAttendanceForEmployee: (employeeId: string): Promise<AttendanceRecord[]> => request(`/attendance/employee/${employeeId}`),
+  getAllAttendance: (): Promise<AttendanceRecord[]> => request('/attendance'),
+  
+  clockIn: (employeeId: string, time?: string): Promise<AttendanceRecord> => request('/attendance/clock-in', {
+    method: 'POST',
+    body: JSON.stringify({ employeeId, time }),
+  }),
+  clockOut: (employeeId: string, time?: string, breakHours?: number): Promise<AttendanceRecord> => request('/attendance/clock-out', {
+    method: 'POST',
+    body: JSON.stringify({ employeeId, time, breakHours }),
+  }),
+  fixMissingClockOut: (recordId: string, clockOutTime: string): Promise<AttendanceRecord> => request(`/attendance/fix-missing-clock-out`, {
+      method: 'POST',
+      body: JSON.stringify({ recordId, clockOutTime }),
+  }),
+  getTodayAttendanceForEmployee: (employeeId: string): Promise<AttendanceRecord | null> => request(`/attendance/today/${employeeId}`),
+
+  getApprovalRequests: (): Promise<ApprovalRequest[]> => request('/approvals'),
+  updateApprovalStatus: (id: string, status: 'Approved' | 'Rejected'): Promise<ApprovalRequest> => request(`/approvals/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  }),
+
+  getAuditLogsForEmployee: (employeeId: string): Promise<AuditLog[]> => request(`/audit-logs/${employeeId}`),
+  
+  getPublicHolidays: (): Promise<PublicHoliday[]> => request('/holidays'),
+  addPublicHoliday: (holiday: PublicHoliday): Promise<PublicHoliday> => request('/holidays', {
+    method: 'POST',
+    body: JSON.stringify(holiday),
+  }),
 };
+
+// Simple jwt-decode polyfill
+const b64Decode = (str: string) =>
+  decodeURIComponent(
+    atob(str.replace(/-/g, '+').replace(/_/g, '/'))
+      .split('')
+      .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+      .join('')
+  );
+
+// Add jwt-decode to the global scope if it's not already there.
+// This is a simplified implementation for demonstration purposes.
+if (typeof (window as any).jwt_decode === 'undefined') {
+  (window as any).jwt_decode = (token: string) => {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw new Error('Invalid token');
+      }
+      const payload = parts[1];
+      return JSON.parse(b64Decode(payload));
+    } catch (e) {
+      throw new Error('Failed to decode token');
+    }
+  };
+}
