@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // change if using MySQL/SQLite
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  employeeId   String    @unique
+  name         String
+  email        String    @unique
+  passwordHash String
+  position     String?
+  department   String?
+  role         Role
+  status       String?
+  hireDate     DateTime?
+  avatar       String?
+
+  managerId Int?
+  manager   User?  @relation("ManagerEmployees", fields: [managerId], references: [id])
+  employees User[] @relation("ManagerEmployees")
+
+  attendanceRecords AttendanceRecord[]
+  approvalRequests  ApprovalRequest[]
+}
+
+model AttendanceRecord {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  employee   User     @relation(fields: [employeeId], references: [id])
+  date       DateTime
+  clockIn    String?
+  clockOut   String?
+  status     String
+  breakHours Float?
+}
+
+model ApprovalRequest {
+  id         Int      @id @default(autoincrement())
+  employeeId Int
+  employee   User     @relation(fields: [employeeId], references: [id])
+  type       String
+  date       DateTime
+  details    String?
+  status     String
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN_HR
+}
