@@ -1,7 +1,7 @@
 import { Employee, AttendanceRecord, ApprovalRequest, AuditLog, PublicHoliday, User, Role } from '../types';
 import { jwtDecode } from 'jwt-decode';
 
-const API_BASE_URL = 'http://localhost:5001/api'; // Backend server URL
+const API_BASE_URL = 'http://localhost:5000/api'; // Backend server URL
 
 interface DecodedToken {
   id: string;
