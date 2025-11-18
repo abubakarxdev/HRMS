@@ -1,14 +1,13 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-const authRoutes = require('./auth.routes');
+const authRoutes = require("./auth.routes");
+const employeeRoutes = require("./employee.routes");
 
 // Mount auth routes
-router.use('/auth', authRoutes);
+router.use("/auth", authRoutes);
 
-
-// Placeholder for future routes
-// const employeeRoutes = require('./employee.routes');
-// router.use('/employees', employeeRoutes);
+// Mount employee routes
+router.use("/", employeeRoutes);
 
 module.exports = router;
