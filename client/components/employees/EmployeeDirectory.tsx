@@ -3,11 +3,13 @@ import Card from "../ui/Card";
 import Button from "../ui/Button";
 import Input from "../ui/Input";
 import { useAppContext } from "../../contexts/AppContext";
-import { View } from "../../types";
+import { useNavigate } from "react-router-dom";
+import { NAVIGATION_PATHS } from "@/constants";
 
 const EmployeeDirectory: React.FC = () => {
-  const { employees, setView, loading, user } = useAppContext();
+  const { employees, loading, user } = useAppContext();
   const [searchTerm, setSearchTerm] = useState("");
+  const navigate = useNavigate();
 
   const filteredEmployees = employees.filter(
     (employee) =>
@@ -18,7 +20,7 @@ const EmployeeDirectory: React.FC = () => {
 
   // Function to handle adding a new employee
   const handleAddEmployee = () => {
-    setView(View.ADD_EMPLOYEE);
+    navigate(`${NAVIGATION_PATHS.EMPLOYEES}/add`);
   };
 
   const canAddEmployee = user?.role === "ADMIN_HR";
@@ -127,7 +129,9 @@ const EmployeeDirectory: React.FC = () => {
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => setView(View.PROFILE, employee.id)}
+                      onClick={() =>
+                        navigate(`${NAVIGATION_PATHS.EMPLOYEES}/:employeeId`)
+                      }
                     >
                       View Profile
                     </Button>
