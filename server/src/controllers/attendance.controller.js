@@ -6,6 +6,15 @@ const asyncHandler = (fn) => (req, res, next) => {
 };
 
 /**
+ * Get all attendance records.
+ * Route: GET /api/attendance
+ */
+const getAllAttendance = asyncHandler(async (req, res) => {
+  const attendance = await attendanceService.getAllAttendance();
+  res.status(200).json(attendance);
+});
+
+/**
  * Get attendance for an employee.
  * Route: GET /api/attendance/employee/:employeeId
  */
@@ -30,8 +39,8 @@ const clockIn = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/clock-out
  */
 const clockOut = asyncHandler(async (req, res) => {
-  const { employeeId } = req.body;
-  const result = await attendanceService.clockOut(employeeId);
+  const { employeeId, customTime } = req.body;
+  const result = await attendanceService.clockOut(employeeId, customTime);
   res.status(200).json(result);
 });
 
@@ -58,8 +67,8 @@ const getTodayAttendance = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/break/start
  */
 const startBreak = asyncHandler(async (req, res) => {
-  const { employeeId, breakType } = req.body;
-  const result = await attendanceService.startBreak(employeeId, breakType);
+  const { employeeId, breakType, customTime } = req.body;
+  const result = await attendanceService.startBreak(employeeId, breakType, customTime);
   res.status(200).json(result);
 });
 
@@ -73,6 +82,7 @@ const endBreak = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getAllAttendance,
   getAttendanceForEmployee,
   clockIn,
   clockOut,
