@@ -42,7 +42,6 @@ const createEmployee = async (employeeData) => {
     hireDate: parsedHireDate,
   };
 
-  // --- FIX: Add error handling for unique constraint violation (duplicate email) ---
   try {
     return await employeeRepository.createEmployee(newEmployee);
   } catch (error) {
