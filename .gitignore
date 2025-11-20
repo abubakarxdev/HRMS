@@ -1,4 +1,6 @@
+# --------------------------
 # Logs
+# --------------------------
 logs
 *.log
 npm-debug.log*
@@ -7,12 +9,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
+# --------------------------
 # Editor directories and files
+# --------------------------
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -23,45 +22,44 @@ dist-ssr
 *.sln
 *.sw?
 
-
-# --------------------------
-# FRONTEND (React)
-# --------------------------
-node_modules
-build
-.env
-.env.*
-.DS_Store
-Thumbs.db
-
-# --------------------------
-# BACKEND (Node/Express)
-# --------------------------
-backend/node_modules
-backend/.env
-backend/.env.*
-backend/logs
-backend/*.log
-backend/dist
-backend/build
-backend/tmp
-backend/.cache
-
-# Prisma
-backend/prisma/dev.db
-backend/prisma/*.db
-backend/prisma/*.db-journal
-
 # --------------------------
 # Common
 # --------------------------
-.DS_Store
-Thumbs.db
-*.log
+node_modules
+dist
+dist-ssr
+*.local
 *.tmp
 *.swp
 *.lock
+Thumbs.db
 
-# Editor settings
-.vscode
-.idea
+# --------------------------
+# FRONTEND (React) – client/
+# --------------------------
+client/node_modules
+client/build
+client/dist
+client/.env
+client/.env.*
+client/.cache
+client/coverage
+
+# --------------------------
+# BACKEND (Node/Express) – server/
+# --------------------------
+server/node_modules
+server/dist
+server/build
+server/tmp
+server/logs
+server/.cache
+server/*.log
+server/.env
+server/.env.*
+server/coverage
+
+# Prisma
+server/prisma/dev.db
+server/prisma/*.db
+server/prisma/*.db-journal
