@@ -3,9 +3,30 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // change if using MySQL/SQLite
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ===================================
+// ENUMS
+// ===================================
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN_HR
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// ===================================
+// CORE MODELS
+// ===================================
 
 model User {
   id           Int       @id @default(autoincrement())
@@ -16,27 +37,36 @@ model User {
   position     String?
   department   String?
   role         Role
-  status       String?
+  status       String?   @default("Active")
   hireDate     DateTime?
-  avatar       String?
+  nid          String? // National ID or SSN
+  bankDetails  String? // For payroll purposes
 
-  managerId Int?
+  // --- Relational Fields for Hierarchy ---
+  managerId Int? // ID of the manager
   manager   User?  @relation("ManagerEmployees", fields: [managerId], references: [id])
-  employees User[] @relation("ManagerEmployees")
+  employees User[] @relation("ManagerEmployees") // Employees reporting to this user
 
+  // --- System/Attendance Fields ---
+  avatar            String?
   attendanceRecords AttendanceRecord[]
   approvalRequests  ApprovalRequest[]
+  leaveRequests     LeaveRequest[] // For leave management
+  auditLogs         AuditLog[] // Track actions taken by this user
 }
 
 model AttendanceRecord {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   employeeId Int
-  employee   User     @relation(fields: [employeeId], references: [id])
-  date       DateTime
-  clockIn    String?
-  clockOut   String?
-  status     String
+  employee   User      @relation(fields: [employeeId], references: [id])
+  date       DateTime  @default(now()) @db.Date
+  clockIn    DateTime?
+  clockOut   DateTime?
+  status     String    @default("Present")
   breakHours Float?
+  totalHours Float?
+
+  @@unique([employeeId, date], name: "unique_attendance_per_day")
 }
 
 model ApprovalRequest {
@@ -49,8 +79,39 @@ model ApprovalRequest {
   status     String
 }
 
-enum Role {
-  EMPLOYEE
-  MANAGER
-  ADMIN_HR
+// --- Leave Management Models ---
+model LeaveRequest {
+  id              Int         @id @default(autoincrement())
+  employeeId      Int
+  employee        User        @relation(fields: [employeeId], references: [id])
+  typeId          Int
+  leaveType       LeaveType   @relation(fields: [typeId], references: [id])
+  startDate       DateTime    @db.Date
+  endDate         DateTime    @db.Date
+  reason          String?
+  status          LeaveStatus @default(PENDING)
+  managerComments String?
+
+  reviewedBy Int?
+
+  @@index([employeeId, status])
+}
+
+model LeaveType {
+  id          Int            @id @default(autoincrement())
+  name        String         @unique
+  description String?
+  requests    LeaveRequest[]
+}
+
+// --- Audit Tracking Model ---
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int
+  actor      User     @relation(fields: [actorId], references: [id])
+  action     String // e.g., "CREATE_EMPLOYEE", "APPROVE_LEAVE"
+  targetType String // e.g., "User", "LeaveRequest"
+  targetId   String // ID of the record affected
+  details    String? // JSON string containing before/after data
+  timestamp  DateTime @default(now())
 }
