@@ -17,10 +17,15 @@ const AttendanceDashboard: React.FC = () => {
   // Custom Time State
   const [showCustomTime, setShowCustomTime] = useState(false);
   const [customCheckInTime, setCustomCheckInTime] = useState('');
+  
+  // Custom Clock Out State
+  const [showCustomClockOut, setShowCustomClockOut] = useState(false);
+  const [customClockOutTime, setCustomClockOutTime] = useState('');
 
   // Break State
   const [showBreakModal, setShowBreakModal] = useState(false);
-  const [breakType, setBreakType] = useState<'DEFAULT' | 'CUSTOM'>('DEFAULT');
+  const [breakType, setBreakType] = useState<'DEFAULT' | 'NO_BREAK' | 'CUSTOM'>('DEFAULT');
+  const [customBreakTime, setCustomBreakTime] = useState('');
 
   const fetchData = useCallback(async () => {
     if (!user?.employeeId) return;
@@ -64,8 +69,11 @@ const AttendanceDashboard: React.FC = () => {
     if (!user?.employeeId) return;
     setLoading(true);
     try {
-      await api.clockOut(user.employeeId);
+      const timeToSend = showCustomClockOut && customClockOutTime ? new Date(customClockOutTime).toISOString() : undefined;
+      await api.clockOut(user.employeeId, timeToSend);
       await fetchData();
+      setShowCustomClockOut(false);
+      setCustomClockOutTime('');
       toast.success("Clocked out successfully!");
     } catch (error) {
       console.error("Clock out failed", error);
@@ -77,11 +85,21 @@ const AttendanceDashboard: React.FC = () => {
 
   const handleStartBreak = async () => {
       if (!user?.employeeId) return;
+      
+      // Handle NO_BREAK option - just close modal
+      if (breakType === 'NO_BREAK') {
+          setShowBreakModal(false);
+          toast.success("Continuing without break!");
+          return;
+      }
+      
       setLoading(true);
       try {
-          await api.startBreak(user.employeeId, breakType);
+          const timeToSend = breakType === 'CUSTOM' && customBreakTime ? new Date(customBreakTime).toISOString() : undefined;
+          await api.startBreak(user.employeeId, breakType, timeToSend);
           await fetchData();
           setShowBreakModal(false);
+          setCustomBreakTime('');
           toast.success("Break started!");
       } catch (error) {
           console.error("Start break failed", error);
@@ -206,7 +224,27 @@ const AttendanceDashboard: React.FC = () => {
                             </Button>
                         ) : (
                             <>
-                                <Button onClick={handleClockOut} disabled={loading} variant="danger">
+                                <div className="w-full md:w-auto">
+                                    <label className="flex items-center space-x-2 mb-2">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={showCustomClockOut} 
+                                            onChange={(e) => setShowCustomClockOut(e.target.checked)}
+                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-sm text-gray-700">Custom Clock Out Time</span>
+                                    </label>
+                                    {showCustomClockOut && (
+                                        <input 
+                                            type="datetime-local" 
+                                            value={customClockOutTime}
+                                            onChange={(e) => setCustomClockOutTime(e.target.value)}
+                                            className="block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                                        />
+                                    )}
+                                </div>
+                                
+                                <Button onClick={handleClockOut} disabled={loading || (showCustomClockOut && !customClockOutTime)} variant="danger">
                                     Clock Out
                                 </Button>
                                 <Button onClick={() => setShowBreakModal(true)} variant="secondary" disabled={loading}>
@@ -230,16 +268,32 @@ const AttendanceDashboard: React.FC = () => {
                           <label className="block text-sm font-medium text-gray-700">Break Type</label>
                           <select 
                               value={breakType} 
-                              onChange={(e) => setBreakType(e.target.value as 'DEFAULT' | 'CUSTOM')}
+                              onChange={(e) => setBreakType(e.target.value as 'DEFAULT' | 'NO_BREAK' | 'CUSTOM')}
                               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
                           >
                               <option value="DEFAULT">Default (1:00 PM - 2:00 PM / Fri 2:30 PM)</option>
+                              <option value="NO_BREAK">No Break</option>
                               <option value="CUSTOM">Custom</option>
                           </select>
                       </div>
+                      
+                      {breakType === 'CUSTOM' && (
+                          <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Custom Break Time</label>
+                              <input 
+                                  type="datetime-local" 
+                                  value={customBreakTime}
+                                  onChange={(e) => setCustomBreakTime(e.target.value)}
+                                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                              />
+                          </div>
+                      )}
+                      
                       <div className="flex justify-end gap-3 mt-6">
                           <Button variant="secondary" onClick={() => setShowBreakModal(false)}>Cancel</Button>
-                          <Button onClick={handleStartBreak}>Start Break</Button>
+                          <Button onClick={handleStartBreak} disabled={breakType === 'CUSTOM' && !customBreakTime}>
+                              {breakType === 'NO_BREAK' ? 'Continue' : 'Start Break'}
+                          </Button>
                       </div>
                   </div>
               </div>
