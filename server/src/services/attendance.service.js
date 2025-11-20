@@ -18,6 +18,28 @@ const getUserId = async (employeeIdStr) => {
 };
 
 /**
+ * Get all attendance records
+ * @returns {Promise<Array>}
+ */
+const getAllAttendance = async () => {
+  return await prisma.attendanceRecord.findMany({
+    orderBy: {
+      date: "desc",
+    },
+    include: {
+      sessions: true,
+      employee: {
+        select: {
+          id: true,
+          employeeId: true,
+          name: true,
+        },
+      },
+    },
+  });
+};
+
+/**
  * Get attendance records for a specific employee
  * @param {string} employeeId
  * @returns {Promise<Array>}
@@ -90,9 +112,10 @@ const clockIn = async (employeeId, location = "Office", customTime = null) => {
 /**
  * Clock Out
  * @param {string} employeeId
+ * @param {string} customTime - Optional custom clock out time
  * @returns {Promise<Object>}
  */
-const clockOut = async (employeeId) => {
+const clockOut = async (employeeId, customTime) => {
   const userId = await getUserId(employeeId);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -123,7 +146,7 @@ const clockOut = async (employeeId) => {
   }
 
   // Update session with checkOut time
-  const checkOutTime = new Date();
+  const checkOutTime = customTime ? new Date(customTime) : new Date();
   await prisma.attendanceSession.update({
     where: { id: openSession.id },
     data: { checkOut: checkOutTime },
@@ -214,10 +237,11 @@ const getAttendanceStats = async (employeeId) => {
 /**
  * Start Break
  * @param {string} employeeId
- * @param {string} breakType - "DEFAULT" or "CUSTOM"
+ * @param {string} breakType - "DEFAULT", "NO_BREAK", or "CUSTOM"
+ * @param {string} customTime - Optional custom break start time
  * @returns {Promise<Object>}
  */
-const startBreak = async (employeeId, breakType = "DEFAULT") => {
+const startBreak = async (employeeId, breakType = "DEFAULT", customTime) => {
   const userId = await getUserId(employeeId);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -242,17 +266,19 @@ const startBreak = async (employeeId, breakType = "DEFAULT") => {
   const openSession = record.sessions.find((s) => !s.checkOut);
   if (openSession) {
     // End current work session
+    const endTime = customTime ? new Date(customTime) : new Date();
     await prisma.attendanceSession.update({
       where: { id: openSession.id },
-      data: { checkOut: new Date() },
+      data: { checkOut: endTime },
     });
   }
 
   // Start BREAK session
+  const breakStartTime = customTime ? new Date(customTime) : new Date();
   const session = await prisma.attendanceSession.create({
     data: {
       attendanceRecordId: record.id,
-      checkIn: new Date(),
+      checkIn: breakStartTime,
       type: "BREAK",
       location: "Break", // Placeholder
     },
@@ -336,6 +362,7 @@ const getTodayAttendance = async (employeeId) => {
 };
 
 module.exports = {
+  getAllAttendance,
   getAttendanceForEmployee,
   clockIn,
   clockOut,
