@@ -17,7 +17,7 @@ const getAllEmployees = async () => {
 const getEmployeeById = async (id) => {
   return prisma.user.findUnique({
     where: {
-      id: parseInt(id, 10), // Ensure ID is parsed as integer for Prisma
+      employeeId: id, // Query by employeeId string field
     },
   });
 };
