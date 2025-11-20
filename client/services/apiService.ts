@@ -104,13 +104,13 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ employeeId, location, customTime }),
   }),
-  clockOut: (employeeId: string): Promise<AttendanceRecord> => request('/attendance/clock-out', {
+  clockOut: (employeeId: string, customTime?: string): Promise<AttendanceRecord> => request('/attendance/clock-out', {
     method: 'POST',
-    body: JSON.stringify({ employeeId }),
+    body: JSON.stringify({ employeeId, customTime }),
   }),
-  startBreak: (employeeId: string, breakType: string): Promise<AttendanceRecord> => request('/attendance/break/start', {
+  startBreak: (employeeId: string, breakType: string, customTime?: string): Promise<AttendanceRecord> => request('/attendance/break/start', {
     method: 'POST',
-    body: JSON.stringify({ employeeId, breakType }),
+    body: JSON.stringify({ employeeId, breakType, customTime }),
   }),
   endBreak: (employeeId: string): Promise<AttendanceRecord> => request('/attendance/break/end', {
     method: 'POST',
