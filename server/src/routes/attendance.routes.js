@@ -3,6 +3,13 @@ const router = express.Router();
 const attendanceController = require("../controllers/attendance.controller");
 const authMiddleware = require("../middlewares/auth.middleware");
 
+// GET ALL ATTENDANCE
+router.get(
+  "/",
+  authMiddleware.protect,
+  attendanceController.getAllAttendance
+);
+
 // GET ATTENDANCE FOR EMPLOYEE
 router.get(
   "/employee/:employeeId",
