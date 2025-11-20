@@ -1,10 +1,39 @@
-import { Role, View } from './types';
+import { Role } from './types';
 
-export const ROLES: Role[] = [Role.ADMIN_HR, Role.MANAGER, Role.EMPLOYEE];
 
-export const NAVIGATION_ITEMS = [
-  { view: View.DASHBOARD, label: 'Dashboard', roles: [Role.ADMIN_HR, Role.MANAGER, Role.EMPLOYEE] },
-  { view: View.TEAM_ATTENDANCE, label: 'Team Attendance', roles: [Role.ADMIN_HR, Role.MANAGER, Role.EMPLOYEE] },
-  { view: View.EMPLOYEES, label: 'Employees', roles: [Role.ADMIN_HR, Role.MANAGER] },
-  { view: View.ATTENDANCE, label: 'Attendance', roles: [Role.ADMIN_HR, Role.MANAGER] },
+export const NAVIGATION_PATHS = {
+    DASHBOARD: '/',
+    EMPLOYEES: '/employees',
+    ATTENDANCE: '/attendance',
+    TEAM_ATTENDANCE: '/attendance/team',
+};
+
+
+interface NavigationItem {
+    path: string;
+    label: string;
+    roles: Role[]; 
+}
+
+export const NAVIGATION_ITEMS: NavigationItem[] = [
+    {
+        path: NAVIGATION_PATHS.DASHBOARD,
+        label: 'Dashboard',
+        roles: [Role.ADMIN_HR, Role.MANAGER, Role.EMPLOYEE],
+    },
+    {
+        path: NAVIGATION_PATHS.EMPLOYEES,
+        label: 'Employees',
+        roles: [Role.ADMIN_HR, Role.MANAGER], 
+    },
+    {
+        path: NAVIGATION_PATHS.ATTENDANCE,
+        label: 'Attendance',
+        roles: [Role.ADMIN_HR, Role.MANAGER, Role.EMPLOYEE],
+    },
+    {
+        path: NAVIGATION_PATHS.TEAM_ATTENDANCE,
+        label: 'Team Attendance',
+        roles: [Role.MANAGER , Role.ADMIN_HR], 
+    },
 ];

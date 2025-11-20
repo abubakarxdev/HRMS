@@ -8,31 +8,28 @@ import React, {
 import {
   User,
   Role,
-  View,
   Employee,
   AttendanceRecord,
   ApprovalRequest,
   PublicHoliday,
 } from "../types";
 import { api } from "../services/apiService";
-
 interface AppContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  view: View;
-  setView: (view: View, employeeId?: string) => void;
   employees: Employee[];
   attendance: AttendanceRecord[];
   approvals: ApprovalRequest[];
   holidays: PublicHoliday[];
   loading: boolean;
-  selectedEmployeeId: string | null;
+
   fetchEmployees: () => Promise<void>;
   fetchAttendance: () => Promise<void>;
   fetchApprovals: () => Promise<void>;
   updateEmployee: (employee: Employee) => Promise<void>;
   addEmployee: (employee: Omit<Employee, "id" | "avatar">) => Promise<void>;
+  deleteEmployee: (id: string) => Promise<void>;
   handleApproval: (
     id: string,
     status: "Approved" | "Rejected"
@@ -55,21 +52,16 @@ interface AppProviderProps {
 
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setViewInternal] = useState<View>(View.DASHBOARD);
+  // view and selectedEmployeeId are removed
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(
-    null
-  );
 
   const logout = useCallback(() => {
     localStorage.removeItem("token");
     setUser(null);
-    setViewInternal(View.DASHBOARD);
-    setSelectedEmployeeId(null);
     setEmployees([]);
     setAttendance([]);
     setApprovals([]);
@@ -100,7 +92,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const loggedInUser = await api.login(email, password);
       if (loggedInUser) {
         setUser(loggedInUser);
-        setViewInternal(View.DASHBOARD);
+        // Removed setViewInternal(View.DASHBOARD);
         return true;
       }
       return false;
@@ -112,14 +104,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
-  const setView = (newView: View, employeeId?: string) => {
-    setViewInternal(newView);
-    if (employeeId) {
-      setSelectedEmployeeId(employeeId);
-    } else if (newView !== View.PROFILE) {
-      setSelectedEmployeeId(null);
-    }
-  };
+  // setView function is removed
 
   const fetchEmployees = useCallback(async () => {
     try {
@@ -157,6 +142,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // Fetch all required data on user login
   useEffect(() => {
     if (user) {
       const fetchAllData = async () => {
@@ -183,24 +169,33 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const updateEmployee = async (employeeData: Employee) => {
     try {
       await api.updateEmployee(employeeData);
-      // Refresh the employee list after successful update
       await fetchEmployees();
       console.log("Employee updated successfully:", employeeData.id);
     } catch (error) {
       console.error("Failed to update employee:", error);
-      throw error; // Propagate error for UI handling
+      throw error;
     }
   };
 
   const addEmployee = async (employeeData: Omit<Employee, "id" | "avatar">) => {
     try {
       await api.addEmployee(employeeData);
-      // Refresh the employee list after successful creation
       await fetchEmployees();
       console.log("Employee added successfully:", employeeData.email);
     } catch (error) {
       console.error("Failed to add employee:", error);
-      throw error; // Propagate error for UI handling
+      throw error;
+    }
+  };
+
+  const deleteEmployee = async (id: string) => {
+    try {
+      await api.deleteEmployee(id);
+      await fetchEmployees();
+      console.log("Employee deleted successfully:", id);
+    } catch (error) {
+      console.error("Failed to delete employee:", error);
+      throw error;
     }
   };
 
@@ -210,12 +205,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   ) => {
     try {
       await api.updateApprovalStatus(id, status);
-      // Refresh the approvals list
       await fetchApprovals();
       console.log(`Approval request ${id} ${status}`);
     } catch (error) {
       console.error(`Failed to handle approval ${id}:`, error);
-      throw error; // Propagate error for UI handling
+      throw error;
     }
   };
 
@@ -231,36 +225,33 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       } else {
         await api.clockOut(employeeId, time, breakHours);
       }
-      // Refresh the attendance list
       await fetchAttendance();
       console.log(`Clock ${action} successful for ${employeeId}`);
     } catch (error) {
       console.error(`Failed to perform clock ${action} action:`, error);
-      throw error; // Propagate error for UI handling
+      throw error;
     }
   };
 
   const fixMissingClockOut = async (recordId: string, clockOutTime: string) => {
     try {
       await api.fixMissingClockOut(recordId, clockOutTime);
-      // Refresh the attendance list
       await fetchAttendance();
       console.log(`Fixed missing clock out for record ${recordId}`);
     } catch (error) {
       console.error(`Failed to fix missing clock out:`, error);
-      throw error; // Propagate error for UI handling
+      throw error;
     }
   };
 
   const addHoliday = async (holiday: PublicHoliday) => {
     try {
       await api.addPublicHoliday(holiday);
-      // Refresh the holidays list
       await fetchHolidays();
       console.log("Holiday added successfully:", holiday.name);
     } catch (error) {
       console.error("Failed to add holiday:", error);
-      throw error; // Propagate error for UI handling
+      throw error;
     }
   };
 
@@ -270,19 +261,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         user,
         login,
         logout,
-        view,
-        setView,
         employees,
         attendance,
         approvals,
         holidays,
         loading,
-        selectedEmployeeId,
         fetchEmployees,
         fetchAttendance,
         fetchApprovals,
         updateEmployee,
         addEmployee,
+        deleteEmployee,
         handleApproval,
         performClockAction,
         fixMissingClockOut,
