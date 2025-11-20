@@ -4,9 +4,10 @@ import Button from "../ui/Button";
 import FourSquare from "../ui/FourSquare";
 import FormField from "../ui/FormField";
 import { useAppContext } from "../../contexts/AppContext";
-import { View, Role } from "../../types";
+import { Role } from "../../types";
 import { employeeSchema } from "@/validations/employeeValidation";
-
+import { useNavigate } from "react-router-dom";
+import { NAVIGATION_PATHS } from "@/constants";
 const initialEmployeeState = {
   name: "",
   email: "",
@@ -23,10 +24,11 @@ const initialEmployeeState = {
 type FormKeys = keyof typeof initialEmployeeState;
 
 const AddEmployeeForm: React.FC = () => {
-  const { setView, addEmployee, loading } = useAppContext();
+  const { addEmployee, loading } = useAppContext();
   const [formData, setFormData] = useState(initialEmployeeState);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
+  const navigate = useNavigate();
 
   // Data options for dropdowns
   const roles = Object.values(Role);
@@ -81,7 +83,7 @@ const AddEmployeeForm: React.FC = () => {
       await addEmployee(validationResult.data);
 
       toast.success(`Employee ${formData.name} successfully created!`);
-      setView(View.EMPLOYEES);
+      navigate(NAVIGATION_PATHS.EMPLOYEES);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "An unknown error occurred.";
@@ -217,7 +219,7 @@ const AddEmployeeForm: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setView(View.EMPLOYEES)}
+              onClick={() => navigate(NAVIGATION_PATHS.EMPLOYEES)}
               disabled={isFormLoading}
             >
               Cancel
