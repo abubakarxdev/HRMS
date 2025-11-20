@@ -10,6 +10,7 @@ export enum View {
   PROFILE = 'Profile',
   ATTENDANCE = 'Attendance',
   TEAM_ATTENDANCE = 'Team Attendance',
+  ADD_EMPLOYEE = 'Add Employee Form'
 }
 
 export interface User {
