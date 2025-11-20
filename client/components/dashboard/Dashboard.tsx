@@ -5,6 +5,7 @@ import StatCard from './StatCard';
 import AttendanceWidget from './AttendanceWidget';
 import ApprovalsPanel from './ApprovalsPanel';
 import MyHoursSummaryCard from './MyHoursSummaryCard';
+import AttendanceStatsCard from './AttendanceStatsCard';
 import ManageHolidaysModal from '../admin/ManageHolidaysModal';
 import Button from '../ui/Button';
 import { Role } from '../../types';
@@ -57,6 +58,16 @@ const ManagerDashboard: React.FC = () => {
         return workdays * 8;
     }, [holidays]);
 
+    const todayAttendanceStats = useMemo(() => {
+        const today = new Date().toISOString().split('T')[0];
+        const todayRecords = attendance.filter(a => a.date === today);
+        
+        const checkedIn = todayRecords.filter(a => a.sessions?.some(s => !s.checkOut)).length;
+        const onLeave = todayRecords.filter(a => a.status === 'On Leave').length;
+        
+        return { checkedIn, onLeave };
+    }, [attendance]);
+
     const isPrivilegedUser = user.role === Role.ADMIN_HR || user.role === Role.MANAGER;
 
     return (
@@ -76,10 +87,13 @@ const ManagerDashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="Total Employees" value={employees.length} />
-                <StatCard title="On Leave Today" value={attendance.filter(a => a.status === 'On Leave' && a.date === new Date().toISOString().split('T')[0]).length} />
+                <StatCard title="Checked In Today" value={todayAttendanceStats.checkedIn} />
+                <StatCard title="On Leave Today" value={todayAttendanceStats.onLeave} />
                 <StatCard title="Pending Approvals" value={approvals.filter(a => a.status === 'Pending').length} />
-                <StatCard title="Target Hours This Month" value={`${targetHoursThisMonth} hrs`} />
             </div>
+
+            {/* Real-Time Attendance Stats */}
+            <AttendanceStatsCard />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1 space-y-8">
