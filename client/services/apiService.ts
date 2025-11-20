@@ -1,7 +1,7 @@
 import { Employee, AttendanceRecord, ApprovalRequest, AuditLog, PublicHoliday, User, Role } from '../types';
 import { jwtDecode } from 'jwt-decode';
 
-const API_BASE_URL = 'http://localhost:5000/api'; // Backend server URL
+const API_BASE_URL = 'http://localhost:5000/api';
 
 interface DecodedToken {
   id: string;
@@ -33,7 +33,7 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
     const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
     throw new Error(errorData.message || 'API request failed');
   }
-  // Handle cases with no content in response body
+  // Handle cases with no content in response body (like DELETE or successful PUT/PATCH without return)
   if (response.status === 204) {
       return null as T;
   }
@@ -44,6 +44,7 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   login: async (email: string, password: string): Promise<User | null> => {
+    // Implementation remains the same
     const { token } = await request<{ token: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
@@ -63,10 +64,9 @@ export const api = {
   },
 
   getProfile: async (): Promise<User | null> => {
+
     if (!getToken()) return null;
     
-    // In a real app, you might have a dedicated /me endpoint.
-    // For now, we decode the token which is safe for non-sensitive UI data.
     const token = getToken();
     if(token) {
       const decoded: DecodedToken = jwtDecode(token);
@@ -80,7 +80,7 @@ export const api = {
     return null;
   },
   
-  // The following functions are placeholders and need to be implemented in the backend.
+  // --- EMPLOYEE CRUD API INTEGRATION ---
   getEmployees: (): Promise<Employee[]> => request('/employees'),
   getEmployeeById: (id: string): Promise<Employee> => request(`/employees/${id}`),
   updateEmployee: (employeeData: Employee): Promise<Employee> => request(`/employees/${employeeData.id}`, {
@@ -91,7 +91,12 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(employeeData),
   }),
+  // New: Delete Employee
+  deleteEmployee: (id: string): Promise<void> => request<void>(`/employees/${id}`, {
+    method: 'DELETE',
+  }),
 
+  // --- ATTENDANCE APIS ---
   getAttendanceForEmployee: (employeeId: string): Promise<AttendanceRecord[]> => request(`/attendance/employee/${employeeId}`),
   getAllAttendance: (): Promise<AttendanceRecord[]> => request('/attendance'),
   
@@ -109,14 +114,17 @@ export const api = {
   }),
   getTodayAttendanceForEmployee: (employeeId: string): Promise<AttendanceRecord | null> => request(`/attendance/today/${employeeId}`),
 
+  // --- APPROVAL APIS ---
   getApprovalRequests: (): Promise<ApprovalRequest[]> => request('/approvals'),
   updateApprovalStatus: (id: string, status: 'Approved' | 'Rejected'): Promise<ApprovalRequest> => request(`/approvals/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
   }),
 
+  // --- AUDIT LOGS ---
   getAuditLogsForEmployee: (employeeId: string): Promise<AuditLog[]> => request(`/audit-logs/${employeeId}`),
   
+  // --- HOLIDAYS ---
   getPublicHolidays: (): Promise<PublicHoliday[]> => request('/holidays'),
   addPublicHoliday: (holiday: PublicHoliday): Promise<PublicHoliday> => request('/holidays', {
     method: 'POST',
@@ -134,7 +142,6 @@ const b64Decode = (str: string) =>
   );
 
 // Add jwt-decode to the global scope if it's not already there.
-// This is a simplified implementation for demonstration purposes.
 if (typeof (window as any).jwt_decode === 'undefined') {
   (window as any).jwt_decode = (token: string) => {
     try {
