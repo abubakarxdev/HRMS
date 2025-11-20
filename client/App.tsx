@@ -1,18 +1,21 @@
-import React from 'react';
-import { AppProvider, useAppContext } from './contexts/AppContext';
-import Layout from './components/layout/Layout';
-import Dashboard from './components/dashboard/Dashboard';
-import EmployeeDirectory from './components/employees/EmployeeDirectory';
-import EmployeeProfile from './components/employees/EmployeeProfile';
-import AttendanceReport from './components/attendance/AttendanceReport';
-import TeamSnapshot from './components/attendance/TeamSnapshot';
-import { View } from './types';
-import Login from './components/auth/Login';
+import React from "react";
+import { AppProvider, useAppContext } from "./contexts/AppContext";
+import Layout from "./components/layout/Layout";
+import Dashboard from "./components/dashboard/Dashboard";
+import EmployeeDirectory from "./components/employees/EmployeeDirectory";
+import EmployeeProfile from "./components/employees/EmployeeProfile";
+import AddEmployeeForm from "./components/employees/AddEmployeeForm";
+import AttendanceReport from "./components/attendance/AttendanceReport";
+import TeamSnapshot from "./components/attendance/TeamSnapshot";
+import { View } from "./types";
+import Login from "./components/auth/Login";
+import Toaster from "./components/ui/Toaster";
 
 const App: React.FC = () => {
   return (
     <AppProvider>
       <AuthGate />
+      <Toaster />
     </AppProvider>
   );
 };
@@ -21,10 +24,13 @@ const AuthGate: React.FC = () => {
   const { user, loading } = useAppContext();
 
   if (loading && !user) {
-    // A simple loading state before we know if user is logged in or not
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Toaster />
+      </div>
+    );
   }
-  
+
   if (!user) {
     return <Login />;
   }
@@ -41,8 +47,14 @@ const Main: React.FC = () => {
         return <Dashboard />;
       case View.EMPLOYEES:
         return <EmployeeDirectory />;
+      case View.ADD_EMPLOYEE:
+        return <AddEmployeeForm />;
       case View.PROFILE:
-        return selectedEmployeeId ? <EmployeeProfile employeeId={selectedEmployeeId} /> : <EmployeeDirectory />;
+        return selectedEmployeeId ? (
+          <EmployeeProfile employeeId={selectedEmployeeId} />
+        ) : (
+          <EmployeeDirectory />
+        );
       case View.ATTENDANCE:
         return <AttendanceReport />;
       case View.TEAM_ATTENDANCE:
@@ -52,11 +64,7 @@ const Main: React.FC = () => {
     }
   };
 
-  return (
-    <Layout>
-      {renderView()}
-    </Layout>
-  );
+  return <Layout>{renderView()}</Layout>;
 };
 
 export default App;
