@@ -135,7 +135,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const data = await api.getAllAttendance();
       setAttendance(data);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch attendance:", e);
     }
   }, []);
 
@@ -144,7 +144,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const data = await api.getApprovalRequests();
       setApprovals(data);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch approvals:", e);
     }
   }, []);
 
@@ -153,7 +153,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       const data = await api.getPublicHolidays();
       setHolidays(data);
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch holidays:", e);
     }
   }, []);
 
@@ -161,45 +161,107 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     if (user) {
       const fetchAllData = async () => {
         setLoading(true);
-        // Mocking data fetching for now, replace with API calls
-        await new Promise((res) => setTimeout(res, 500));
-        setEmployees([]);
-        setAttendance([]);
-        setApprovals([]);
-        setHolidays([]);
-        // await Promise.all([fetchEmployees(), fetchAttendance(), fetchApprovals(), fetchHolidays()]);
-        setLoading(false);
+        try {
+          await Promise.all([
+            fetchEmployees(),
+            fetchAttendance(),
+            fetchApprovals(),
+            fetchHolidays(),
+          ]);
+        } catch (error) {
+          console.error("Error fetching initial data:", error);
+        } finally {
+          setLoading(false);
+        }
       };
       fetchAllData();
     }
   }, [user, fetchEmployees, fetchAttendance, fetchApprovals, fetchHolidays]);
 
-  // Placeholder implementations for actions
+  // Implementations for actions using the API
+
   const updateEmployee = async (employeeData: Employee) => {
-    console.log("updateEmployee", employeeData);
+    try {
+      await api.updateEmployee(employeeData);
+      // Refresh the employee list after successful update
+      await fetchEmployees();
+      console.log("Employee updated successfully:", employeeData.id);
+    } catch (error) {
+      console.error("Failed to update employee:", error);
+      throw error; // Propagate error for UI handling
+    }
   };
+
   const addEmployee = async (employeeData: Omit<Employee, "id" | "avatar">) => {
-    console.log("addEmployee", employeeData);
+    try {
+      await api.addEmployee(employeeData);
+      // Refresh the employee list after successful creation
+      await fetchEmployees();
+      console.log("Employee added successfully:", employeeData.email);
+    } catch (error) {
+      console.error("Failed to add employee:", error);
+      throw error; // Propagate error for UI handling
+    }
   };
+
   const handleApproval = async (
     id: string,
     status: "Approved" | "Rejected"
   ) => {
-    console.log("handleApproval", id, status);
+    try {
+      await api.updateApprovalStatus(id, status);
+      // Refresh the approvals list
+      await fetchApprovals();
+      console.log(`Approval request ${id} ${status}`);
+    } catch (error) {
+      console.error(`Failed to handle approval ${id}:`, error);
+      throw error; // Propagate error for UI handling
+    }
   };
+
   const performClockAction = async (
     employeeId: string,
     action: "in" | "out",
     time?: string,
     breakHours?: number
   ) => {
-    console.log("performClockAction", employeeId, action);
+    try {
+      if (action === "in") {
+        await api.clockIn(employeeId, time);
+      } else {
+        await api.clockOut(employeeId, time, breakHours);
+      }
+      // Refresh the attendance list
+      await fetchAttendance();
+      console.log(`Clock ${action} successful for ${employeeId}`);
+    } catch (error) {
+      console.error(`Failed to perform clock ${action} action:`, error);
+      throw error; // Propagate error for UI handling
+    }
   };
+
   const fixMissingClockOut = async (recordId: string, clockOutTime: string) => {
-    console.log("fixMissingClockOut", recordId, clockOutTime);
+    try {
+      await api.fixMissingClockOut(recordId, clockOutTime);
+      // Refresh the attendance list
+      await fetchAttendance();
+      console.log(`Fixed missing clock out for record ${recordId}`);
+    } catch (error) {
+      console.error(`Failed to fix missing clock out:`, error);
+      throw error; // Propagate error for UI handling
+    }
   };
+
   const addHoliday = async (holiday: PublicHoliday) => {
-    console.log("addHoliday", holiday);
+    try {
+      await api.addPublicHoliday(holiday);
+      // Refresh the holidays list
+      await fetchHolidays();
+      console.log("Holiday added successfully:", holiday.name);
+    } catch (error) {
+      console.error("Failed to add holiday:", error);
+      throw error; // Propagate error for UI handling
+    }
   };
 
   return (
