@@ -10,8 +10,21 @@ import Button from '../ui/Button';
 import { Role } from '../../types';
 import MissedClockOutAlert from './MissedClockOutAlert';
 import ResolveMissingClockOutModal from '../attendance/ResolveMissingClockOutModal';
+import EmployeeDashboard from './EmployeeDashboard';
 
 const Dashboard: React.FC = () => {
+    const { user } = useAppContext();
+
+    // Route to EmployeeDashboard for regular employees
+    if (user.role === Role.EMPLOYEE) {
+        return <EmployeeDashboard />;
+    }
+
+    // Manager/HR Dashboard (original content)
+    return <ManagerDashboard />;
+};
+
+const ManagerDashboard: React.FC = () => {
     const { employees, attendance, approvals, user, holidays } = useAppContext();
     const [isHolidaysModalOpen, setIsHolidaysModalOpen] = useState(false);
     const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
@@ -71,7 +84,6 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1 space-y-8">
                     <MyHoursSummaryCard />
-                    <AttendanceWidget />
                 </div>
                 {isPrivilegedUser && (
                     <div className="lg:col-span-2">

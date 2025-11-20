@@ -20,27 +20,12 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
 
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   
-  const recordToFix = useMemo(() => 
-      attendance.find(a => 
-          a.employeeId === employee.id && 
-          a.clockIn && 
-          !a.clockOut && 
-          a.date !== today
-      ), [attendance, employee.id, today]);
+  const recordToFix = undefined; // Legacy fix logic disabled for now
+
 
   useEffect(() => {
-    const calculateHours = (record: AttendanceRecord, endTime?: string): number => {
-      if (!record.clockIn) return 0;
-      const effectiveEndTime = endTime || record.clockOut;
-      if (!effectiveEndTime) return 0;
+    // Legacy calculateHours removed
 
-      const start = new Date(`1970-01-01T${record.clockIn}`);
-      const end = new Date(`1970-01-01T${effectiveEndTime}`);
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
-
-      const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      return duration - (record.breakHours || 0);
-    };
 
     const calculateAllHours = () => {
         const now = new Date();
@@ -48,11 +33,31 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
 
         let liveHoursToday = 0;
         if (todayRecord) {
-            if (todayRecord.clockIn && todayRecord.clockOut) {
-                liveHoursToday = calculateHours(todayRecord);
-            } else if (todayRecord.clockIn) {
-                const currentTimeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                liveHoursToday = calculateHours(todayRecord, currentTimeStr);
+            // Use totalHours from backend if available (for closed records) or calculate from sessions
+            if (todayRecord.totalHours) {
+                liveHoursToday = todayRecord.totalHours;
+            }
+            
+            // If there are sessions, calculate live time for open sessions
+            if (todayRecord.sessions) {
+                let sessionHours = 0;
+                todayRecord.sessions.forEach(session => {
+                    if (session.checkOut) {
+                        const start = new Date(session.checkIn).getTime();
+                        const end = new Date(session.checkOut).getTime();
+                        sessionHours += (end - start) / (1000 * 60 * 60);
+                    } else {
+                        // Open session
+                        const start = new Date(session.checkIn).getTime();
+                        const end = now.getTime();
+                        sessionHours += (end - start) / (1000 * 60 * 60);
+                    }
+                });
+                // Use calculated session hours if it's more accurate (e.g. live update)
+                liveHoursToday = sessionHours;
+            } else {
+                 // Fallback or no data
+                 liveHoursToday = 0;
             }
         }
 
@@ -61,15 +66,15 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
         startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const pastRecords = attendance.filter(r => r.employeeId === employee.id && r.clockIn && r.clockOut && r.date !== todayStr);
+        const pastRecords = attendance.filter(r => r.employeeId === employee.id && r.date !== todayStr);
 
         const completedHoursWeek = pastRecords
             .filter(r => new Date(r.date + 'T00:00:00') >= startOfWeek)
-            .reduce((acc, r) => acc + calculateHours(r), 0);
+            .reduce((acc, r) => acc + (r.totalHours || 0), 0);
             
         const completedHoursMonth = pastRecords
             .filter(r => new Date(r.date + 'T00:00:00') >= startOfMonth)
-            .reduce((acc, r) => acc + calculateHours(r), 0);
+            .reduce((acc, r) => acc + (r.totalHours || 0), 0);
         
         setWorkedHours({
             today: liveHoursToday > 0 ? liveHoursToday.toFixed(2) : '0.00',
@@ -80,7 +85,7 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
 
     calculateAllHours();
 
-    const isClockedIn = !!(todayRecord?.clockIn && !todayRecord.clockOut);
+    const isClockedIn = todayRecord?.sessions?.some(s => !s.checkOut);
 
     if (isClockedIn) {
         const interval = setInterval(calculateAllHours, 60000);
@@ -92,12 +97,17 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
     if (todayRecord?.status === 'On Leave') {
         return { text: 'On Leave', color: 'text-yellow-600' };
     }
-    if (todayRecord?.clockIn && !todayRecord?.clockOut) {
-      return { text: 'Present', color: 'text-green-600' };
+    // Check for open session
+    if (todayRecord?.sessions?.some(s => !s.checkOut)) {
+        return { text: 'Present', color: 'text-green-600' };
     }
-    if (todayRecord?.clockIn && todayRecord?.clockOut) {
-      return { text: 'Checked Out', color: 'text-orange-600' };
+    // Fallback for legacy
+    // Removed legacy checks
+    
+    if (todayRecord?.sessions?.length > 0 && todayRecord.sessions.every(s => s.checkOut)) {
+        return { text: 'Checked Out', color: 'text-orange-600' };
     }
+    
     return { text: 'Absent', color: 'text-red-600' };
   };
 
@@ -147,14 +157,12 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
             {statusText === 'On Leave' && <p className="pt-1">Scheduled leave</p>}
             {statusText === 'Present' && (
             <>
-                <p>Checked in at: {todayRecord?.clockIn}</p>
-                <p>Checked out at: &mdash;</p>
+                <p>Checked in</p>
             </>
             )}
             {statusText === 'Checked Out' && (
             <>
-                <p>Checked in at: {todayRecord?.clockIn}</p>
-                <p>Checked out at: {todayRecord?.clockOut}</p>
+                <p>Checked out</p>
             </>
             )}
           </div>

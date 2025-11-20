@@ -130,7 +130,7 @@ const EmployeeDirectory: React.FC = () => {
                       size="sm"
                       variant="secondary"
                       onClick={() =>
-                        navigate(`${NAVIGATION_PATHS.EMPLOYEES}/:employeeId`)
+                        navigate(`${NAVIGATION_PATHS.EMPLOYEES}/${employee.id}`)
                       }
                     >
                       View Profile

@@ -40,7 +40,11 @@ model User {
   status       String?   @default("Active")
   hireDate     DateTime?
   nid          String? // National ID or SSN
+
   bankDetails  String? // For payroll purposes
+
+  
+  settings     EmployeeSettings?
 
   // --- Relational Fields for Hierarchy ---
   managerId Int? // ID of the manager
@@ -55,18 +59,37 @@ model User {
   auditLogs         AuditLog[] // Track actions taken by this user
 }
 
+model EmployeeSettings {
+  id               Int       @id @default(autoincrement())
+  userId           Int       @unique
+  user             User      @relation(fields: [userId], references: [id])
+  timezone         String    @default("Asia/Karachi")
+  breakType        String?   @default("DEFAULT") // "DEFAULT" or "CUSTOM"
+  customBreakStart DateTime? // Time part only
+  customBreakEnd   DateTime? // Time part only
+}
+
 model AttendanceRecord {
   id         Int       @id @default(autoincrement())
   employeeId Int
   employee   User      @relation(fields: [employeeId], references: [id])
   date       DateTime  @default(now()) @db.Date
-  clockIn    DateTime?
-  clockOut   DateTime?
   status     String    @default("Present")
   breakHours Float?
   totalHours Float?
+  sessions   AttendanceSession[]
 
   @@unique([employeeId, date], name: "unique_attendance_per_day")
+}
+
+model AttendanceSession {
+  id                 Int              @id @default(autoincrement())
+  attendanceRecordId Int
+  attendanceRecord   AttendanceRecord @relation(fields: [attendanceRecordId], references: [id])
+  checkIn            DateTime         @default(now())
+  checkOut           DateTime?
+  location           String?          // "Office", "Home", etc.
+  type               String           @default("WORK") // "WORK", "BREAK"
 }
 
 model ApprovalRequest {

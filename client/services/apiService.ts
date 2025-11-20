@@ -1,4 +1,4 @@
-import { Employee, AttendanceRecord, ApprovalRequest, AuditLog, PublicHoliday, User, Role } from '../types';
+import { Employee, AttendanceRecord, ApprovalRequest, AuditLog, PublicHoliday, User, Role, AttendanceSession, AttendanceStats } from '../types';
 import { jwtDecode } from 'jwt-decode';
 
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -35,7 +35,7 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
   }
   // Handle cases with no content in response body (like DELETE or successful PUT/PATCH without return)
   if (response.status === 204) {
-      return null as T;
+    return null as T;
   }
 
   return response.json();
@@ -66,9 +66,9 @@ export const api = {
   getProfile: async (): Promise<User | null> => {
 
     if (!getToken()) return null;
-    
+
     const token = getToken();
-    if(token) {
+    if (token) {
       const decoded: DecodedToken = jwtDecode(token);
       return {
         id: `user-${decoded.employeeId}`,
@@ -79,7 +79,7 @@ export const api = {
     }
     return null;
   },
-  
+
   // --- EMPLOYEE CRUD API INTEGRATION ---
   getEmployees: (): Promise<Employee[]> => request('/employees'),
   getEmployeeById: (id: string): Promise<Employee> => request(`/employees/${id}`),
@@ -99,18 +99,29 @@ export const api = {
   // --- ATTENDANCE APIS ---
   getAttendanceForEmployee: (employeeId: string): Promise<AttendanceRecord[]> => request(`/attendance/employee/${employeeId}`),
   getAllAttendance: (): Promise<AttendanceRecord[]> => request('/attendance'),
-  
-  clockIn: (employeeId: string, time?: string): Promise<AttendanceRecord> => request('/attendance/clock-in', {
+
+  clockIn: (employeeId: string, location?: string, customTime?: string): Promise<{ record: AttendanceRecord, session: AttendanceSession }> => request('/attendance/clock-in', {
     method: 'POST',
-    body: JSON.stringify({ employeeId, time }),
+    body: JSON.stringify({ employeeId, location, customTime }),
   }),
-  clockOut: (employeeId: string, time?: string, breakHours?: number): Promise<AttendanceRecord> => request('/attendance/clock-out', {
+  clockOut: (employeeId: string): Promise<AttendanceRecord> => request('/attendance/clock-out', {
     method: 'POST',
-    body: JSON.stringify({ employeeId, time, breakHours }),
+    body: JSON.stringify({ employeeId }),
   }),
+  startBreak: (employeeId: string, breakType: string): Promise<AttendanceRecord> => request('/attendance/break/start', {
+    method: 'POST',
+    body: JSON.stringify({ employeeId, breakType }),
+  }),
+  endBreak: (employeeId: string): Promise<AttendanceRecord> => request('/attendance/break/end', {
+    method: 'POST',
+    body: JSON.stringify({ employeeId }),
+  }),
+  getStats: (employeeId: string): Promise<AttendanceStats> => request(`/attendance/stats/${employeeId}`),
+
+  // Deprecated or unused
   fixMissingClockOut: (recordId: string, clockOutTime: string): Promise<AttendanceRecord> => request(`/attendance/fix-missing-clock-out`, {
-      method: 'POST',
-      body: JSON.stringify({ recordId, clockOutTime }),
+    method: 'POST',
+    body: JSON.stringify({ recordId, clockOutTime }),
   }),
   getTodayAttendanceForEmployee: (employeeId: string): Promise<AttendanceRecord | null> => request(`/attendance/today/${employeeId}`),
 
@@ -123,7 +134,7 @@ export const api = {
 
   // --- AUDIT LOGS ---
   getAuditLogsForEmployee: (employeeId: string): Promise<AuditLog[]> => request(`/audit-logs/${employeeId}`),
-  
+
   // --- HOLIDAYS ---
   getPublicHolidays: (): Promise<PublicHoliday[]> => request('/holidays'),
   addPublicHoliday: (holiday: PublicHoliday): Promise<PublicHoliday> => request('/holidays', {

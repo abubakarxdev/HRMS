@@ -30,15 +30,21 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const [empData, attData, logData] = await Promise.all([
-      api.getEmployeeById(employeeId),
-      api.getAttendanceForEmployee(employeeId),
-      api.getAuditLogsForEmployee(employeeId),
-    ]);
-    setEmployee(empData || null);
-    setAttendance(attData);
-    setAuditLogs(logData);
-    setLoading(false);
+    try {
+      const [empData, attData, logData] = await Promise.all([
+        api.getEmployeeById(employeeId),
+        api.getAttendanceForEmployee(employeeId),
+        api.getAuditLogsForEmployee(employeeId),
+      ]);
+      setEmployee(empData || null);
+      setAttendance(attData);
+      setAuditLogs(logData);
+    } catch (error) {
+      console.error("Failed to fetch profile data:", error);
+      // Ideally set an error state here to show to the user
+    } finally {
+      setLoading(false);
+    }
   }, [employeeId]);
   
   useEffect(() => {
@@ -49,7 +55,7 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
   if (!employee) return <div>Employee not found.</div>;
 
   const manager = employees.find(e => e.id === employee.managerId);
-  const isOwnProfile = user.employeeId === employeeId;
+  const isOwnProfile = user.employeeId === employee.employeeId;
 
   const attendanceChartData = attendance.map(rec => {
     let hours = 0;

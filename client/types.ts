@@ -21,7 +21,7 @@ export interface User {
 }
 
 export interface Employee {
-  id:string;
+  id: string;
   name: string;
   email: string;
   position: string;
@@ -34,14 +34,28 @@ export interface Employee {
   bankDetails: string; // Encrypted
 }
 
+export interface AttendanceSession {
+  id: number;
+  attendanceRecordId: number;
+  checkIn: string;
+  checkOut: string | null;
+  location: string | null;
+}
+
 export interface AttendanceRecord {
-  id: string;
-  employeeId: string;
+  id: number;
+  employeeId: number;
   date: string;
-  clockIn: string | null;
-  clockOut: string | null;
   status: 'Present' | 'Absent' | 'On Leave';
   breakHours?: number;
+  totalHours?: number;
+  sessions?: AttendanceSession[];
+}
+
+export interface AttendanceStats {
+  hoursToday: number;
+  hoursThisWeek: number;
+  hoursThisMonth: number;
 }
 
 export interface ApprovalRequest {
