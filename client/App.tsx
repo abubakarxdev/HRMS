@@ -76,6 +76,10 @@ const Main: React.FC = () => {
           element={<AddEmployeeForm />}
         />
         <Route
+          path={`${NAVIGATION_PATHS.EMPLOYEES}/edit/:employeeId`}
+          element={<AddEmployeeForm />}
+        />
+        <Route
           path={`${NAVIGATION_PATHS.EMPLOYEES}/:employeeId`}
           element={<EmployeeProfileWrapper />}
         />

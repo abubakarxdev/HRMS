@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { useAppContext } from '../../contexts/AppContext';
+import { useNavigate } from 'react-router-dom';
+import { NAVIGATION_PATHS } from '../../constants';
 import { api } from '../../services/apiService';
 import { Employee, AttendanceRecord, AuditLog } from '../../types';
 import {
@@ -62,6 +64,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string; 
 
 const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
   const { employees, user } = useAppContext();
+  const navigate = useNavigate();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -98,42 +101,76 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
   const manager = employees.find(e => e.employeeId === employee.managerId);
   const isOwnProfile = user.employeeId === employee.employeeId;
 
-  // Calculate attendance statistics from last 30 days
-  const last30Days = attendance.slice(-30);
+  // Calculate attendance statistics
+  const now = new Date();
+  const currentMonthStr = now.toLocaleDateString('en-CA', { month: '2-digit', year: 'numeric', timeZone: 'Asia/Karachi' }); // YYYY-MM
   
-  const attendanceStats = last30Days.reduce(
-    (acc, rec) => {
-      let hours = 0;
-      let breakHours = 0;
-      
-      if (rec.sessions) {
-        rec.sessions.forEach(session => {
-          if (session.type === 'WORK' && session.checkOut) {
-            const start = new Date(session.checkIn).getTime();
-            const end = new Date(session.checkOut).getTime();
-            hours += (end - start) / (1000 * 60 * 60);
-          } else if (session.type === 'BREAK' && session.checkOut) {
-            const start = new Date(session.checkIn).getTime();
-            const end = new Date(session.checkOut).getTime();
-            breakHours += (end - start) / (1000 * 60 * 60);
-          }
-        });
-      } else if (rec.totalHours) {
-        hours = rec.totalHours;
-      }
-      
-      return {
-        totalHours: acc.totalHours + hours,
-        totalBreakHours: acc.totalBreakHours + breakHours,
-        daysPresent: acc.daysPresent + (hours > 0 ? 1 : 0),
-        daysAbsent: acc.daysAbsent + (hours === 0 && rec.status !== 'On Leave' ? 1 : 0),
-      };
-    },
-    { totalHours: 0, totalBreakHours: 0, daysPresent: 0, daysAbsent: 0 }
-  );
+  // Get start of current week (Monday)
+  const startOfWeek = new Date(now);
+  const day = startOfWeek.getDay(); // 0 (Sun) - 6 (Sat)
+  const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  startOfWeek.setDate(diff);
+  startOfWeek.setHours(0, 0, 0, 0);
 
-  const avgHoursPerDay = attendanceStats.daysPresent > 0 
-    ? attendanceStats.totalHours / attendanceStats.daysPresent 
+  // Filter records
+  const thisMonthRecords = attendance.filter(r => {
+      const rDate = new Date(r.date);
+      return rDate.toLocaleDateString('en-CA', { month: '2-digit', year: 'numeric', timeZone: 'Asia/Karachi' }) === currentMonthStr;
+  });
+
+  const thisWeekRecords = attendance.filter(r => {
+      const rDate = new Date(r.date);
+      return rDate >= startOfWeek;
+  });
+
+  // Calculate working days in current month (Total Mon-Fri)
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  let workingDaysInMonth = 0;
+  const curDate = new Date(startOfMonth);
+  while (curDate <= endOfMonth) {
+      const d = curDate.getDay();
+      if (d !== 0 && d !== 6) workingDaysInMonth++;
+      curDate.setDate(curDate.getDate() + 1);
+  }
+
+  const calculateStats = (records: AttendanceRecord[]) => {
+      return records.reduce((acc, rec) => {
+          let hours = 0;
+          let breakHours = 0;
+          if (rec.sessions) {
+              rec.sessions.forEach(session => {
+                  if (session.type === 'WORK' && session.checkOut) {
+                      const start = new Date(session.checkIn).getTime();
+                      const end = new Date(session.checkOut).getTime();
+                      hours += (end - start) / (1000 * 60 * 60);
+                  } else if (session.type === 'BREAK' && session.checkOut) {
+                      const start = new Date(session.checkIn).getTime();
+                      const end = new Date(session.checkOut).getTime();
+                      breakHours += (end - start) / (1000 * 60 * 60);
+                  }
+              });
+          } else if (rec.totalHours) {
+              hours = rec.totalHours;
+          }
+          return {
+              totalHours: acc.totalHours + hours,
+              totalBreakHours: acc.totalBreakHours + breakHours,
+              daysPresent: acc.daysPresent + (hours > 0 ? 1 : 0),
+          };
+      }, { totalHours: 0, totalBreakHours: 0, daysPresent: 0 });
+  };
+
+  const monthStats = calculateStats(thisMonthRecords);
+  const weekStats = calculateStats(thisWeekRecords);
+
+  // Last 30 days for chart only
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(now.getDate() - 30);
+  const last30Days = attendance.filter(r => new Date(r.date) >= thirtyDaysAgo);
+
+  const avgHoursPerDay = monthStats.daysPresent > 0 
+    ? monthStats.totalHours / monthStats.daysPresent 
     : 0;
 
   // Prepare chart data
@@ -246,7 +283,11 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
             </div>
           </div>
           <div>
-            <Button>Edit Profile</Button>
+            {user?.role === 'ADMIN_HR' && (
+              <Button onClick={() => navigate(`${NAVIGATION_PATHS.EMPLOYEES}/edit/${employee.id}`)}>
+                Edit Profile
+              </Button>
+            )}
           </div>
         </div>
       </Card>
@@ -257,26 +298,26 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <StatCard
               icon={<Clock className="w-5 h-5 text-blue-600" />}
-              label="Total Hours"
-              value={formatHours(attendanceStats.totalHours)}
+              label="Total Hours (Month)"
+              value={formatHours(monthStats.totalHours)}
               color="bg-blue-50"
             />
             <StatCard
               icon={<TrendingUp className="w-5 h-5 text-green-600" />}
-              label="Avg/Day"
+              label="Avg/Day (Month)"
               value={formatHours(avgHoursPerDay)}
               color="bg-green-50"
             />
             <StatCard
               icon={<Calendar className="w-5 h-5 text-purple-600" />}
-              label="Days Present"
-              value={`${attendanceStats.daysPresent}/${last30Days.length}`}
+              label="Attendance (W | M)"
+              value={`W:${weekStats.daysPresent}/5 | M:${monthStats.daysPresent}/${workingDaysInMonth}`}
               color="bg-purple-50"
             />
             <StatCard
               icon={<Coffee className="w-5 h-5 text-orange-600" />}
-              label="Break Time"
-              value={formatHours(attendanceStats.totalBreakHours)}
+              label="Break Time (Month)"
+              value={formatHours(monthStats.totalBreakHours)}
               color="bg-orange-50"
             />
           </div>

@@ -100,13 +100,13 @@ export const api = {
   getAttendanceForEmployee: (employeeId: string): Promise<AttendanceRecord[]> => request(`/attendance/employee/${employeeId}`),
   getAllAttendance: (): Promise<AttendanceRecord[]> => request('/attendance'),
 
-  clockIn: (employeeId: string, location?: string, customTime?: string): Promise<{ record: AttendanceRecord, session: AttendanceSession }> => request('/attendance/clock-in', {
+  clockIn: (employeeId: string, location?: string, customTime?: string, recordDate?: string): Promise<{ record: AttendanceRecord, session: AttendanceSession }> => request('/attendance/clock-in', {
     method: 'POST',
-    body: JSON.stringify({ employeeId, location, customTime }),
+    body: JSON.stringify({ employeeId, location, customTime, recordDate }),
   }),
-  clockOut: (employeeId: string, customTime?: string): Promise<AttendanceRecord> => request('/attendance/clock-out', {
+  clockOut: (employeeId: string, customTime?: string, breakStart?: string, breakEnd?: string, recordDate?: string): Promise<AttendanceRecord> => request('/attendance/clock-out', {
     method: 'POST',
-    body: JSON.stringify({ employeeId, customTime }),
+    body: JSON.stringify({ employeeId, customTime, breakStart, breakEnd, recordDate }),
   }),
   startBreak: (employeeId: string, breakType: string, customTime?: string): Promise<AttendanceRecord> => request('/attendance/break/start', {
     method: 'POST',
@@ -119,11 +119,14 @@ export const api = {
   getStats: (employeeId: string): Promise<AttendanceStats> => request(`/attendance/stats/${employeeId}`),
 
   // Deprecated or unused
-  fixMissingClockOut: (recordId: string, clockOutTime: string): Promise<AttendanceRecord> => request(`/attendance/fix-missing-clock-out`, {
+  fixMissingClockOut: (recordId: string, clockOutTime: string, breakStart?: string, breakEnd?: string): Promise<AttendanceRecord> => request(`/attendance/fix-missing-clock-out`, {
     method: 'POST',
-    body: JSON.stringify({ recordId, clockOutTime }),
+    body: JSON.stringify({ recordId, clockOutTime, breakStart, breakEnd }),
   }),
-  getTodayAttendanceForEmployee: (employeeId: string): Promise<AttendanceRecord | null> => request(`/attendance/today/${employeeId}`),
+  getTodayAttendanceForEmployee: (employeeId: string, date?: string): Promise<AttendanceRecord | null> => {
+    const url = date ? `/attendance/today/${employeeId}?date=${date}` : `/attendance/today/${employeeId}`;
+    return request(url);
+  },
 
   // --- APPROVAL APIS ---
   getApprovalRequests: (): Promise<ApprovalRequest[]> => request('/approvals'),

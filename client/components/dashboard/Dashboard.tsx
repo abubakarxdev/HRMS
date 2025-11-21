@@ -59,8 +59,13 @@ const ManagerDashboard: React.FC = () => {
     }, [holidays]);
 
     const todayAttendanceStats = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
-        const todayRecords = attendance.filter(a => a.date === today);
+        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+        
+        const todayRecords = attendance.filter(r => {
+             if (new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal) return true;
+             if (r.sessions?.some(s => new Date(s.checkIn).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal)) return true;
+             return false;
+        });
         
         const checkedIn = todayRecords.filter(a => a.sessions?.some(s => !s.checkOut)).length;
         const onLeave = todayRecords.filter(a => a.status === 'On Leave').length;

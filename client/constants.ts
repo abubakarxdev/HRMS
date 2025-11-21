@@ -12,7 +12,7 @@ export const NAVIGATION_PATHS = {
 interface NavigationItem {
     path: string;
     label: string;
-    roles: Role[]; 
+    roles: Role[];
 }
 
 export const NAVIGATION_ITEMS: NavigationItem[] = [
@@ -24,7 +24,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     {
         path: NAVIGATION_PATHS.EMPLOYEES,
         label: 'Employees',
-        roles: [Role.ADMIN_HR, Role.MANAGER], 
+        roles: [Role.ADMIN_HR, Role.MANAGER],
     },
     {
         path: NAVIGATION_PATHS.ATTENDANCE,
@@ -34,6 +34,6 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     {
         path: NAVIGATION_PATHS.TEAM_ATTENDANCE,
         label: 'Team Attendance',
-        roles: [Role.MANAGER , Role.ADMIN_HR], 
+        roles: [Role.MANAGER, Role.ADMIN_HR, Role.EMPLOYEE],
     },
 ];

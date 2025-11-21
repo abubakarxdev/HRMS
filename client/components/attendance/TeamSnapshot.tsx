@@ -21,8 +21,18 @@ const TeamSnapshot: React.FC = () => {
         const fetchTodayAttendance = async () => {
             try {
                 const allRecords = await api.getAllAttendance();
-                const today = new Date().toISOString().split('T')[0];
-                const todaysRecords = allRecords.filter(r => new Date(r.date).toISOString().split('T')[0] === today);
+                // Get today's date in Asia/Karachi time YYYY-MM-DD
+                const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+                
+                const todaysRecords = allRecords.filter(r => {
+                    // Check if record date is today (Asia/Karachi)
+                    if (new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal) return true;
+                    
+                    // Check if any session is today (Asia/Karachi)
+                    if (r.sessions?.some(s => new Date(s.checkIn).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal)) return true;
+                    
+                    return false;
+                });
                 setTodayAttendance(todaysRecords);
             } catch (error) {
                 console.error("Failed to fetch team attendance", error);
@@ -32,16 +42,20 @@ const TeamSnapshot: React.FC = () => {
         };
 
         fetchTodayAttendance();
+
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchTodayAttendance, 30000);
+        return () => clearInterval(interval);
     }, []);
 
     const attendanceByEmployee = useMemo(() => {
         const map = new Map();
-        todayAttendance.forEach(a => map.set(a.employeeId, a));
+        todayAttendance.forEach(a => map.set(String(a.employeeId), a));
         return map;
     }, [todayAttendance]);
 
     const getEmployeeStatus = (employeeId: string): string => {
-        const record = attendanceByEmployee.get(employeeId);
+        const record = attendanceByEmployee.get(String(employeeId));
         
         if (!record) return 'absent';
         if (record.status === 'On Leave') return 'on-leave';
@@ -122,7 +136,7 @@ const TeamSnapshot: React.FC = () => {
                             <EmployeeAttendanceCard
                                 key={employee.id}
                                 employee={employee}
-                                todayRecord={attendanceByEmployee.get(employee.id)}
+                                todayRecord={attendanceByEmployee.get(String(employee.id))}
                             />
                         ))}
                     </div>

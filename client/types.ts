@@ -22,6 +22,7 @@ export interface User {
 
 export interface Employee {
   id: string;
+  employeeId: string;
   name: string;
   email: string;
   position: string;
@@ -40,6 +41,7 @@ export interface AttendanceSession {
   checkIn: string;
   checkOut: string | null;
   location: string | null;
+  type: 'WORK' | 'BREAK';
 }
 
 export interface AttendanceRecord {

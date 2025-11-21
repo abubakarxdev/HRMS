@@ -1,127 +1,80 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import { api } from '../../services/apiService';
 import { AttendanceStats, AttendanceRecord } from '../../types';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
+import ClockActionModal from './ClockActionModal';
+import ResolveMissingClockOutModal from './ResolveMissingClockOutModal';
 import { toast } from 'sonner';
 
 const AttendanceDashboard: React.FC = () => {
-  const { user } = useAppContext();
+  const { user, attendance, performClockAction, employees } = useAppContext();
   const [stats, setStats] = useState<AttendanceStats | null>(null);
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
   const [loading, setLoading] = useState(false);
-  const [location, setLocation] = useState('Office');
   const [currentTime, setCurrentTime] = useState(new Date());
   
-  // Custom Time State
-  const [showCustomTime, setShowCustomTime] = useState(false);
-  const [customCheckInTime, setCustomCheckInTime] = useState('');
-  
-  // Custom Clock Out State
-  const [showCustomClockOut, setShowCustomClockOut] = useState(false);
-  const [customClockOutTime, setCustomClockOutTime] = useState('');
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalAction, setModalAction] = useState<'in' | 'out'>('in');
+  const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
 
-  // Break State
-  const [showBreakModal, setShowBreakModal] = useState(false);
-  const [breakType, setBreakType] = useState<'DEFAULT' | 'NO_BREAK' | 'CUSTOM'>('DEFAULT');
-  const [customBreakTime, setCustomBreakTime] = useState('');
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   const fetchData = useCallback(async () => {
     if (!user?.employeeId) return;
     try {
         const [statsData, todayData] = await Promise.all([
             api.getStats(user.employeeId),
-            api.getTodayAttendanceForEmployee(user.employeeId)
+            api.getTodayAttendanceForEmployee(user.employeeId, today)
         ]);
         setStats(statsData);
         setTodayRecord(todayData);
     } catch (error) {
         console.error("Failed to fetch attendance data", error);
     }
-  }, [user?.employeeId]);
+  }, [user?.employeeId, today]);
 
   useEffect(() => {
     fetchData();
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, [fetchData]);
-
-  const handleClockIn = async () => {
-    if (!user?.employeeId) return;
-    setLoading(true);
-    try {
-      const timeToSend = showCustomTime && customCheckInTime ? new Date(customCheckInTime).toISOString() : undefined;
-      await api.clockIn(user.employeeId, location, timeToSend);
-      await fetchData();
-      setShowCustomTime(false);
-      setCustomCheckInTime('');
-      toast.success("Clocked in successfully!");
-    } catch (error) {
-      console.error("Clock in failed", error);
-      toast.error("Failed to clock in.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleClockOut = async () => {
-    if (!user?.employeeId) return;
-    setLoading(true);
-    try {
-      const timeToSend = showCustomClockOut && customClockOutTime ? new Date(customClockOutTime).toISOString() : undefined;
-      await api.clockOut(user.employeeId, timeToSend);
-      await fetchData();
-      setShowCustomClockOut(false);
-      setCustomClockOutTime('');
-      toast.success("Clocked out successfully!");
-    } catch (error) {
-      console.error("Clock out failed", error);
-      toast.error("Failed to clock out.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStartBreak = async () => {
-      if (!user?.employeeId) return;
+    
+  const recordToFix = useMemo(() => {
+      if (!user || employees.length === 0) return undefined;
+      const currentEmployee = employees.find(e => e.employeeId === user.employeeId);
+      if (!currentEmployee) return undefined;
       
-      // Handle NO_BREAK option - just close modal
-      if (breakType === 'NO_BREAK') {
-          setShowBreakModal(false);
-          toast.success("Continuing without break!");
-          return;
-      }
-      
-      setLoading(true);
-      try {
-          const timeToSend = breakType === 'CUSTOM' && customBreakTime ? new Date(customBreakTime).toISOString() : undefined;
-          await api.startBreak(user.employeeId, breakType, timeToSend);
-          await fetchData();
-          setShowBreakModal(false);
-          setCustomBreakTime('');
-          toast.success("Break started!");
-      } catch (error) {
-          console.error("Start break failed", error);
-          toast.error("Failed to start break.");
-      } finally {
-          setLoading(false);
+      return attendance.find(a => 
+          a.employeeId === parseInt(currentEmployee.id) && 
+          a.sessions?.some(s => s.checkIn && !s.checkOut) && // Has open session
+          a.date !== today
+      );
+  }, [attendance, user, employees, today]);
+
+  const handleClockInClick = () => {
+      if (recordToFix) {
+          setIsResolveModalOpen(true);
+      } else {
+          openModal('in');
       }
   };
 
-  const handleEndBreak = async () => {
-      if (!user?.employeeId) return;
-      setLoading(true);
-      try {
-          await api.endBreak(user.employeeId);
-          await fetchData();
-          toast.success("Break ended!");
-      } catch (error) {
-          console.error("End break failed", error);
-          toast.error("Failed to end break.");
-      } finally {
-          setLoading(false);
-      }
+  const openModal = (action: 'in' | 'out') => {
+    setModalAction(action);
+    setIsModalOpen(true);
+  };
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+    fetchData(); // Refresh data after modal closes
+  };
+
+  const handleModalSuccess = (message: string) => {
+      toast.success(message);
+      closeModal();
   };
 
   const formatHours = (decimalHours: number) => {
@@ -131,11 +84,11 @@ const AttendanceDashboard: React.FC = () => {
       return `${hours} hr ${minutes} min`;
   };
 
-  // Determine current status
-  const openSession = todayRecord?.sessions?.find(s => !s.checkOut);
-  const isClockedIn = !!openSession;
-  const isOnBreak = openSession?.type === 'BREAK';
-
+  // Determine current status: Check if there is an open WORK session
+  const isClockedIn = useMemo(() => {
+      return todayRecord?.sessions?.some(s => !s.checkOut && s.type === 'WORK');
+  }, [todayRecord]);
+  
   // Timezone handling (Default to Asia/Karachi as requested)
   const timeOptions: Intl.DateTimeFormatOptions = {
       timeZone: 'Asia/Karachi',
@@ -145,8 +98,10 @@ const AttendanceDashboard: React.FC = () => {
       hour12: true
   };
 
+  if (!user) return null;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Stats Cards */}
         <Card>
@@ -171,134 +126,25 @@ const AttendanceDashboard: React.FC = () => {
                     <p className="text-2xl font-mono font-bold">
                         {currentTime.toLocaleTimeString('en-US', timeOptions)}
                     </p>
-                    <p className={`mt-1 font-medium ${isClockedIn ? (isOnBreak ? 'text-orange-600' : 'text-green-600') : 'text-slate-500'}`}>
-                        Status: {isClockedIn ? (isOnBreak ? 'On Break' : 'Present') : 'Absent'}
+                    <p className={`mt-1 font-medium ${isClockedIn ? 'text-green-600' : 'text-slate-500'}`}>
+                        Status: {isClockedIn ? 'Present' : 'Absent'}
                     </p>
                 </div>
             </div>
             
             <div className="flex flex-wrap items-end gap-4 border-t pt-4">
                 {!isClockedIn ? (
-                    <>
-                        <div className="w-full md:w-auto">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                            <select 
-                                value={location} 
-                                onChange={(e) => setLocation(e.target.value)}
-                                className="block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                            >
-                                <option value="Office">Office</option>
-                                <option value="Home">Home</option>
-                            </select>
-                        </div>
-
-                        <div className="w-full md:w-auto">
-                             <label className="flex items-center space-x-2 mb-2">
-                                <input 
-                                    type="checkbox" 
-                                    checked={showCustomTime} 
-                                    onChange={(e) => setShowCustomTime(e.target.checked)}
-                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <span className="text-sm text-gray-700">Use Custom Time</span>
-                            </label>
-                            {showCustomTime && (
-                                <input 
-                                    type="datetime-local" 
-                                    value={customCheckInTime}
-                                    onChange={(e) => setCustomCheckInTime(e.target.value)}
-                                    className="block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                                />
-                            )}
-                        </div>
-
-                        <Button onClick={handleClockIn} disabled={loading || (showCustomTime && !customCheckInTime)}>
-                            Clock In
-                        </Button>
-                    </>
+                    <Button onClick={handleClockInClick} disabled={loading}>
+                        Clock In
+                    </Button>
                 ) : (
-                    <>
-                        {isOnBreak ? (
-                            <Button onClick={handleEndBreak} disabled={loading}>
-                                End Break
-                            </Button>
-                        ) : (
-                            <>
-                                <div className="w-full md:w-auto">
-                                    <label className="flex items-center space-x-2 mb-2">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={showCustomClockOut} 
-                                            onChange={(e) => setShowCustomClockOut(e.target.checked)}
-                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <span className="text-sm text-gray-700">Custom Clock Out Time</span>
-                                    </label>
-                                    {showCustomClockOut && (
-                                        <input 
-                                            type="datetime-local" 
-                                            value={customClockOutTime}
-                                            onChange={(e) => setCustomClockOutTime(e.target.value)}
-                                            className="block w-full rounded-md border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                                        />
-                                    )}
-                                </div>
-                                
-                                <Button onClick={handleClockOut} disabled={loading || (showCustomClockOut && !customClockOutTime)} variant="danger">
-                                    Clock Out
-                                </Button>
-                                <Button onClick={() => setShowBreakModal(true)} variant="secondary" disabled={loading}>
-                                    Add Break
-                                </Button>
-                            </>
-                        )}
-                    </>
+                    <Button onClick={() => openModal('out')} disabled={loading} variant="danger">
+                        Clock Out
+                    </Button>
                 )}
             </div>
         </div>
       </Card>
-
-      {/* Break Modal */}
-      {showBreakModal && (
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-              <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
-                  <h3 className="text-lg font-medium mb-4">Start Break</h3>
-                  <div className="space-y-4">
-                      <div>
-                          <label className="block text-sm font-medium text-gray-700">Break Type</label>
-                          <select 
-                              value={breakType} 
-                              onChange={(e) => setBreakType(e.target.value as 'DEFAULT' | 'NO_BREAK' | 'CUSTOM')}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border p-2"
-                          >
-                              <option value="DEFAULT">Default (1:00 PM - 2:00 PM / Fri 2:30 PM)</option>
-                              <option value="NO_BREAK">No Break</option>
-                              <option value="CUSTOM">Custom</option>
-                          </select>
-                      </div>
-                      
-                      {breakType === 'CUSTOM' && (
-                          <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Custom Break Time</label>
-                              <input 
-                                  type="datetime-local" 
-                                  value={customBreakTime}
-                                  onChange={(e) => setCustomBreakTime(e.target.value)}
-                                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
-                              />
-                          </div>
-                      )}
-                      
-                      <div className="flex justify-end gap-3 mt-6">
-                          <Button variant="secondary" onClick={() => setShowBreakModal(false)}>Cancel</Button>
-                          <Button onClick={handleStartBreak} disabled={breakType === 'CUSTOM' && !customBreakTime}>
-                              {breakType === 'NO_BREAK' ? 'Continue' : 'Start Break'}
-                          </Button>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      )}
 
       {todayRecord?.sessions && todayRecord.sessions.length > 0 && (
           <Card title="Today's Sessions">
@@ -333,6 +179,29 @@ const AttendanceDashboard: React.FC = () => {
                   </table>
               </div>
           </Card>
+      )}
+
+      {isModalOpen && user && (
+        <ClockActionModal
+            isOpen={isModalOpen}
+            onClose={closeModal}
+            employee={user as any}
+            action={modalAction}
+            todayRecord={todayRecord || undefined}
+            onSuccess={() => handleModalSuccess(modalAction === 'in' ? 'Clocked in successfully!' : 'Clocked out successfully!')}
+        />
+      )}
+
+      {recordToFix && isResolveModalOpen && user && (
+        <ResolveMissingClockOutModal
+            isOpen={isResolveModalOpen}
+            onClose={() => setIsResolveModalOpen(false)}
+            record={recordToFix}
+            onSuccess={async () => {
+                await performClockAction(user.employeeId, 'in', undefined, undefined, undefined, today);
+                handleModalSuccess('Missing clock-out resolved and clocked in!');
+            }}
+        />
       )}
     </div>
   );

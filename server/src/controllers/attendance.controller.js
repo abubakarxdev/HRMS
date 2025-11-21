@@ -29,8 +29,8 @@ const getAttendanceForEmployee = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/clock-in
  */
 const clockIn = asyncHandler(async (req, res) => {
-  const { employeeId, location, customTime } = req.body;
-  const result = await attendanceService.clockIn(employeeId, location, customTime);
+  const { employeeId, location, customTime, recordDate } = req.body;
+  const result = await attendanceService.clockIn(employeeId, location, customTime, recordDate);
   res.status(200).json(result);
 });
 
@@ -39,8 +39,8 @@ const clockIn = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/clock-out
  */
 const clockOut = asyncHandler(async (req, res) => {
-  const { employeeId, customTime } = req.body;
-  const result = await attendanceService.clockOut(employeeId, customTime);
+  const { employeeId, customTime, breakStart, breakEnd, recordDate } = req.body;
+  const result = await attendanceService.clockOut(employeeId, customTime, breakStart, breakEnd, recordDate);
   res.status(200).json(result);
 });
 
@@ -59,7 +59,8 @@ const getStats = asyncHandler(async (req, res) => {
  */
 const getTodayAttendance = asyncHandler(async (req, res) => {
   const { employeeId } = req.params;
-  const result = await attendanceService.getTodayAttendance(employeeId);
+  const { date } = req.query;
+  const result = await attendanceService.getTodayAttendance(employeeId, date);
   res.status(200).json(result);
 });
 
@@ -81,6 +82,15 @@ const endBreak = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+/**
+ * Route: POST /api/attendance/fix-missing-clock-out
+ */
+const fixMissingClockOut = asyncHandler(async (req, res) => {
+  const { recordId, clockOutTime, breakStart, breakEnd } = req.body;
+  const result = await attendanceService.fixMissingClockOut(recordId, clockOutTime, breakStart, breakEnd);
+  res.status(200).json(result);
+});
+
 module.exports = {
   getAllAttendance,
   getAttendanceForEmployee,
@@ -90,4 +100,5 @@ module.exports = {
   getTodayAttendance,
   startBreak,
   endBreak,
+  fixMissingClockOut,
 };

@@ -7,10 +7,20 @@ const prisma = new PrismaClient();
  * @returns {Promise<number>}
  */
 const getUserId = async (employeeIdStr) => {
-  const user = await prisma.user.findUnique({
+  // First try to find by employeeId (string)
+  let user = await prisma.user.findUnique({
     where: { employeeId: employeeIdStr },
     select: { id: true },
   });
+
+  // If not found, and input looks like a number, try finding by internal id
+  if (!user && !isNaN(parseInt(employeeIdStr))) {
+    user = await prisma.user.findUnique({
+      where: { id: parseInt(employeeIdStr) },
+      select: { id: true },
+    });
+  }
+
   if (!user) {
     throw new Error(`User with employeeId ${employeeIdStr} not found`);
   }
@@ -66,14 +76,20 @@ const getAttendanceForEmployee = async (employeeId) => {
  * @param {string} customTime - Optional ISO string for custom check-in time
  * @returns {Promise<Object>}
  */
-const clockIn = async (employeeId, location = "Office", customTime = null) => {
+const clockIn = async (employeeId, location = "Office", customTime = null, recordDateStr = null) => {
   const userId = await getUserId(employeeId);
   
   // Use custom time if provided, otherwise use current server time
   const checkInTime = customTime ? new Date(customTime) : new Date();
   
   // Normalize date for the record (midnight)
-  const recordDate = new Date(checkInTime);
+  // If recordDateStr is provided (from client), use it. Otherwise derive from checkInTime.
+  let recordDate;
+  if (recordDateStr) {
+    recordDate = new Date(recordDateStr);
+  } else {
+    recordDate = new Date(checkInTime);
+  }
   recordDate.setHours(0, 0, 0, 0);
 
   // Find or create attendance record for the day of check-in
@@ -113,20 +129,27 @@ const clockIn = async (employeeId, location = "Office", customTime = null) => {
  * Clock Out
  * @param {string} employeeId
  * @param {string} customTime - Optional custom clock out time
+ * @param {string} breakStart - Optional break start time (HH:MM format)
+ * @param {string} breakEnd - Optional break end time (HH:MM format)
  * @returns {Promise<Object>}
  */
-const clockOut = async (employeeId, customTime) => {
+const clockOut = async (employeeId, customTime = null, breakStart = null, breakEnd = null, recordDateStr = null) => {
   const userId = await getUserId(employeeId);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
-  // Find record for today (assuming clock out is for today's session)
-  // TODO: Handle overnight shifts if needed
+  let queryDate;
+  if (recordDateStr) {
+    queryDate = new Date(recordDateStr);
+  } else {
+    queryDate = new Date();
+  }
+  queryDate.setHours(0, 0, 0, 0);
+
+  // Find record for today
   const record = await prisma.attendanceRecord.findUnique({
     where: {
       unique_attendance_per_day: {
         employeeId: userId,
-        date: today,
+        date: queryDate,
       },
     },
     include: {
@@ -152,8 +175,29 @@ const clockOut = async (employeeId, customTime) => {
     data: { checkOut: checkOutTime },
   });
 
+  // Calculate break hours if break times provided
+  let breakHours = 0;
+  let breakStartDateTime = null;
+  let breakEndDateTime = null;
+
+  if (breakStart && breakEnd) {
+    // Parse break times (format: "HH:MM")
+    const [startHour, startMin] = breakStart.split(':').map(Number);
+    const [endHour, endMin] = breakEnd.split(':').map(Number);
+    
+    // Create DateTime objects for break times on today's date
+    breakStartDateTime = new Date(record.date);
+    breakStartDateTime.setHours(startHour, startMin, 0, 0);
+    
+    breakEndDateTime = new Date(record.date);
+    breakEndDateTime.setHours(endHour, endMin, 0, 0);
+    
+    // Calculate break duration in hours
+    const breakMilliseconds = breakEndDateTime - breakStartDateTime;
+    breakHours = breakMilliseconds / (1000 * 60 * 60);
+  }
+
   // Recalculate total hours
-  // Re-fetch sessions to include the one just updated
   const updatedRecord = await prisma.attendanceRecord.findUnique({
     where: { id: record.id },
     include: { sessions: true },
@@ -168,10 +212,15 @@ const clockOut = async (employeeId, customTime) => {
 
   const totalHours = totalMilliseconds / (1000 * 60 * 60);
 
-  // Update record with total hours
+  // Update record with total hours and break information
   return await prisma.attendanceRecord.update({
     where: { id: record.id },
-    data: { totalHours },
+    data: { 
+      totalHours,
+      breakStart: breakStartDateTime,
+      breakEnd: breakEndDateTime,
+      breakHours: breakHours > 0 ? breakHours : null,
+    },
     include: { sessions: true },
   });
 };
@@ -339,20 +388,107 @@ const endBreak = async (employeeId) => {
 };
 
 /**
+ * Fix Missing Clock Out
+ * @param {string} recordId
+ * @param {string} clockOutTime - ISO string
+ * @param {string} breakStart - HH:MM
+ * @param {string} breakEnd - HH:MM
+ * @returns {Promise<Object>}
+ */
+const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) => {
+  const record = await prisma.attendanceRecord.findUnique({
+    where: { id: parseInt(recordId) },
+    include: { sessions: true },
+  });
+
+  if (!record) {
+    throw new Error("Attendance record not found");
+  }
+
+  const openSessions = record.sessions.filter((s) => !s.checkOut);
+  if (openSessions.length === 0) {
+    throw new Error("No open session found for this record");
+  }
+
+  // Update all open sessions with checkOut time
+  const checkOutDate = new Date(clockOutTime);
+  
+  await prisma.attendanceSession.updateMany({
+    where: { 
+      attendanceRecordId: record.id,
+      checkOut: null 
+    },
+    data: { checkOut: checkOutDate },
+  });
+
+  // Calculate break hours
+  let breakHours = 0;
+  let breakStartDateTime = null;
+  let breakEndDateTime = null;
+
+  if (breakStart && breakEnd) {
+    const [startHour, startMin] = breakStart.split(':').map(Number);
+    const [endHour, endMin] = breakEnd.split(':').map(Number);
+    
+    // Use RECORD DATE for break times
+    breakStartDateTime = new Date(record.date);
+    breakStartDateTime.setHours(startHour, startMin, 0, 0);
+    
+    breakEndDateTime = new Date(record.date);
+    breakEndDateTime.setHours(endHour, endMin, 0, 0);
+    
+    const breakMilliseconds = breakEndDateTime - breakStartDateTime;
+    breakHours = breakMilliseconds / (1000 * 60 * 60);
+  }
+
+  // Recalculate total hours
+  const updatedRecord = await prisma.attendanceRecord.findUnique({
+    where: { id: record.id },
+    include: { sessions: true },
+  });
+
+  let totalMilliseconds = 0;
+  updatedRecord.sessions.forEach((session) => {
+    if (session.checkIn && session.checkOut && session.type === "WORK") {
+      totalMilliseconds += session.checkOut - session.checkIn;
+    }
+  });
+
+  const totalHours = totalMilliseconds / (1000 * 60 * 60);
+
+  return await prisma.attendanceRecord.update({
+    where: { id: record.id },
+    data: { 
+      totalHours,
+      breakStart: breakStartDateTime,
+      breakEnd: breakEndDateTime,
+      breakHours: breakHours > 0 ? breakHours : null,
+    },
+    include: { sessions: true },
+  });
+};
+
+/**
  * Get Today's Attendance Record
  * @param {string} employeeId
  * @returns {Promise<Object|null>}
  */
-const getTodayAttendance = async (employeeId) => {
+const getTodayAttendance = async (employeeId, date = null) => {
   const userId = await getUserId(employeeId);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  
+  let queryDate;
+  if (date) {
+    queryDate = new Date(date);
+  } else {
+    queryDate = new Date();
+  }
+  queryDate.setHours(0, 0, 0, 0);
 
   return await prisma.attendanceRecord.findUnique({
     where: {
       unique_attendance_per_day: {
         employeeId: userId,
-        date: today,
+        date: queryDate,
       },
     },
     include: {
@@ -370,4 +506,5 @@ module.exports = {
   getTodayAttendance,
   startBreak,
   endBreak,
+  fixMissingClockOut,
 };

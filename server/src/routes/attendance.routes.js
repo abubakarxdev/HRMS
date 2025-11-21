@@ -59,4 +59,11 @@ router.post(
   attendanceController.endBreak
 );
 
+// FIX MISSING CLOCK OUT
+router.post(
+  "/fix-missing-clock-out",
+  authMiddleware.protect,
+  attendanceController.fixMissingClockOut
+);
+
 module.exports = router;

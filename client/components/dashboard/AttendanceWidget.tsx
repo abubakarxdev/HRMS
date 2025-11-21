@@ -6,6 +6,7 @@ import { api } from '../../services/apiService';
 import { AttendanceRecord } from '../../types';
 import ClockActionModal from '../attendance/ClockActionModal';
 import ResolveMissingClockOutModal from '../attendance/ResolveMissingClockOutModal';
+import { toast } from 'sonner';
 
 const ClockIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -22,14 +23,16 @@ const AttendanceWidget: React.FC = () => {
     const [modalAction, setModalAction] = useState<'in' | 'out'>('in');
     const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
 
-    const currentUserEmployee = employees.find(e => e.id === user.employeeId);
+    const currentUserEmployee = employees.find(e => e.employeeId === user.employeeId);
+
+    const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
     const fetchTodayRecord = useCallback(async () => {
         setLoading(true);
-        const record = await api.getTodayAttendanceForEmployee(user.employeeId);
+        const record = await api.getTodayAttendanceForEmployee(user.employeeId, today);
         setTodayRecord(record);
         setLoading(false);
-    }, [user.employeeId]);
+    }, [user.employeeId, today]);
 
     useEffect(() => {
         fetchTodayRecord();
@@ -39,13 +42,15 @@ const AttendanceWidget: React.FC = () => {
 
     const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-    const recordToFix = useMemo(() => 
-        attendance.find(a => 
-            a.employeeId === user.employeeId && 
+    const recordToFix = useMemo(() => {
+        if (!currentUserEmployee) return undefined;
+        return attendance.find(a => 
+            a.employeeId === parseInt(currentUserEmployee.id) && 
             a.clockIn && 
             !a.clockOut && 
             a.date !== today
-        ), [attendance, user.employeeId, today]);
+        );
+    }, [attendance, currentUserEmployee, today]);
     
     const handleClockInClick = () => {
         if (recordToFix) {
@@ -99,6 +104,10 @@ const AttendanceWidget: React.FC = () => {
                     employee={currentUserEmployee}
                     action={modalAction}
                     todayRecord={todayRecord || undefined}
+                    onSuccess={() => {
+                        toast.success(modalAction === 'in' ? 'Clocked in successfully!' : 'Clocked out successfully!');
+                        closeModal();
+                    }}
                 />
             )}
             {recordToFix && isResolveModalOpen && (
@@ -107,7 +116,8 @@ const AttendanceWidget: React.FC = () => {
                     onClose={() => setIsResolveModalOpen(false)}
                     record={recordToFix}
                     onSuccess={async () => {
-                        await performClockAction(user.employeeId, 'in');
+                        await performClockAction(user.employeeId, 'in', undefined, undefined, undefined, today);
+                        toast.success('Missing clock-out resolved and clocked in!');
                     }}
                 />
             )}

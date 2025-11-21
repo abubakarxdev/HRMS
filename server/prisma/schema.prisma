@@ -75,6 +75,8 @@ model AttendanceRecord {
   employee   User      @relation(fields: [employeeId], references: [id])
   date       DateTime  @default(now()) @db.Date
   status     String    @default("Present")
+  breakStart DateTime? // Break start time
+  breakEnd   DateTime? // Break end time
   breakHours Float?
   totalHours Float?
   sessions   AttendanceSession[]

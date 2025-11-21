@@ -16,8 +16,18 @@ const AttendanceStatsCard: React.FC = () => {
         const fetchTodayAttendance = async () => {
             try {
                 const allRecords = await api.getAllAttendance();
-                const today = new Date().toISOString().split('T')[0];
-                const todaysRecords = allRecords.filter(r => new Date(r.date).toISOString().split('T')[0] === today);
+                // Get today's date in Asia/Karachi time YYYY-MM-DD
+                const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+                
+                const todaysRecords = allRecords.filter(r => {
+                    // Check if record date is today (Asia/Karachi)
+                    if (new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal) return true;
+                    
+                    // Check if any session is today (Asia/Karachi)
+                    if (r.sessions?.some(s => new Date(s.checkIn).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal)) return true;
+                    
+                    return false;
+                });
                 setTodayAttendance(todaysRecords);
             } catch (error) {
                 console.error("Failed to fetch attendance", error);

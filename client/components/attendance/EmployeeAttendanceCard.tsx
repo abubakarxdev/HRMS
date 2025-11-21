@@ -22,7 +22,8 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
   useEffect(() => {
     const calculateAllHours = () => {
         const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
+        // Enforce Asia/Karachi timezone
+        const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
 
         let liveHoursToday = 0;
         if (todayRecord) {
@@ -61,7 +62,13 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
         startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const pastRecords = attendance.filter(r => r.employeeId === employee.id && r.date !== todayStr);
+        const pastRecords = attendance.filter(r => {
+            if (String(r.employeeId) !== String(employee.id)) return false;
+            
+            // Convert record date to Asia/Karachi to check if it's "today"
+            const recordDatePKT = new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+            return recordDatePKT !== todayStr;
+        });
 
         const completedHoursWeek = pastRecords
             .filter(r => new Date(r.date + 'T00:00:00') >= startOfWeek)
