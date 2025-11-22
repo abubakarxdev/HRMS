@@ -12,7 +12,7 @@ import Dashboard from "./components/dashboard/Dashboard";
 import EmployeeDirectory from "./components/employees/EmployeeDirectory";
 import EmployeeProfile from "./components/employees/EmployeeProfile";
 import AddEmployeeForm from "./components/employees/AddEmployeeForm";
-import AttendanceDashboard from "./components/attendance/AttendanceDashboard";
+import AttendanceLog from "./components/attendance/AttendanceLog";
 import TeamSnapshot from "./components/attendance/TeamSnapshot";
 import { NAVIGATION_PATHS } from "./constants";
 import Login from "./components/auth/Login";
@@ -85,13 +85,14 @@ const Main: React.FC = () => {
         />
 
         {/* Attendance Routes */}
-        <Route
-          path={NAVIGATION_PATHS.ATTENDANCE}
-          element={<AttendanceDashboard />}
-        />
+
         <Route
           path={NAVIGATION_PATHS.TEAM_ATTENDANCE}
           element={<TeamSnapshot />}
+        />
+        <Route
+          path="/attendance/log"
+          element={<AttendanceLog />}
         />
         <Route
           path="*"

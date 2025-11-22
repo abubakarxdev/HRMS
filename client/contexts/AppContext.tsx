@@ -40,7 +40,8 @@ interface AppContextType {
     time?: string,
     breakStart?: string,
     breakEnd?: string,
-    recordDate?: string
+    recordDate?: string,
+    location?: string
   ) => Promise<void>;
   fixMissingClockOut: (recordId: string, clockOutTime: string, breakStart?: string, breakEnd?: string) => Promise<void>;
   addHoliday: (holiday: PublicHoliday) => Promise<void>;
@@ -218,11 +219,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     time?: string,
     breakStart?: string,
     breakEnd?: string,
-    recordDate?: string
+    recordDate?: string,
+    location?: string
   ) => {
     try {
       if (action === "in") {
-        await api.clockIn(employeeId, undefined, time, recordDate);
+        await api.clockIn(employeeId, location, time, recordDate);
       } else {
         await api.clockOut(employeeId, time, breakStart, breakEnd, recordDate);
       }

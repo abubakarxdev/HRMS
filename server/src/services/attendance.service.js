@@ -83,14 +83,17 @@ const clockIn = async (employeeId, location = "Office", customTime = null, recor
   const checkInTime = customTime ? new Date(customTime) : new Date();
   
   // Normalize date for the record (midnight)
-  // If recordDateStr is provided (from client), use it. Otherwise derive from checkInTime.
+  // If recordDateStr is provided (from client), use it as UTC midnight.
+  // Otherwise derive from checkInTime and normalize to local midnight.
   let recordDate;
   if (recordDateStr) {
     recordDate = new Date(recordDateStr);
+    // Do NOT call setHours here, as new Date("YYYY-MM-DD") is already UTC midnight
+    // and setHours would shift it to local midnight (potentially previous day).
   } else {
     recordDate = new Date(checkInTime);
+    recordDate.setHours(0, 0, 0, 0);
   }
-  recordDate.setHours(0, 0, 0, 0);
 
   // Find or create attendance record for the day of check-in
   let record = await prisma.attendanceRecord.findUnique({
@@ -136,37 +139,32 @@ const clockIn = async (employeeId, location = "Office", customTime = null, recor
 const clockOut = async (employeeId, customTime = null, breakStart = null, breakEnd = null, recordDateStr = null) => {
   const userId = await getUserId(employeeId);
 
-  let queryDate;
-  if (recordDateStr) {
-    queryDate = new Date(recordDateStr);
-  } else {
-    queryDate = new Date();
-  }
-  queryDate.setHours(0, 0, 0, 0);
-
-  // Find record for today
-  const record = await prisma.attendanceRecord.findUnique({
+  // Find the most recent open WORK session for this employee
+  // We ignore recordDateStr for finding the session to handle overnight shifts 
+  // or date mismatches robustly.
+  const openSession = await prisma.attendanceSession.findFirst({
     where: {
-      unique_attendance_per_day: {
+      attendanceRecord: {
         employeeId: userId,
-        date: queryDate,
       },
+      checkOut: null,
+      type: "WORK",
     },
     include: {
-      sessions: true,
+      attendanceRecord: {
+        include: { sessions: true }
+      }
     },
+    orderBy: {
+      checkIn: 'desc'
+    }
   });
-
-  if (!record) {
-    throw new Error("No attendance record found for today.");
-  }
-
-  // Find the last open session
-  const openSession = record.sessions.find((s) => !s.checkOut);
 
   if (!openSession) {
     throw new Error("No open session found to clock out from.");
   }
+
+  const record = openSession.attendanceRecord;
 
   // Update session with checkOut time
   const checkOutTime = customTime ? new Date(customTime) : new Date();
@@ -185,7 +183,7 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
     const [startHour, startMin] = breakStart.split(':').map(Number);
     const [endHour, endMin] = breakEnd.split(':').map(Number);
     
-    // Create DateTime objects for break times on today's date
+    // Create DateTime objects for break times on the RECORD's date
     breakStartDateTime = new Date(record.date);
     breakStartDateTime.setHours(startHour, startMin, 0, 0);
     
@@ -206,7 +204,10 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
   let totalMilliseconds = 0;
   updatedRecord.sessions.forEach((session) => {
     if (session.checkIn && session.checkOut && session.type === "WORK") {
-      totalMilliseconds += session.checkOut - session.checkIn;
+      const diff = session.checkOut - session.checkIn;
+      if (diff > 0) {
+        totalMilliseconds += diff;
+      }
     }
   });
 
@@ -450,7 +451,10 @@ const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) 
   let totalMilliseconds = 0;
   updatedRecord.sessions.forEach((session) => {
     if (session.checkIn && session.checkOut && session.type === "WORK") {
-      totalMilliseconds += session.checkOut - session.checkIn;
+      const diff = session.checkOut - session.checkIn;
+      if (diff > 0) {
+        totalMilliseconds += diff;
+      }
     }
   });
 
@@ -479,10 +483,11 @@ const getTodayAttendance = async (employeeId, date = null) => {
   let queryDate;
   if (date) {
     queryDate = new Date(date);
+    // Do NOT call setHours here for the same reason as clockIn
   } else {
     queryDate = new Date();
+    queryDate.setHours(0, 0, 0, 0);
   }
-  queryDate.setHours(0, 0, 0, 0);
 
   return await prisma.attendanceRecord.findUnique({
     where: {

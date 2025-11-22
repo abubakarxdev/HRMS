@@ -3,6 +3,8 @@ import { useAppContext } from '../../contexts/AppContext';
 import { api } from '../../services/apiService';
 import { AttendanceStats, AttendanceRecord } from '../../types';
 import Card from '../ui/Card';
+import AttendanceCard from '../attendance/AttendanceCard';
+import AttendanceSummaryCard from '../attendance/AttendanceSummaryCard';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -29,7 +31,6 @@ ChartJS.register(
 
 const EmployeeDashboard: React.FC = () => {
   const { user } = useAppContext();
-  const [stats, setStats] = useState<AttendanceStats | null>(null);
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,11 +38,7 @@ const EmployeeDashboard: React.FC = () => {
     const fetchData = async () => {
       if (!user?.employeeId) return;
       try {
-        const [statsData, historyData] = await Promise.all([
-          api.getStats(user.employeeId),
-          api.getAttendanceForEmployee(user.employeeId),
-        ]);
-        setStats(statsData);
+        const historyData = await api.getAttendanceForEmployee(user.employeeId);
         setAttendanceHistory(historyData);
       } catch (error) {
         console.error('Failed to fetch employee dashboard data', error);
@@ -52,13 +49,6 @@ const EmployeeDashboard: React.FC = () => {
 
     fetchData();
   }, [user?.employeeId]);
-
-  const formatHours = (decimalHours: number) => {
-    if (!decimalHours) return '0 hr 0 min';
-    const hours = Math.floor(decimalHours);
-    const minutes = Math.round((decimalHours - hours) * 60);
-    return `${hours} hr ${minutes} min`;
-  };
 
   // Prepare chart data - last 7 days
   const chartData = useMemo(() => {
@@ -132,20 +122,10 @@ const EmployeeDashboard: React.FC = () => {
         </h2>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <h3 className="text-sm font-medium text-slate-500 mb-2">Hours Today</h3>
-          <p className="text-3xl font-bold text-indigo-600">{formatHours(stats?.hoursToday || 0)}</p>
-        </Card>
-        <Card>
-          <h3 className="text-sm font-medium text-slate-500 mb-2">Hours This Week</h3>
-          <p className="text-3xl font-bold text-indigo-600">{formatHours(stats?.hoursThisWeek || 0)}</p>
-        </Card>
-        <Card>
-          <h3 className="text-sm font-medium text-slate-500 mb-2">Hours This Month</h3>
-          <p className="text-3xl font-bold text-indigo-600">{formatHours(stats?.hoursThisMonth || 0)}</p>
-        </Card>
+      {/* Attendance Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <AttendanceSummaryCard />
+        <AttendanceCard />
       </div>
 
       {/* Attendance Chart */}

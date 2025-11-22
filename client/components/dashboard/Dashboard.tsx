@@ -2,10 +2,10 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import StatCard from './StatCard';
-import AttendanceWidget from './AttendanceWidget';
+
 import ApprovalsPanel from './ApprovalsPanel';
-import MyHoursSummaryCard from './MyHoursSummaryCard';
-import AttendanceStatsCard from './AttendanceStatsCard';
+import AttendanceCard from '../attendance/AttendanceCard';
+import AttendanceSummaryCard from '../attendance/AttendanceSummaryCard';
 import ManageHolidaysModal from '../admin/ManageHolidaysModal';
 import Button from '../ui/Button';
 import { Role } from '../../types';
@@ -97,19 +97,18 @@ const ManagerDashboard: React.FC = () => {
                 <StatCard title="Pending Approvals" value={approvals.filter(a => a.status === 'Pending').length} />
             </div>
 
-            {/* Real-Time Attendance Stats */}
-            <AttendanceStatsCard />
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-1 space-y-8">
-                    <MyHoursSummaryCard />
-                </div>
-                {isPrivilegedUser && (
-                    <div className="lg:col-span-2">
-                        <ApprovalsPanel />
-                    </div>
-                )}
+            {/* Attendance Section - Side by Side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <AttendanceSummaryCard />
+                <AttendanceCard />
             </div>
+
+            {/* Approvals Section - Full Width Below */}
+            {isPrivilegedUser && (
+                <div className="w-full">
+                    <ApprovalsPanel />
+                </div>
+            )}
             
             <ManageHolidaysModal 
                 isOpen={isHolidaysModalOpen}

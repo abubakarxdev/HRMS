@@ -8,6 +8,7 @@ interface EmployeeAttendanceCardProps {
 }
 
 const formatHoursMinutes = (decimalHours: number): string => {
+    if (decimalHours < 0) return "0h 0m";
     const hours = Math.floor(decimalHours);
     const minutes = Math.round((decimalHours - hours) * 60);
     return `${hours}h ${minutes}m`;
@@ -17,7 +18,7 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
   const { user, attendance } = useAppContext();
   const [workedHours, setWorkedHours] = useState({ today: 0, week: 0, month: 0 });
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
 
   useEffect(() => {
     const calculateAllHours = () => {
@@ -41,12 +42,14 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
                     if (session.checkOut) {
                         const start = new Date(session.checkIn).getTime();
                         const end = new Date(session.checkOut).getTime();
-                        sessionHours += (end - start) / (1000 * 60 * 60);
+                        const diff = Math.max(0, end - start);
+                        sessionHours += diff / (1000 * 60 * 60);
                     } else {
                         // Open session
                         const start = new Date(session.checkIn).getTime();
                         const end = now.getTime();
-                        sessionHours += (end - start) / (1000 * 60 * 60);
+                        const diff = Math.max(0, end - start);
+                        sessionHours += diff / (1000 * 60 * 60);
                     }
                 });
                 // Use calculated session hours if it's more accurate (e.g. live update)
@@ -71,17 +74,46 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
         });
 
         const completedHoursWeek = pastRecords
-            .filter(r => new Date(r.date + 'T00:00:00') >= startOfWeek)
-            .reduce((acc, r) => acc + (r.totalHours || 0), 0);
+            .filter(r => {
+                const recordDate = new Date(r.date);
+                return recordDate >= startOfWeek;
+            })
+            .reduce((acc, r) => acc + Math.max(0, r.totalHours || 0), 0);
             
         const completedHoursMonth = pastRecords
-            .filter(r => new Date(r.date + 'T00:00:00') >= startOfMonth)
-            .reduce((acc, r) => acc + (r.totalHours || 0), 0);
+            .filter(r => {
+                const recordDate = new Date(r.date);
+                return recordDate >= startOfMonth;
+            })
+            .reduce((acc, r) => acc + Math.max(0, r.totalHours || 0), 0);
+        
+        console.log('[EmployeeAttendanceCard] Detailed Debug:', {
+            employeeName: employee.name,
+            employeeId: employee.id,
+            todayStr,
+            liveHoursToday,
+            todayRecordTotalHours: todayRecord?.totalHours,
+            allAttendanceForThisEmployee: attendance.filter(r => r.employeeId === employee.id).map(r => ({ 
+                date: r.date, 
+                totalHours: r.totalHours,
+                datePKT: new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' })
+            })),
+            pastRecordsCount: pastRecords.length,
+            pastRecords: pastRecords.map(r => ({ date: r.date, totalHours: r.totalHours })),
+            startOfWeek: startOfWeek.toISOString(),
+            completedHoursWeek,
+            completedHoursMonth,
+            finalCalculation: {
+                today: Math.max(0, liveHoursToday),
+                week: completedHoursWeek + Math.max(0, liveHoursToday),
+                month: completedHoursMonth + Math.max(0, liveHoursToday)
+            }
+        });
         
         setWorkedHours({
-            today: liveHoursToday,
-            week: completedHoursWeek + liveHoursToday,
-            month: completedHoursMonth + liveHoursToday,
+            today: Math.max(0, liveHoursToday),
+            week: completedHoursWeek + Math.max(0, liveHoursToday),
+            month: completedHoursMonth + Math.max(0, liveHoursToday),
         });
     };
 

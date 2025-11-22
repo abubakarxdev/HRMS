@@ -16,8 +16,13 @@ interface ClockActionModalProps {
 const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, employee, action, todayRecord, onSuccess }) => {
   const { performClockAction } = useAppContext();
   
-  // Step management for check-out (1 = break selection, 2 = time selection)
-  const [step, setStep] = useState<1 | 2>(action === 'out' ? 1 : 2);
+  // Step management
+  // For check-in: 1 = location selection, 2 = time selection
+  // For check-out: 1 = break selection, 2 = time selection
+  const [step, setStep] = useState<1 | 2>(1);
+  
+  // Location selection (for check-in only)
+  const [location, setLocation] = useState<'Office' | 'Home'>('Office');
   
   // Time selection
   const [timeMode, setTimeMode] = useState<'now' | 'custom'>('now');
@@ -171,14 +176,15 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
 
       if (action === 'in') {
         // Pass today's date to ensure record is created for the correct local day
-        const today = new Date().toISOString().split('T')[0];
-        await performClockAction(employee.employeeId, 'in', timePayload, undefined, undefined, today);
+        // Use local date (en-CA gives YYYY-MM-DD) instead of UTC
+        const today = new Date().toLocaleDateString('en-CA');
+        await performClockAction(employee.employeeId, 'in', timePayload, undefined, undefined, today, location);
       } else {
         // For check-out, include break times
         let breakStart = breakMode === 'default' ? defaultBreak.start : (breakMode === 'custom' ? customBreakStart : undefined);
         let breakEnd = breakMode === 'default' ? defaultBreak.end : (breakMode === 'custom' ? customBreakEnd : undefined);
         
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toLocaleDateString('en-CA');
         await performClockAction(employee.employeeId, 'out', timePayload, breakStart, breakEnd, today);
       }
       if (onSuccess) {
@@ -193,7 +199,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
     }
   };
 
-  const title = action === 'in' ? 'Clock In' : (step === 1 ? 'Select Break Time' : 'Clock Out');
+  const title = action === 'in' ? (step === 1 ? 'Select Location' : 'Clock In') : (step === 1 ? 'Select Break Time' : 'Clock Out');
 
   return (
     <div 
@@ -302,8 +308,36 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
             </>
           )}
 
+          {/* STEP 1: Location Selection (Check-In Only) */}
+          {action === 'in' && step === 1 && (
+            <>
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-slate-700 mb-3">
+                  Where are you working from today?
+                </label>
+                <div className="space-y-2">
+                  <button
+                    className={`w-full p-3 rounded-lg border-2 text-left transition-all ${location === 'Office' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
+                    onClick={() => { setLocation('Office'); setToast(null); }}
+                  >
+                    <div className="font-medium text-slate-800">🏢 Office</div>
+                    <div className="text-sm text-slate-600">Working from the office</div>
+                  </button>
+                  
+                  <button
+                    className={`w-full p-3 rounded-lg border-2 text-left transition-all ${location === 'Home' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
+                    onClick={() => { setLocation('Home'); setToast(null); }}
+                  >
+                    <div className="font-medium text-slate-800">🏠 Home</div>
+                    <div className="text-sm text-slate-600">Working from home</div>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* STEP 2: Time Selection (Check-In or Check-Out Step 2) */}
-          {(action === 'in' || step === 2) && (
+          {(action === 'in' && step === 2 || action === 'out' && step === 2) && (
             <>
               <div className="border-t pt-4">
                 <label className="block text-sm font-medium text-slate-700 mb-3">
@@ -356,7 +390,14 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
 
         {/* Footer */}
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end space-x-2 sticky bottom-0">
-          {action === 'out' && step === 1 ? (
+          {action === 'in' && step === 1 ? (
+            <>
+              <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+              <Button onClick={() => setStep(2)} disabled={loading}>
+                Next: Select Time →
+              </Button>
+            </>
+          ) : action === 'out' && step === 1 ? (
             <>
               <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
               <Button onClick={handleBreakNext} disabled={loading}>
@@ -365,7 +406,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
             </>
           ) : (
             <>
-              {action === 'out' && step === 2 && (
+              {step === 2 && (
                 <Button variant="outline" onClick={() => setStep(1)} disabled={loading}>
                   ← Back
                 </Button>

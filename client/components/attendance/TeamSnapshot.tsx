@@ -50,7 +50,15 @@ const TeamSnapshot: React.FC = () => {
 
     const attendanceByEmployee = useMemo(() => {
         const map = new Map();
-        todayAttendance.forEach(a => map.set(String(a.employeeId), a));
+        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+        
+        todayAttendance.forEach(a => {
+            // Only include if the record date itself is today
+            const recordDatePKT = new Date(a.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+            if (recordDatePKT === todayLocal) {
+                map.set(String(a.employeeId), a);
+            }
+        });
         return map;
     }, [todayAttendance]);
 
@@ -105,23 +113,28 @@ const TeamSnapshot: React.FC = () => {
                         </span>
                     </div>
                 </div>
-                {isPrivilegedUser && (
-                    <div className="flex items-center space-x-2">
-                        <select 
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="p-2 border rounded-md bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        >
-                            <option value="all">All Employees</option>
-                            <option value="present">Present</option>
-                            <option value="absent">Absent</option>
-                            <option value="checked-out">Checked Out</option>
-                            <option value="on-break">On Break</option>
-                            <option value="on-leave">On Leave</option>
-                        </select>
-                        <Button variant="outline" onClick={() => window.location.reload()}>Refresh</Button>
-                    </div>
-                )}
+                <div className="flex items-center space-x-2">
+                    <select 
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="p-2 border rounded-md bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                        <option value="all">All Employees</option>
+                        <option value="present">Present</option>
+                        <option value="absent">Absent</option>
+                        <option value="checked-out">Checked Out</option>
+                        <option value="on-break">On Break</option>
+                    </select>
+                    <button 
+                        onClick={() => window.location.reload()}
+                        className="p-2 border rounded-md bg-slate-50 hover:bg-slate-100 transition-colors"
+                        title="Refresh"
+                    >
+                        <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </button>
+                </div>
             </header>
 
             {(loadingData && employees.length === 0) ? (

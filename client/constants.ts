@@ -26,11 +26,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
         label: 'Employees',
         roles: [Role.ADMIN_HR, Role.MANAGER],
     },
-    {
-        path: NAVIGATION_PATHS.ATTENDANCE,
-        label: 'Attendance',
-        roles: [Role.ADMIN_HR, Role.MANAGER, Role.EMPLOYEE],
-    },
+
     {
         path: NAVIGATION_PATHS.TEAM_ATTENDANCE,
         label: 'Team Attendance',
