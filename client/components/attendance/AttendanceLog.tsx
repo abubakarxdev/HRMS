@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { FiEye } from 'react-icons/fi';
 import { useAppContext } from '../../contexts/AppContext';
 import { api } from '../../services/apiService';
 import { AttendanceRecord } from '../../types';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
+import SessionDetailsModal from './SessionDetailsModal';
 
 const AttendanceLog: React.FC = () => {
     const { user } = useAppContext();
     const [logs, setLogs] = useState<AttendanceRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedRecord, setSelectedRecord] = useState<AttendanceRecord | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     
     // Date Filters
     const [startDate, setStartDate] = useState(() => {
@@ -89,6 +93,16 @@ const AttendanceLog: React.FC = () => {
         };
     };
 
+    const handleViewDetails = (record: AttendanceRecord) => {
+        setSelectedRecord(record);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setSelectedRecord(null);
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -138,22 +152,24 @@ const AttendanceLog: React.FC = () => {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Break</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Location</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Worked</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Details</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-slate-200">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-4 text-center text-slate-500">Loading logs...</td>
+                                    <td colSpan={8} className="px-6 py-4 text-center text-slate-500">Loading logs...</td>
                                 </tr>
                             ) : logs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-4 text-center text-slate-500">No logs found for the selected period.</td>
+                                    <td colSpan={8} className="px-6 py-4 text-center text-slate-500">No logs found for the selected period.</td>
                                 </tr>
                             ) : (
                                 logs.map((record) => {
                                     const { checkIn, checkOut } = getSessionTimes(record);
                                     const location = record.sessions?.[0]?.location || '-';
                                     const breakDuration = record.breakHours ? formatDuration(record.breakHours) : '-';
+                                    const hasSessions = (record.sessions?.length || 0) > 0;
                                     
                                     return (
                                         <tr key={record.id} className="hover:bg-slate-50">
@@ -185,6 +201,17 @@ const AttendanceLog: React.FC = () => {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                                                 {formatDuration(record.totalHours || 0)}
                                             </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                                                {hasSessions && (
+                                                    <button
+                                                        onClick={() => handleViewDetails(record)}
+                                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors font-medium"
+                                                    >
+                                                        <FiEye size={16} />
+                                                        View
+                                                    </button>
+                                                )}
+                                            </td>
                                         </tr>
                                     );
                                 })
@@ -192,13 +219,20 @@ const AttendanceLog: React.FC = () => {
                         </tbody>
                         <tfoot className="bg-slate-50">
                             <tr>
-                                <td colSpan={6} className="px-6 py-3 text-right text-sm font-medium text-slate-900">Total Hours (Filtered):</td>
+                                <td colSpan={7} className="px-6 py-3 text-right text-sm font-medium text-slate-900">Total Hours (Filtered):</td>
                                 <td className="px-6 py-3 text-left text-sm font-bold text-indigo-600">{formatDuration(totalFilteredHours)}</td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
             </div>
+
+            {/* Session Details Modal */}
+            <SessionDetailsModal 
+                record={selectedRecord}
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+            />
         </div>
     );
 };
