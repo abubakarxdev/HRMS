@@ -31,7 +31,7 @@ const createEmployee = async (employeeData) => {
 const updateEmployee = async (id, employeeData) => {
   return prisma.user.update({
     where: {
-      id: parseInt(id, 10), // Ensure ID is parsed as integer
+      id: id,
     },
     data: employeeData,
   });
@@ -40,7 +40,7 @@ const updateEmployee = async (id, employeeData) => {
 const deleteEmployee = async (id) => {
   return prisma.user.delete({
     where: {
-      id: parseInt(id, 10), // Ensure ID is parsed as integer
+      id: id,
     },
   });
 };
