@@ -49,6 +49,8 @@ export interface AttendanceRecord {
   employeeId: number;
   date: string;
   status: 'Present' | 'Absent' | 'On Leave';
+  breakStart?: string | null;
+  breakEnd?: string | null;
   breakHours?: number;
   totalHours?: number;
   sessions?: AttendanceSession[];
