@@ -1,24 +1,18 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const attendanceRepository = require("../repositories/attendance.repository");
+const dateUtil = require("../utils/date.util");
 
 /**
  * Helper to get internal User ID from string employeeId
  * @param {string} employeeIdStr 
- * @returns {Promise<number>}
+ * @returns {Promise<string>}
  */
 const getUserId = async (employeeIdStr) => {
   // First try to find by employeeId (string)
-  let user = await prisma.user.findUnique({
-    where: { employeeId: employeeIdStr },
-    select: { id: true },
-  });
+  let user = await attendanceRepository.findUserByEmployeeId(employeeIdStr);
 
-  // If not found, and input looks like a number, try finding by internal id
-  if (!user && !isNaN(parseInt(employeeIdStr))) {
-    user = await prisma.user.findUnique({
-      where: { id: parseInt(employeeIdStr) },
-      select: { id: true },
-    });
+  // If not found, try finding by internal id (UUID string)
+  if (!user) {
+    user = await attendanceRepository.findUserById(employeeIdStr);
   }
 
   if (!user) {
@@ -32,21 +26,7 @@ const getUserId = async (employeeIdStr) => {
  * @returns {Promise<Array>}
  */
 const getAllAttendance = async () => {
-  return await prisma.attendanceRecord.findMany({
-    orderBy: {
-      date: "desc",
-    },
-    include: {
-      sessions: true,
-      employee: {
-        select: {
-          id: true,
-          employeeId: true,
-          name: true,
-        },
-      },
-    },
-  });
+  return await attendanceRepository.findAllAttendance();
 };
 
 /**
@@ -56,17 +36,7 @@ const getAllAttendance = async () => {
  */
 const getAttendanceForEmployee = async (employeeId) => {
   const userId = await getUserId(employeeId);
-  return await prisma.attendanceRecord.findMany({
-    where: {
-      employeeId: userId,
-    },
-    orderBy: {
-      date: "desc",
-    },
-    include: {
-      sessions: true,
-    },
-  });
+  return await attendanceRepository.findAttendanceByUserId(userId);
 };
 
 /**
@@ -80,49 +50,33 @@ const clockIn = async (employeeId, location = "Office", customTime = null, recor
   const userId = await getUserId(employeeId);
   
   // Use custom time if provided, otherwise use current server time
-  const checkInTime = customTime ? new Date(customTime) : new Date();
+  const checkInTime = customTime ? new Date(customTime) : dateUtil.getNow();
   
-  // Normalize date for the record (midnight)
-  // If recordDateStr is provided (from client), use it as UTC midnight.
-  // Otherwise derive from checkInTime and normalize to local midnight.
+  // Normalize date for the record (midnight in target timezone)
   let recordDate;
   if (recordDateStr) {
     recordDate = new Date(recordDateStr);
-    // Do NOT call setHours here, as new Date("YYYY-MM-DD") is already UTC midnight
-    // and setHours would shift it to local midnight (potentially previous day).
   } else {
-    recordDate = new Date(checkInTime);
-    recordDate.setHours(0, 0, 0, 0);
+    recordDate = dateUtil.getStartOfDay(checkInTime);
   }
 
   // Find or create attendance record for the day of check-in
-  let record = await prisma.attendanceRecord.findUnique({
-    where: {
-      unique_attendance_per_day: {
-        employeeId: userId,
-        date: recordDate,
-      },
-    },
-  });
+  let record = await attendanceRepository.findAttendanceRecord(userId, recordDate);
 
   if (!record) {
-    record = await prisma.attendanceRecord.create({
-      data: {
-        employeeId: userId,
-        date: recordDate,
-        status: "Present",
-      },
+    record = await attendanceRepository.createAttendanceRecord({
+      employeeId: userId,
+      date: recordDate,
+      status: "Present",
     });
   }
 
   // Create a new session
-  const session = await prisma.attendanceSession.create({
-    data: {
-      attendanceRecordId: record.id,
-      checkIn: checkInTime,
-      location,
-      type: "WORK",
-    },
+  const session = await attendanceRepository.createSession({
+    attendanceRecordId: record.id,
+    checkIn: checkInTime,
+    location,
+    type: "WORK",
   });
 
   return { record, session };
@@ -142,23 +96,7 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
   // Find the most recent open WORK session for this employee
   // We ignore recordDateStr for finding the session to handle overnight shifts 
   // or date mismatches robustly.
-  const openSession = await prisma.attendanceSession.findFirst({
-    where: {
-      attendanceRecord: {
-        employeeId: userId,
-      },
-      checkOut: null,
-      type: "WORK",
-    },
-    include: {
-      attendanceRecord: {
-        include: { sessions: true }
-      }
-    },
-    orderBy: {
-      checkIn: 'desc'
-    }
-  });
+  const openSession = await attendanceRepository.findOpenSession(userId, "WORK");
 
   if (!openSession) {
     throw new Error("No open session found to clock out from.");
@@ -168,10 +106,7 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
 
   // Update session with checkOut time
   const checkOutTime = customTime ? new Date(customTime) : new Date();
-  await prisma.attendanceSession.update({
-    where: { id: openSession.id },
-    data: { checkOut: checkOutTime },
-  });
+  await attendanceRepository.updateSession(openSession.id, { checkOut: checkOutTime });
 
   // Calculate break hours if break times provided
   let breakHours = 0;
@@ -196,10 +131,7 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
   }
 
   // Recalculate total hours
-  const updatedRecord = await prisma.attendanceRecord.findUnique({
-    where: { id: record.id },
-    include: { sessions: true },
-  });
+  const updatedRecord = await attendanceRepository.findAttendanceRecordById(record.id);
 
   let totalMilliseconds = 0;
   updatedRecord.sessions.forEach((session) => {
@@ -214,15 +146,11 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
   const totalHours = totalMilliseconds / (1000 * 60 * 60);
 
   // Update record with total hours and break information
-  return await prisma.attendanceRecord.update({
-    where: { id: record.id },
-    data: { 
-      totalHours,
-      breakStart: breakStartDateTime,
-      breakEnd: breakEndDateTime,
-      breakHours: breakHours > 0 ? breakHours : null,
-    },
-    include: { sessions: true },
+  return await attendanceRepository.updateAttendanceRecord(record.id, {
+    totalHours,
+    breakStart: breakStartDateTime,
+    breakEnd: breakEndDateTime,
+    breakHours: breakHours > 0 ? breakHours : null,
   });
 };
 
@@ -233,47 +161,27 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
  */
 const getAttendanceStats = async (employeeId) => {
   const userId = await getUserId(employeeId);
-  const now = new Date();
+  const now = dateUtil.getNow();
   
   // Today
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
+  const today = dateUtil.getStartOfDay(now);
   
-  const todayRecord = await prisma.attendanceRecord.findUnique({
-    where: {
-      unique_attendance_per_day: {
-        employeeId: userId,
-        date: today,
-      },
-    },
-  });
+  const todayRecord = await attendanceRepository.findAttendanceRecord(userId, today);
 
   // Week (Start from Monday)
-  const startOfWeek = new Date(now);
+  const startOfWeek = dateUtil.getStartOfDay(now);
   const day = startOfWeek.getDay();
   const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
   startOfWeek.setDate(diff);
-  startOfWeek.setHours(0, 0, 0, 0);
+  // Note: getStartOfDay already set hours to 0, but setDate might preserve time if we didn't use it.
+  // Actually startOfWeek was created via getStartOfDay so it's 00:00.
 
-  const weekRecords = await prisma.attendanceRecord.findMany({
-    where: {
-      employeeId: userId,
-      date: {
-        gte: startOfWeek,
-      },
-    },
-  });
+  const weekRecords = await attendanceRepository.findAttendanceRecordsByDateRange(userId, startOfWeek);
 
   // Month
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthRecords = await prisma.attendanceRecord.findMany({
-    where: {
-      employeeId: userId,
-      date: {
-        gte: startOfMonth,
-      },
-    },
-  });
+  const startOfMonth = dateUtil.getStartOfDay(now);
+  startOfMonth.setDate(1);
+  const monthRecords = await attendanceRepository.findAttendanceRecordsByDateRange(userId, startOfMonth);
 
   const sumHours = (records) => records.reduce((acc, curr) => acc + (curr.totalHours || 0), 0);
 
@@ -293,20 +201,9 @@ const getAttendanceStats = async (employeeId) => {
  */
 const startBreak = async (employeeId, breakType = "DEFAULT", customTime) => {
   const userId = await getUserId(employeeId);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = dateUtil.getStartOfDay();
 
-  const record = await prisma.attendanceRecord.findUnique({
-    where: {
-      unique_attendance_per_day: {
-        employeeId: userId,
-        date: today,
-      },
-    },
-    include: {
-      sessions: true,
-    },
-  });
+  const record = await attendanceRepository.findAttendanceRecord(userId, today);
 
   if (!record) {
     throw new Error("No attendance record found for today. Please clock in first.");
@@ -316,22 +213,17 @@ const startBreak = async (employeeId, breakType = "DEFAULT", customTime) => {
   const openSession = record.sessions.find((s) => !s.checkOut);
   if (openSession) {
     // End current work session
-    const endTime = customTime ? new Date(customTime) : new Date();
-    await prisma.attendanceSession.update({
-      where: { id: openSession.id },
-      data: { checkOut: endTime },
-    });
+    const endTime = customTime ? new Date(customTime) : dateUtil.getNow();
+    await attendanceRepository.updateSession(openSession.id, { checkOut: endTime });
   }
 
   // Start BREAK session
-  const breakStartTime = customTime ? new Date(customTime) : new Date();
-  const session = await prisma.attendanceSession.create({
-    data: {
-      attendanceRecordId: record.id,
-      checkIn: breakStartTime,
-      type: "BREAK",
-      location: "Break", // Placeholder
-    },
+  const breakStartTime = customTime ? new Date(customTime) : dateUtil.getNow();
+  const session = await attendanceRepository.createSession({
+    attendanceRecordId: record.id,
+    checkIn: breakStartTime,
+    type: "BREAK",
+    location: "Break", // Placeholder
   });
 
   return { record, session };
@@ -344,20 +236,9 @@ const startBreak = async (employeeId, breakType = "DEFAULT", customTime) => {
  */
 const endBreak = async (employeeId) => {
   const userId = await getUserId(employeeId);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = dateUtil.getStartOfDay();
 
-  const record = await prisma.attendanceRecord.findUnique({
-    where: {
-      unique_attendance_per_day: {
-        employeeId: userId,
-        date: today,
-      },
-    },
-    include: {
-      sessions: true,
-    },
-  });
+  const record = await attendanceRepository.findAttendanceRecord(userId, today);
 
   if (!record) {
     throw new Error("No attendance record found for today.");
@@ -370,19 +251,14 @@ const endBreak = async (employeeId) => {
   }
 
   // End BREAK session
-  await prisma.attendanceSession.update({
-    where: { id: openSession.id },
-    data: { checkOut: new Date() },
-  });
+  await attendanceRepository.updateSession(openSession.id, { checkOut: dateUtil.getNow() });
 
   // Start WORK session (Resume work)
-  const session = await prisma.attendanceSession.create({
-    data: {
-      attendanceRecordId: record.id,
-      checkIn: new Date(),
-      type: "WORK",
-      location: "Office", // Default back to Office, or could store previous location
-    },
+  const session = await attendanceRepository.createSession({
+    attendanceRecordId: record.id,
+    checkIn: dateUtil.getNow(),
+    type: "WORK",
+    location: "Office", // Default back to Office, or could store previous location
   });
 
   return { record, session };
@@ -397,10 +273,7 @@ const endBreak = async (employeeId) => {
  * @returns {Promise<Object>}
  */
 const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) => {
-  const record = await prisma.attendanceRecord.findUnique({
-    where: { id: parseInt(recordId) },
-    include: { sessions: true },
-  });
+  const record = await attendanceRepository.findAttendanceRecordById(recordId);
 
   if (!record) {
     throw new Error("Attendance record not found");
@@ -414,13 +287,13 @@ const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) 
   // Update all open sessions with checkOut time
   const checkOutDate = new Date(clockOutTime);
   
-  await prisma.attendanceSession.updateMany({
-    where: { 
+  await attendanceRepository.updateManySessions(
+    { 
       attendanceRecordId: record.id,
       checkOut: null 
     },
-    data: { checkOut: checkOutDate },
-  });
+    { checkOut: checkOutDate }
+  );
 
   // Calculate break hours
   let breakHours = 0;
@@ -443,10 +316,7 @@ const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) 
   }
 
   // Recalculate total hours
-  const updatedRecord = await prisma.attendanceRecord.findUnique({
-    where: { id: record.id },
-    include: { sessions: true },
-  });
+  const updatedRecord = await attendanceRepository.findAttendanceRecordById(record.id);
 
   let totalMilliseconds = 0;
   updatedRecord.sessions.forEach((session) => {
@@ -460,15 +330,11 @@ const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) 
 
   const totalHours = totalMilliseconds / (1000 * 60 * 60);
 
-  return await prisma.attendanceRecord.update({
-    where: { id: record.id },
-    data: { 
-      totalHours,
-      breakStart: breakStartDateTime,
-      breakEnd: breakEndDateTime,
-      breakHours: breakHours > 0 ? breakHours : null,
-    },
-    include: { sessions: true },
+  return await attendanceRepository.updateAttendanceRecord(record.id, {
+    totalHours,
+    breakStart: breakStartDateTime,
+    breakEnd: breakEndDateTime,
+    breakHours: breakHours > 0 ? breakHours : null,
   });
 };
 
@@ -483,23 +349,11 @@ const getTodayAttendance = async (employeeId, date = null) => {
   let queryDate;
   if (date) {
     queryDate = new Date(date);
-    // Do NOT call setHours here for the same reason as clockIn
   } else {
-    queryDate = new Date();
-    queryDate.setHours(0, 0, 0, 0);
+    queryDate = dateUtil.getStartOfDay();
   }
 
-  return await prisma.attendanceRecord.findUnique({
-    where: {
-      unique_attendance_per_day: {
-        employeeId: userId,
-        date: queryDate,
-      },
-    },
-    include: {
-      sessions: true,
-    },
-  });
+  return await attendanceRepository.findAttendanceRecord(userId, queryDate);
 };
 
 module.exports = {
