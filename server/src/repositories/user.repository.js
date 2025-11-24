@@ -8,7 +8,7 @@ const findByEmail = async (email) => {
 
 const findById = async (id) => {
     return await prisma.user.findUnique({
-        where: { id },
+        where: { id: String(id) },
         // Exclude the password hash for security
         select: {
             id: true,
