@@ -105,13 +105,11 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
   const record = openSession.attendanceRecord;
 
   // Update session with checkOut time
-  const checkOutTime = customTime ? new Date(customTime) : new Date();
+  const checkOutTime = customTime ? new Date(customTime) : dateUtil.getNow();
   await attendanceRepository.updateSession(openSession.id, { checkOut: checkOutTime });
 
-  // Calculate break hours if break times provided
+  // If break times provided, create a BREAK session
   let breakHours = 0;
-  let breakStartDateTime = null;
-  let breakEndDateTime = null;
 
   if (breakStart && breakEnd) {
     // Parse break times (format: "HH:MM")
@@ -119,38 +117,56 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
     const [endHour, endMin] = breakEnd.split(':').map(Number);
     
     // Create DateTime objects for break times on the RECORD's date
-    breakStartDateTime = new Date(record.date);
+    // We need to be careful with timezone here. record.date is the "Day".
+    // We should construct the break times relative to that day in the target timezone.
+    // For now, assuming record.date is correct "Day" object.
+    const breakStartDateTime = new Date(record.date);
     breakStartDateTime.setHours(startHour, startMin, 0, 0);
     
-    breakEndDateTime = new Date(record.date);
+    const breakEndDateTime = new Date(record.date);
     breakEndDateTime.setHours(endHour, endMin, 0, 0);
     
-    // Calculate break duration in hours
+    // Create the BREAK session
+    await attendanceRepository.createSession({
+      attendanceRecordId: record.id,
+      checkIn: breakStartDateTime,
+      checkOut: breakEndDateTime,
+      type: "BREAK",
+      location: "Manual Break",
+    });
+    
     const breakMilliseconds = breakEndDateTime - breakStartDateTime;
     breakHours = breakMilliseconds / (1000 * 60 * 60);
   }
 
-  // Recalculate total hours
+  // Recalculate total hours from ALL sessions
   const updatedRecord = await attendanceRepository.findAttendanceRecordById(record.id);
 
   let totalMilliseconds = 0;
+  let totalBreakMilliseconds = 0;
+
   updatedRecord.sessions.forEach((session) => {
-    if (session.checkIn && session.checkOut && session.type === "WORK") {
+    if (session.checkIn && session.checkOut) {
       const diff = session.checkOut - session.checkIn;
       if (diff > 0) {
-        totalMilliseconds += diff;
+        if (session.type === "WORK") {
+          totalMilliseconds += diff;
+        } else if (session.type === "BREAK") {
+          totalBreakMilliseconds += diff;
+        }
       }
     }
   });
 
   const totalHours = totalMilliseconds / (1000 * 60 * 60);
+  const totalBreakHours = totalBreakMilliseconds / (1000 * 60 * 60);
 
-  // Update record with total hours and break information
+  // Update record with total hours
   return await attendanceRepository.updateAttendanceRecord(record.id, {
     totalHours,
-    breakStart: breakStartDateTime,
-    breakEnd: breakEndDateTime,
-    breakHours: breakHours > 0 ? breakHours : null,
+    breakHours: totalBreakHours > 0 ? totalBreakHours : null,
+    breakStart: null,
+    breakEnd: null,
   });
 };
 
@@ -297,20 +313,27 @@ const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) 
 
   // Calculate break hours
   let breakHours = 0;
-  let breakStartDateTime = null;
-  let breakEndDateTime = null;
 
   if (breakStart && breakEnd) {
     const [startHour, startMin] = breakStart.split(':').map(Number);
     const [endHour, endMin] = breakEnd.split(':').map(Number);
     
     // Use RECORD DATE for break times
-    breakStartDateTime = new Date(record.date);
+    const breakStartDateTime = new Date(record.date);
     breakStartDateTime.setHours(startHour, startMin, 0, 0);
     
-    breakEndDateTime = new Date(record.date);
+    const breakEndDateTime = new Date(record.date);
     breakEndDateTime.setHours(endHour, endMin, 0, 0);
     
+    // Create the BREAK session
+    await attendanceRepository.createSession({
+      attendanceRecordId: record.id,
+      checkIn: breakStartDateTime,
+      checkOut: breakEndDateTime,
+      type: "BREAK",
+      location: "Manual Break (Fix)",
+    });
+
     const breakMilliseconds = breakEndDateTime - breakStartDateTime;
     breakHours = breakMilliseconds / (1000 * 60 * 60);
   }
@@ -319,22 +342,29 @@ const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) 
   const updatedRecord = await attendanceRepository.findAttendanceRecordById(record.id);
 
   let totalMilliseconds = 0;
+  let totalBreakMilliseconds = 0;
+
   updatedRecord.sessions.forEach((session) => {
-    if (session.checkIn && session.checkOut && session.type === "WORK") {
+    if (session.checkIn && session.checkOut) {
       const diff = session.checkOut - session.checkIn;
       if (diff > 0) {
-        totalMilliseconds += diff;
+        if (session.type === "WORK") {
+          totalMilliseconds += diff;
+        } else if (session.type === "BREAK") {
+          totalBreakMilliseconds += diff;
+        }
       }
     }
   });
 
   const totalHours = totalMilliseconds / (1000 * 60 * 60);
+  const totalBreakHours = totalBreakMilliseconds / (1000 * 60 * 60);
 
   return await attendanceRepository.updateAttendanceRecord(record.id, {
     totalHours,
-    breakStart: breakStartDateTime,
-    breakEnd: breakEndDateTime,
-    breakHours: breakHours > 0 ? breakHours : null,
+    breakHours: totalBreakHours > 0 ? totalBreakHours : null,
+    breakStart: null,
+    breakEnd: null,
   });
 };
 
