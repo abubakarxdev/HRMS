@@ -79,8 +79,9 @@ const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({ record, isOpe
                         <div className="flex items-center gap-6 text-sm">
                             <div className="flex items-center gap-2">
                                 <FiClock className="text-indigo-600" size={16} />
-                                <span className="text-slate-600">Total Worked:</span>
+                                <span className="text-slate-600">Total Work Hours:</span>
                                 <span className="font-semibold text-slate-900">{formatDuration(record.totalHours || 0)}</span>
+                                <span className="text-slate-500 text-xs">(breaks excluded)</span>
                             </div>
                             <div className="h-4 w-px bg-slate-300"></div>
                             <div className="flex items-center gap-2">

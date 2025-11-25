@@ -71,6 +71,43 @@ const clockIn = async (employeeId, location = "Office", customTime = null, recor
     });
   }
 
+  // VALIDATION: Check if new check-in time is greater than previous checkout time
+  // This prevents time conflicts when creating multiple sessions
+  if (record.sessions && record.sessions.length > 0) {
+    // Find all completed WORK sessions (sessions with both checkIn and checkOut)
+    const completedWorkSessions = record.sessions.filter(
+      s => s.type === "WORK" && s.checkIn && s.checkOut
+    );
+    
+    if (completedWorkSessions.length > 0) {
+      // Find the most recent checkout time
+      const lastCheckOut = completedWorkSessions.reduce((latest, session) => {
+        const sessionCheckOut = new Date(session.checkOut);
+        return sessionCheckOut > latest ? sessionCheckOut : latest;
+      }, new Date(0)); // Start with epoch time
+      
+      // Validate: new check-in must be after the last checkout
+      if (checkInTime <= lastCheckOut) {
+        const lastCheckOutStr = lastCheckOut.toLocaleString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'Asia/Karachi'
+        });
+        const checkInTimeStr = checkInTime.toLocaleString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true,
+          timeZone: 'Asia/Karachi'
+        });
+        
+        throw new Error(
+          `Invalid check-in time. New check-in time (${checkInTimeStr}) must be after the previous checkout time (${lastCheckOutStr}).`
+        );
+      }
+    }
+  }
+
   // Create a new session
   const session = await attendanceRepository.createSession({
     attendanceRecordId: record.id,
@@ -145,25 +182,73 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
   let totalMilliseconds = 0;
   let totalBreakMilliseconds = 0;
 
+  const workSessions = [];
+  const breakSessions = [];
+
+  console.log(`[DEBUG] Total sessions found: ${updatedRecord.sessions.length}`);
+  
   updatedRecord.sessions.forEach((session) => {
     if (session.checkIn && session.checkOut) {
       const diff = session.checkOut - session.checkIn;
       if (diff > 0) {
         if (session.type === "WORK") {
           totalMilliseconds += diff;
+          workSessions.push({ start: new Date(session.checkIn), end: new Date(session.checkOut) });
+          console.log(`[DEBUG] WORK session: ${session.checkIn} to ${session.checkOut}, diff: ${diff}ms (${(diff / (1000 * 60)).toFixed(2)} min)`);
         } else if (session.type === "BREAK") {
           totalBreakMilliseconds += diff;
+          breakSessions.push({ start: new Date(session.checkIn), end: new Date(session.checkOut) });
+          console.log(`[DEBUG] BREAK session: ${session.checkIn} to ${session.checkOut}, diff: ${diff}ms (${(diff / (1000 * 60)).toFixed(2)} min)`);
         }
       }
     }
   });
 
-  const totalHours = totalMilliseconds / (1000 * 60 * 60);
+  const totalWorkHours = totalMilliseconds / (1000 * 60 * 60);
   const totalBreakHours = totalBreakMilliseconds / (1000 * 60 * 60);
+  
+  console.log(`[DEBUG] Total work milliseconds: ${totalMilliseconds}, hours: ${totalWorkHours.toFixed(4)}`);
+  console.log(`[DEBUG] Total break milliseconds: ${totalBreakMilliseconds}, hours: ${totalBreakHours.toFixed(4)}`);
+  
+  // Detect if breaks overlap with work sessions
+  // If a break falls within a work session time range, it needs to be subtracted
+  // If breaks are separate (startBreak/endBreak), they don't overlap and shouldn't be subtracted
+  let overlappingBreakMilliseconds = 0;
+  
+  breakSessions.forEach(breakSession => {
+    workSessions.forEach(workSession => {
+      // Check if break overlaps with this work session
+      const breakStart = breakSession.start.getTime();
+      const breakEnd = breakSession.end.getTime();
+      const workStart = workSession.start.getTime();
+      const workEnd = workSession.end.getTime();
+      
+      // Break overlaps if it starts before work ends AND ends after work starts
+      if (breakStart < workEnd && breakEnd > workStart) {
+        // Calculate the overlapping portion
+        const overlapStart = Math.max(breakStart, workStart);
+        const overlapEnd = Math.min(breakEnd, workEnd);
+        const overlap = overlapEnd - overlapStart;
+        
+        if (overlap > 0) {
+          overlappingBreakMilliseconds += overlap;
+          console.log(`[DEBUG] Found overlapping break: ${overlap}ms (${(overlap / (1000 * 60)).toFixed(2)} min)`);
+        }
+      }
+    });
+  });
+  
+  const overlappingBreakHours = overlappingBreakMilliseconds / (1000 * 60 * 60);
+  console.log(`[DEBUG] Total overlapping break hours: ${overlappingBreakHours.toFixed(4)}`);
+  
+  // Only subtract overlapping breaks from work hours
+  const netWorkHours = totalWorkHours - overlappingBreakHours;
+  
+  console.log(`[DEBUG] Net work hours (work - overlapping breaks): ${netWorkHours.toFixed(4)}`);
 
-  // Update record with total hours
+  // Update record with work hours (overlapping breaks subtracted) and break hours (for display)
   return await attendanceRepository.updateAttendanceRecord(record.id, {
-    totalHours,
+    totalHours: netWorkHours,
     breakHours: totalBreakHours > 0 ? totalBreakHours : null,
     breakStart: null,
     breakEnd: null,
@@ -344,24 +429,54 @@ const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) 
   let totalMilliseconds = 0;
   let totalBreakMilliseconds = 0;
 
+  const workSessions = [];
+  const breakSessions = [];
+
   updatedRecord.sessions.forEach((session) => {
     if (session.checkIn && session.checkOut) {
       const diff = session.checkOut - session.checkIn;
       if (diff > 0) {
         if (session.type === "WORK") {
           totalMilliseconds += diff;
+          workSessions.push({ start: new Date(session.checkIn), end: new Date(session.checkOut) });
         } else if (session.type === "BREAK") {
           totalBreakMilliseconds += diff;
+          breakSessions.push({ start: new Date(session.checkIn), end: new Date(session.checkOut) });
         }
       }
     }
   });
 
-  const totalHours = totalMilliseconds / (1000 * 60 * 60);
+  const totalWorkHours = totalMilliseconds / (1000 * 60 * 60);
   const totalBreakHours = totalBreakMilliseconds / (1000 * 60 * 60);
+  
+  // Detect overlapping breaks (same logic as clockOut)
+  let overlappingBreakMilliseconds = 0;
+  
+  breakSessions.forEach(breakSession => {
+    workSessions.forEach(workSession => {
+      const breakStart = breakSession.start.getTime();
+      const breakEnd = breakSession.end.getTime();
+      const workStart = workSession.start.getTime();
+      const workEnd = workSession.end.getTime();
+      
+      if (breakStart < workEnd && breakEnd > workStart) {
+        const overlapStart = Math.max(breakStart, workStart);
+        const overlapEnd = Math.min(breakEnd, workEnd);
+        const overlap = overlapEnd - overlapStart;
+        
+        if (overlap > 0) {
+          overlappingBreakMilliseconds += overlap;
+        }
+      }
+    });
+  });
+  
+  const overlappingBreakHours = overlappingBreakMilliseconds / (1000 * 60 * 60);
+  const netWorkHours = totalWorkHours - overlappingBreakHours;
 
   return await attendanceRepository.updateAttendanceRecord(record.id, {
-    totalHours,
+    totalHours: netWorkHours,
     breakHours: totalBreakHours > 0 ? totalBreakHours : null,
     breakStart: null,
     breakEnd: null,

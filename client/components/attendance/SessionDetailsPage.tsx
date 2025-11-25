@@ -141,9 +141,10 @@ const SessionDetailsPage: React.FC = () => {
                             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                                 <div className="flex items-center gap-2 mb-2">
                                     <FiClock className="text-indigo-200" size={18} />
-                                    <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider">Total Worked</p>
+                                    <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider">Total Work Hours</p>
                                 </div>
                                 <p className="text-2xl font-bold text-white">{formatDuration(record.totalHours || 0)}</p>
+                                <p className="text-indigo-200 text-xs mt-1">Breaks excluded</p>
                             </div>
                             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                                 <div className="flex items-center gap-2 mb-2">
