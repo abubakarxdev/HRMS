@@ -91,6 +91,16 @@ const fixMissingClockOut = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+/**
+ * Get Attendance By ID
+ * Route: GET /api/attendance/:id
+ */
+const getAttendanceById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const record = await attendanceService.getAttendanceById(id);
+  res.status(200).json(record);
+});
+
 module.exports = {
   getAllAttendance,
   getAttendanceForEmployee,
@@ -101,4 +111,5 @@ module.exports = {
   startBreak,
   endBreak,
   fixMissingClockOut,
+  getAttendanceById,
 };

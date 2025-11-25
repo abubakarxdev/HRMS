@@ -50,6 +50,10 @@ model User {
   manager   User?   @relation("ManagerEmployees", fields: [managerId], references: [id])
   employees User[]  @relation("ManagerEmployees") // Employees reporting to this user
 
+  // --- Authentication Fields ---
+  refreshToken       String? // Current refresh token
+  refreshTokenExpiry DateTime? @db.Timestamptz() // When refresh token expires
+
   // --- System/Attendance Fields ---
   avatar            String?
   attendanceRecords AttendanceRecord[]

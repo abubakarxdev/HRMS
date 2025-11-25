@@ -66,4 +66,11 @@ router.post(
   attendanceController.fixMissingClockOut
 );
 
+// GET ATTENDANCE BY ID
+router.get(
+  "/:id",
+  authMiddleware.protect,
+  attendanceController.getAttendanceById
+);
+
 module.exports = router;

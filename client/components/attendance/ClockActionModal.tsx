@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Employee, AttendanceRecord } from '../../types';
 import { useAppContext } from '../../contexts/AppContext';
 import Button from '../ui/Button';
-import Input from '../ui/Input';
+import { TimePicker } from '@mui/x-date-pickers/TimePicker';
+import dayjs, { Dayjs } from 'dayjs';
 
 interface ClockActionModalProps {
   isOpen: boolean;
@@ -26,12 +27,12 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
   
   // Time selection
   const [timeMode, setTimeMode] = useState<'now' | 'custom'>('now');
-  const [customTime, setCustomTime] = useState('');
+  const [customTime, setCustomTime] = useState<Dayjs | null>(null);
   
   // Break selection (for check-out only)
   const [breakMode, setBreakMode] = useState<'default' | 'custom' | 'none'>('default');
-  const [customBreakStart, setCustomBreakStart] = useState('');
-  const [customBreakEnd, setCustomBreakEnd] = useState('');
+  const [customBreakStart, setCustomBreakStart] = useState<Dayjs | null>(null);
+  const [customBreakEnd, setCustomBreakEnd] = useState<Dayjs | null>(null);
   
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'success' } | null>(null);
@@ -59,14 +60,15 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
 
   const defaultBreak = useMemo(() => getDefaultBreakTimes(), []);
 
-  const validateTime = (time: string): boolean => {
+  const validateTime = (time: Dayjs | null): boolean => {
     if (!time) {
       showToast('Please select a time.', 'warning');
       return false;
     }
 
     const now = new Date();
-    const [hours, minutes] = time.split(':').map(Number);
+    const hours = time.hour();
+    const minutes = time.minute();
     const selectedTime = new Date();
     selectedTime.setHours(hours, minutes, 0, 0);
 
@@ -98,8 +100,8 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
   const validateBreakTimes = (): boolean => {
     if (breakMode === 'none') return true;
     
-    let breakStart = breakMode === 'default' ? defaultBreak.start : customBreakStart;
-    let breakEnd = breakMode === 'default' ? defaultBreak.end : customBreakEnd;
+    let breakStart = breakMode === 'default' ? defaultBreak.start : (customBreakStart ? customBreakStart.format('HH:mm') : '');
+    let breakEnd = breakMode === 'default' ? defaultBreak.end : (customBreakEnd ? customBreakEnd.format('HH:mm') : '');
 
     if (!breakStart || !breakEnd) {
       showToast('Please select both break start and end times.', 'warning');
@@ -168,7 +170,8 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
       let timePayload = undefined;
       if (timeMode === 'custom' && customTime) {
         const now = new Date();
-        const [hours, minutes] = customTime.split(':').map(Number);
+        const hours = customTime.hour();
+        const minutes = customTime.minute();
         const dateWithTime = new Date(now);
         dateWithTime.setHours(hours, minutes, 0, 0);
         timePayload = dateWithTime.toISOString();
@@ -181,8 +184,8 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
         await performClockAction(employee.employeeId, 'in', timePayload, undefined, undefined, today, location);
       } else {
         // For check-out, include break times
-        let breakStart = breakMode === 'default' ? defaultBreak.start : (breakMode === 'custom' ? customBreakStart : undefined);
-        let breakEnd = breakMode === 'default' ? defaultBreak.end : (breakMode === 'custom' ? customBreakEnd : undefined);
+        let breakStart = breakMode === 'default' ? defaultBreak.start : (breakMode === 'custom' && customBreakStart ? customBreakStart.format('HH:mm') : undefined);
+        let breakEnd = breakMode === 'default' ? defaultBreak.end : (breakMode === 'custom' && customBreakEnd ? customBreakEnd.format('HH:mm') : undefined);
         
         const today = new Date().toLocaleDateString('en-CA');
         await performClockAction(employee.employeeId, 'out', timePayload, breakStart, breakEnd, today);
@@ -281,28 +284,32 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
 
               {breakMode === 'custom' && (
                 <div className="grid grid-cols-2 gap-4 mt-4">
-                  <Input
-                    label="Break Start (9:00 AM - 6:00 PM)"
-                    type="time"
-                    min="09:00"
-                    max="18:00"
-                    value={customBreakStart}
-                    onChange={e => {
-                      setCustomBreakStart(e.target.value);
-                      if (toast) setToast(null);
-                    }}
-                  />
-                  <Input
-                    label="Break End (9:00 AM - 6:00 PM)"
-                    type="time"
-                    min="09:00"
-                    max="18:00"
-                    value={customBreakEnd}
-                    onChange={e => {
-                      setCustomBreakEnd(e.target.value);
-                      if (toast) setToast(null);
-                    }}
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break Start (9:00 AM - 6:00 PM)</label>
+                    <TimePicker
+                      value={customBreakStart}
+                      onChange={(newValue) => {
+                        setCustomBreakStart(newValue);
+                        if (toast) setToast(null);
+                      }}
+                      slotProps={{ textField: { fullWidth: true } }}
+                      minTime={dayjs().set('hour', 9).set('minute', 0)}
+                      maxTime={dayjs().set('hour', 18).set('minute', 0)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break End (9:00 AM - 6:00 PM)</label>
+                    <TimePicker
+                      value={customBreakEnd}
+                      onChange={(newValue) => {
+                        setCustomBreakEnd(newValue);
+                        if (toast) setToast(null);
+                      }}
+                      slotProps={{ textField: { fullWidth: true } }}
+                      minTime={dayjs().set('hour', 9).set('minute', 0)}
+                      maxTime={dayjs().set('hour', 18).set('minute', 0)}
+                    />
+                  </div>
                 </div>
               )}
             </>
@@ -370,15 +377,17 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                       {new Date().toLocaleDateString()}
                     </div>
                   </div>
-                  <Input
-                    label="Select Time (HH:MM)"
-                    type="time"
-                    value={customTime}
-                    onChange={e => {
-                      setCustomTime(e.target.value);
-                      if (toast) setToast(null);
-                    }}
-                  />
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Select Time</label>
+                    <TimePicker
+                      value={customTime}
+                      onChange={(newValue) => {
+                        setCustomTime(newValue);
+                        if (toast) setToast(null);
+                      }}
+                      slotProps={{ textField: { fullWidth: true } }}
+                    />
+                  </div>
                   <p className="text-xs text-slate-500 mt-1">Time must be for today and not in the future</p>
                 </div>
               )}

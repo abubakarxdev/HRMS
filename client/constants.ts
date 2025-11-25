@@ -5,6 +5,7 @@ export const NAVIGATION_PATHS = {
     DASHBOARD: '/',
     EMPLOYEES: '/employees',
     ATTENDANCE: '/attendance',
+    ATTENDANCE_LOG: '/attendance/log',
     TEAM_ATTENDANCE: '/attendance/team',
 };
 
@@ -26,7 +27,11 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
         label: 'Employees',
         roles: [Role.ADMIN_HR, Role.MANAGER],
     },
-
+    {
+        path: NAVIGATION_PATHS.ATTENDANCE_LOG,
+        label: 'Attendance Log',
+        roles: [Role.ADMIN_HR, Role.MANAGER, Role.EMPLOYEE],
+    },
     {
         path: NAVIGATION_PATHS.TEAM_ATTENDANCE,
         label: 'Team Attendance',

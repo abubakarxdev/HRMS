@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { AttendanceRecord } from '../../types';
 import { useAppContext } from '../../contexts/AppContext';
 import Button from '../ui/Button';
-import Input from '../ui/Input';
+import { TimePicker } from '@mui/x-date-pickers/TimePicker';
+import dayjs, { Dayjs } from 'dayjs';
 
 interface ResolveMissingClockOutModalProps {
   isOpen: boolean;
@@ -18,12 +19,12 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
   const [step, setStep] = useState<1 | 2>(1);
   
   // Time selection
-  const [clockOutTime, setClockOutTime] = useState('');
+  const [clockOutTime, setClockOutTime] = useState<Dayjs | null>(null);
   
   // Break selection
   const [breakMode, setBreakMode] = useState<'default' | 'custom' | 'none'>('default');
-  const [customBreakStart, setCustomBreakStart] = useState('');
-  const [customBreakEnd, setCustomBreakEnd] = useState('');
+  const [customBreakStart, setCustomBreakStart] = useState<Dayjs | null>(null);
+  const [customBreakEnd, setCustomBreakEnd] = useState<Dayjs | null>(null);
   
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'success' } | null>(null);
@@ -56,13 +57,14 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
 
   const defaultBreak = useMemo(() => getDefaultBreakTimes(), [recordDayOfWeek]);
 
-  const validateTime = (time: string): boolean => {
+  const validateTime = (time: Dayjs | null): boolean => {
     if (!time) {
       showToast('Please select a time.', 'warning');
       return false;
     }
     
-    const [outHours, outMinutes] = time.split(':').map(Number);
+    const outHours = time.hour();
+    const outMinutes = time.minute();
     
     // Ensure clock-out is after clock-in
     if (clockInTime) {
@@ -84,8 +86,8 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
   const validateBreakTimes = (): boolean => {
     if (breakMode === 'none') return true;
     
-    let breakStart = breakMode === 'default' ? defaultBreak.start : customBreakStart;
-    let breakEnd = breakMode === 'default' ? defaultBreak.end : customBreakEnd;
+    let breakStart = breakMode === 'default' ? defaultBreak.start : (customBreakStart ? customBreakStart.format('HH:mm') : '');
+    let breakEnd = breakMode === 'default' ? defaultBreak.end : (customBreakEnd ? customBreakEnd.format('HH:mm') : '');
 
     if (!breakStart || !breakEnd) {
       showToast('Please select both break start and end times.', 'warning');
@@ -149,11 +151,13 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
 
     try {
       // Prepare break data
-      let breakStart = breakMode === 'default' ? defaultBreak.start : (breakMode === 'custom' ? customBreakStart : undefined);
-      let breakEnd = breakMode === 'default' ? defaultBreak.end : (breakMode === 'custom' ? customBreakEnd : undefined);
+      let breakStart = breakMode === 'default' ? defaultBreak.start : (breakMode === 'custom' && customBreakStart ? customBreakStart.format('HH:mm') : undefined);
+      let breakEnd = breakMode === 'default' ? defaultBreak.end : (breakMode === 'custom' && customBreakEnd ? customBreakEnd.format('HH:mm') : undefined);
 
       // Prepare time payload (combine record date with selected time)
-      const [hours, minutes] = clockOutTime.split(':').map(Number);
+      if (!clockOutTime) return;
+      const hours = clockOutTime.hour();
+      const minutes = clockOutTime.minute();
       const clockOutDateTime = new Date(recordDate);
       clockOutDateTime.setHours(hours, minutes, 0, 0);
       const timePayload = clockOutDateTime.toISOString();
@@ -245,28 +249,32 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
 
               {breakMode === 'custom' && (
                 <div className="grid grid-cols-2 gap-4 mt-4">
-                  <Input
-                    label="Break Start (9:00 AM - 6:00 PM)"
-                    type="time"
-                    min="09:00"
-                    max="18:00"
-                    value={customBreakStart}
-                    onChange={e => {
-                      setCustomBreakStart(e.target.value);
-                      if (toast) setToast(null);
-                    }}
-                  />
-                  <Input
-                    label="Break End (9:00 AM - 6:00 PM)"
-                    type="time"
-                    min="09:00"
-                    max="18:00"
-                    value={customBreakEnd}
-                    onChange={e => {
-                      setCustomBreakEnd(e.target.value);
-                      if (toast) setToast(null);
-                    }}
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break Start (9:00 AM - 6:00 PM)</label>
+                    <TimePicker
+                      value={customBreakStart}
+                      onChange={(newValue) => {
+                        setCustomBreakStart(newValue);
+                        if (toast) setToast(null);
+                      }}
+                      slotProps={{ textField: { fullWidth: true } }}
+                      minTime={dayjs().set('hour', 9).set('minute', 0)}
+                      maxTime={dayjs().set('hour', 18).set('minute', 0)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break End (9:00 AM - 6:00 PM)</label>
+                    <TimePicker
+                      value={customBreakEnd}
+                      onChange={(newValue) => {
+                        setCustomBreakEnd(newValue);
+                        if (toast) setToast(null);
+                      }}
+                      slotProps={{ textField: { fullWidth: true } }}
+                      minTime={dayjs().set('hour', 9).set('minute', 0)}
+                      maxTime={dayjs().set('hour', 18).set('minute', 0)}
+                    />
+                  </div>
                 </div>
               )}
             </>
@@ -281,15 +289,17 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
                   {recordDate.toLocaleDateString()}
                 </div>
               </div>
-              <Input
-                label="Clock-Out Time (HH:MM)"
-                type="time"
-                value={clockOutTime}
-                onChange={e => {
-                  setClockOutTime(e.target.value);
-                  if (toast) setToast(null);
-                }}
-              />
+              <div className="mb-3">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Clock-Out Time</label>
+                  <TimePicker
+                    value={clockOutTime}
+                    onChange={(newValue) => {
+                      setClockOutTime(newValue);
+                      if (toast) setToast(null);
+                    }}
+                    slotProps={{ textField: { fullWidth: true } }}
+                  />
+              </div>
               <p className="text-xs text-slate-500 mt-1 break-words">Must be after {clockInTime}</p>
             </div>
           )}

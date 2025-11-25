@@ -103,7 +103,16 @@ const updateSession = async (id, data) => {
 const findAttendanceRecordById = async (id) => {
   return await prisma.attendanceRecord.findUnique({
     where: { id },
-    include: { sessions: true },
+    include: {
+      sessions: true,
+      employee: {
+        select: {
+          id: true,
+          employeeId: true,
+          name: true,
+        },
+      },
+    },
   });
 };
 

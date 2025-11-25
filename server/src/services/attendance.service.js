@@ -386,6 +386,19 @@ const getTodayAttendance = async (employeeId, date = null) => {
   return await attendanceRepository.findAttendanceRecord(userId, queryDate);
 };
 
+/**
+ * Get Attendance Record by ID
+ * @param {string} id
+ * @returns {Promise<Object>}
+ */
+const getAttendanceById = async (id) => {
+  const record = await attendanceRepository.findAttendanceRecordById(id);
+  if (!record) {
+    throw new Error("Attendance record not found");
+  }
+  return record;
+};
+
 module.exports = {
   getAllAttendance,
   getAttendanceForEmployee,
@@ -396,4 +409,5 @@ module.exports = {
   startBreak,
   endBreak,
   fixMissingClockOut,
+  getAttendanceById,
 };

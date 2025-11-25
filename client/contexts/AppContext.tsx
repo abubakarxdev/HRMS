@@ -62,8 +62,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("token");
+  const logout = useCallback(async () => {
+    await api.logout();
     setUser(null);
     setEmployees([]);
     setAttendance([]);

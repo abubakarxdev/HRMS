@@ -13,10 +13,49 @@ interface DecodedToken {
 }
 
 const getToken = () => localStorage.getItem('token');
+const getRefreshToken = () => localStorage.getItem('refreshToken');
 
 const getAuthHeader = () => {
   const token = getToken();
   return token ? { 'Authorization': `Bearer ${token}` } : {};
+};
+
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: Function; reject: Function }> = [];
+
+const processQueue = (error: Error | null, token: string | null = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+const refreshAccessToken = async (): Promise<string> => {
+  const refreshToken = getRefreshToken();
+
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to refresh token');
+  }
+
+  const { accessToken } = await response.json();
+  localStorage.setItem('token', accessToken);
+  return accessToken;
 };
 
 const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
@@ -29,10 +68,48 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
     },
   });
 
+  if (response.status === 401) {
+    const errorData = await response.json().catch(() => ({}));
+
+    // Check if token is expired
+    if (errorData.code === 'TOKEN_EXPIRED') {
+      if (isRefreshing) {
+        // Wait for the current refresh to complete
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(() => {
+          // Retry the original request with new token
+          return request<T>(endpoint, options);
+        });
+      }
+
+      isRefreshing = true;
+
+      try {
+        const newToken = await refreshAccessToken();
+        processQueue(null, newToken);
+        isRefreshing = false;
+
+        // Retry the original request with new token
+        return request<T>(endpoint, options);
+      } catch (refreshError) {
+        processQueue(refreshError as Error, null);
+        isRefreshing = false;
+
+        // Refresh failed, logout user
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/';
+        throw new Error('Session expired. Please login again.');
+      }
+    }
+  }
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
     throw new Error(errorData.message || 'API request failed');
   }
+
   // Handle cases with no content in response body (like DELETE or successful PUT/PATCH without return)
   if (response.status === 204) {
     return null as T;
@@ -44,15 +121,15 @@ const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   login: async (email: string, password: string): Promise<User | null> => {
-    // Implementation remains the same
-    const { token } = await request<{ token: string }>('/auth/login', {
+    const { accessToken, refreshToken } = await request<{ accessToken: string; refreshToken: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
 
-    if (token) {
-      localStorage.setItem('token', token);
-      const decoded: DecodedToken = jwtDecode(token);
+    if (accessToken && refreshToken) {
+      localStorage.setItem('token', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      const decoded: DecodedToken = jwtDecode(accessToken);
       return {
         id: `user-${decoded.employeeId}`,
         name: decoded.name,
@@ -61,6 +138,19 @@ export const api = {
       };
     }
     return null;
+  },
+
+  logout: async (): Promise<void> => {
+    try {
+      await request('/auth/logout', {
+        method: 'POST',
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+    }
   },
 
   getProfile: async (): Promise<User | null> => {
@@ -127,6 +217,7 @@ export const api = {
     const url = date ? `/attendance/today/${employeeId}?date=${date}` : `/attendance/today/${employeeId}`;
     return request(url);
   },
+  getAttendanceById: (id: string): Promise<AttendanceRecord> => request(`/attendance/${id}`),
 
   // --- APPROVAL APIS ---
   getApprovalRequests: (): Promise<ApprovalRequest[]> => request('/approvals'),

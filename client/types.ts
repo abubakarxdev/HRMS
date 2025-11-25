@@ -36,8 +36,8 @@ export interface Employee {
 }
 
 export interface AttendanceSession {
-  id: number;
-  attendanceRecordId: number;
+  id: string;
+  attendanceRecordId: string;
   checkIn: string;
   checkOut: string | null;
   location: string | null;
@@ -45,7 +45,7 @@ export interface AttendanceSession {
 }
 
 export interface AttendanceRecord {
-  id: number;
+  id: string;
   employeeId: number;
   date: string;
   status: 'Present' | 'Absent' | 'On Leave';
@@ -54,6 +54,11 @@ export interface AttendanceRecord {
   breakHours?: number;
   totalHours?: number;
   sessions?: AttendanceSession[];
+  employee?: {
+    id: string;
+    employeeId: string;
+    name: string;
+  };
 }
 
 export interface AttendanceStats {
