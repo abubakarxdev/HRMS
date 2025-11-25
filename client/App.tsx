@@ -13,6 +13,7 @@ import EmployeeDirectory from "./components/employees/EmployeeDirectory";
 import EmployeeProfile from "./components/employees/EmployeeProfile";
 import AddEmployeeForm from "./components/employees/AddEmployeeForm";
 import AttendanceLog from "./components/attendance/AttendanceLog";
+import SessionDetailsPage from "./components/attendance/SessionDetailsPage";
 import TeamSnapshot from "./components/attendance/TeamSnapshot";
 import { NAVIGATION_PATHS } from "./constants";
 import Login from "./components/auth/Login";
@@ -93,6 +94,10 @@ const Main: React.FC = () => {
         <Route
           path="/attendance/log"
           element={<AttendanceLog />}
+        />
+        <Route
+          path="/attendance/session/:sessionId"
+          element={<SessionDetailsPage />}
         />
         <Route
           path="*"
