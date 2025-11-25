@@ -16,7 +16,7 @@ import {
 import { api } from "../services/apiService";
 interface AppContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   employees: Employee[];
   attendance: AttendanceRecord[];
@@ -38,9 +38,12 @@ interface AppContextType {
     employeeId: string,
     action: "in" | "out",
     time?: string,
-    breakHours?: number
+    breakStart?: string,
+    breakEnd?: string,
+    recordDate?: string,
+    location?: string
   ) => Promise<void>;
-  fixMissingClockOut: (recordId: string, clockOutTime: string) => Promise<void>;
+  fixMissingClockOut: (recordId: string, clockOutTime: string, breakStart?: string, breakEnd?: string) => Promise<void>;
   addHoliday: (holiday: PublicHoliday) => Promise<void>;
 }
 
@@ -59,8 +62,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("token");
+  const logout = useCallback(async () => {
+    await api.logout();
     setUser(null);
     setEmployees([]);
     setAttendance([]);
@@ -86,21 +89,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     checkUserSession();
   }, [logout]);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    setLoading(true);
+  const login = async (email: string, password: string): Promise<void> => {
+    // Do not set global loading here, let the UI handle it
     try {
       const loggedInUser = await api.login(email, password);
       if (loggedInUser) {
         setUser(loggedInUser);
-        // Removed setViewInternal(View.DASHBOARD);
-        return true;
+      } else {
+        throw new Error("Invalid credentials");
       }
-      return false;
     } catch (error) {
       console.error("Login failed:", error);
-      return false;
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 
@@ -217,13 +217,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     employeeId: string,
     action: "in" | "out",
     time?: string,
-    breakHours?: number
+    breakStart?: string,
+    breakEnd?: string,
+    recordDate?: string,
+    location?: string
   ) => {
     try {
       if (action === "in") {
-        await api.clockIn(employeeId, time);
+        await api.clockIn(employeeId, location, time, recordDate);
       } else {
-        await api.clockOut(employeeId, time, breakHours);
+        await api.clockOut(employeeId, time, breakStart, breakEnd, recordDate);
       }
       await fetchAttendance();
       console.log(`Clock ${action} successful for ${employeeId}`);
@@ -233,9 +236,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   };
 
-  const fixMissingClockOut = async (recordId: string, clockOutTime: string) => {
+  const fixMissingClockOut = async (recordId: string, clockOutTime: string, breakStart?: string, breakEnd?: string) => {
     try {
-      await api.fixMissingClockOut(recordId, clockOutTime);
+      await api.fixMissingClockOut(recordId, clockOutTime, breakStart, breakEnd);
       await fetchAttendance();
       console.log(`Fixed missing clock out for record ${recordId}`);
     } catch (error) {

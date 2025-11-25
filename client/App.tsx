@@ -12,7 +12,8 @@ import Dashboard from "./components/dashboard/Dashboard";
 import EmployeeDirectory from "./components/employees/EmployeeDirectory";
 import EmployeeProfile from "./components/employees/EmployeeProfile";
 import AddEmployeeForm from "./components/employees/AddEmployeeForm";
-import AttendanceReport from "./components/attendance/AttendanceReport";
+import AttendanceLog from "./components/attendance/AttendanceLog";
+import SessionDetailsPage from "./components/attendance/SessionDetailsPage";
 import TeamSnapshot from "./components/attendance/TeamSnapshot";
 import { NAVIGATION_PATHS } from "./constants";
 import Login from "./components/auth/Login";
@@ -76,18 +77,27 @@ const Main: React.FC = () => {
           element={<AddEmployeeForm />}
         />
         <Route
+          path={`${NAVIGATION_PATHS.EMPLOYEES}/edit/:employeeId`}
+          element={<AddEmployeeForm />}
+        />
+        <Route
           path={`${NAVIGATION_PATHS.EMPLOYEES}/:employeeId`}
           element={<EmployeeProfileWrapper />}
         />
 
         {/* Attendance Routes */}
-        <Route
-          path={NAVIGATION_PATHS.ATTENDANCE}
-          element={<AttendanceReport />}
-        />
+
         <Route
           path={NAVIGATION_PATHS.TEAM_ATTENDANCE}
           element={<TeamSnapshot />}
+        />
+        <Route
+          path="/attendance/log"
+          element={<AttendanceLog />}
+        />
+        <Route
+          path="/attendance/session/:sessionId"
+          element={<SessionDetailsPage />}
         />
         <Route
           path="*"

@@ -12,6 +12,7 @@ const protect = async (req, res, next) => {
     try {
       token = req.headers.authorization.split(" ")[1];
 
+      // Properly handle JWT verification errors to prevent server crashes
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
       req.user = await userRepository.findById(decoded.id);
@@ -24,8 +25,26 @@ const protect = async (req, res, next) => {
 
       next();
     } catch (error) {
-      console.error(error);
-      return res.status(401).json({ message: "Not authorized, token failed" });
+      console.error("Auth middleware error:", error.message);
+      
+      // Handle specific JWT errors
+      if (error.name === "TokenExpiredError") {
+        return res.status(401).json({ 
+          message: "Token expired", 
+          code: "TOKEN_EXPIRED",
+          expiredAt: error.expiredAt 
+        });
+      } else if (error.name === "JsonWebTokenError") {
+        return res.status(401).json({ 
+          message: "Invalid token", 
+          code: "INVALID_TOKEN" 
+        });
+      } else {
+        return res.status(401).json({ 
+          message: "Not authorized, token failed",
+          code: "AUTH_FAILED"
+        });
+      }
     }
   }
 

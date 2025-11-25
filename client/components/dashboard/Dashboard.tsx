@@ -2,16 +2,30 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../contexts/AppContext';
 import StatCard from './StatCard';
-import AttendanceWidget from './AttendanceWidget';
+
 import ApprovalsPanel from './ApprovalsPanel';
-import MyHoursSummaryCard from './MyHoursSummaryCard';
+import AttendanceCard from '../attendance/AttendanceCard';
+import AttendanceSummaryCard from '../attendance/AttendanceSummaryCard';
 import ManageHolidaysModal from '../admin/ManageHolidaysModal';
 import Button from '../ui/Button';
 import { Role } from '../../types';
 import MissedClockOutAlert from './MissedClockOutAlert';
 import ResolveMissingClockOutModal from '../attendance/ResolveMissingClockOutModal';
+import EmployeeDashboard from './EmployeeDashboard';
 
 const Dashboard: React.FC = () => {
+    const { user } = useAppContext();
+
+    // Route to EmployeeDashboard for regular employees
+    if (user.role === Role.EMPLOYEE) {
+        return <EmployeeDashboard />;
+    }
+
+    // Manager/HR Dashboard (original content)
+    return <ManagerDashboard />;
+};
+
+const ManagerDashboard: React.FC = () => {
     const { employees, attendance, approvals, user, holidays } = useAppContext();
     const [isHolidaysModalOpen, setIsHolidaysModalOpen] = useState(false);
     const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
@@ -44,6 +58,21 @@ const Dashboard: React.FC = () => {
         return workdays * 8;
     }, [holidays]);
 
+    const todayAttendanceStats = useMemo(() => {
+        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+        
+        const todayRecords = attendance.filter(r => {
+             if (new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal) return true;
+             if (r.sessions?.some(s => new Date(s.checkIn).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal)) return true;
+             return false;
+        });
+        
+        const checkedIn = todayRecords.filter(a => a.sessions?.some(s => !s.checkOut)).length;
+        const onLeave = todayRecords.filter(a => a.status === 'On Leave').length;
+        
+        return { checkedIn, onLeave };
+    }, [attendance]);
+
     const isPrivilegedUser = user.role === Role.ADMIN_HR || user.role === Role.MANAGER;
 
     return (
@@ -63,22 +92,23 @@ const Dashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="Total Employees" value={employees.length} />
-                <StatCard title="On Leave Today" value={attendance.filter(a => a.status === 'On Leave' && a.date === new Date().toISOString().split('T')[0]).length} />
+                <StatCard title="Checked In Today" value={todayAttendanceStats.checkedIn} />
+                <StatCard title="On Leave Today" value={todayAttendanceStats.onLeave} />
                 <StatCard title="Pending Approvals" value={approvals.filter(a => a.status === 'Pending').length} />
-                <StatCard title="Target Hours This Month" value={`${targetHoursThisMonth} hrs`} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-1 space-y-8">
-                    <MyHoursSummaryCard />
-                    <AttendanceWidget />
-                </div>
-                {isPrivilegedUser && (
-                    <div className="lg:col-span-2">
-                        <ApprovalsPanel />
-                    </div>
-                )}
+            {/* Attendance Section - Side by Side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <AttendanceSummaryCard />
+                <AttendanceCard />
             </div>
+
+            {/* Approvals Section - Full Width Below */}
+            {isPrivilegedUser && (
+                <div className="w-full">
+                    <ApprovalsPanel />
+                </div>
+            )}
             
             <ManageHolidaysModal 
                 isOpen={isHolidaysModalOpen}

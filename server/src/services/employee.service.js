@@ -58,7 +58,7 @@ const createEmployee = async (employeeData) => {
 };
 
 const updateEmployee = async (id, employeeData) => {
-  const { password, hireDate, ...rest } = employeeData;
+  const { password, hireDate, id: _id, employeeId, ...rest } = employeeData;
 
   // Only hash and update the password if it's provided in the payload
   if (password) {

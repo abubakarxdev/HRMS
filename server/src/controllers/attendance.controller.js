@@ -1,0 +1,115 @@
+const attendanceService = require("../services/attendance.service");
+
+// Helper function for error handling
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+/**
+ * Get all attendance records.
+ * Route: GET /api/attendance
+ */
+const getAllAttendance = asyncHandler(async (req, res) => {
+  const attendance = await attendanceService.getAllAttendance();
+  res.status(200).json(attendance);
+});
+
+/**
+ * Get attendance for an employee.
+ * Route: GET /api/attendance/employee/:employeeId
+ */
+const getAttendanceForEmployee = asyncHandler(async (req, res) => {
+  const { employeeId } = req.params;
+  const attendance = await attendanceService.getAttendanceForEmployee(employeeId);
+  res.status(200).json(attendance);
+});
+
+/**
+ * Clock In
+ * Route: POST /api/attendance/clock-in
+ */
+const clockIn = asyncHandler(async (req, res) => {
+  const { employeeId, location, customTime, recordDate } = req.body;
+  const result = await attendanceService.clockIn(employeeId, location, customTime, recordDate);
+  res.status(200).json(result);
+});
+
+/**
+ * Clock Out
+ * Route: POST /api/attendance/clock-out
+ */
+const clockOut = asyncHandler(async (req, res) => {
+  const { employeeId, customTime, breakStart, breakEnd, recordDate } = req.body;
+  const result = await attendanceService.clockOut(employeeId, customTime, breakStart, breakEnd, recordDate);
+  res.status(200).json(result);
+});
+
+/**
+ * Get Attendance Stats
+ * Route: GET /api/attendance/stats/:employeeId
+ */
+const getStats = asyncHandler(async (req, res) => {
+  const { employeeId } = req.params;
+  const stats = await attendanceService.getAttendanceStats(employeeId);
+  res.status(200).json(stats);
+});
+
+/**
+ * Route: GET /api/attendance/today/:employeeId
+ */
+const getTodayAttendance = asyncHandler(async (req, res) => {
+  const { employeeId } = req.params;
+  const { date } = req.query;
+  const result = await attendanceService.getTodayAttendance(employeeId, date);
+  res.status(200).json(result);
+});
+
+/**
+ * Route: POST /api/attendance/break/start
+ */
+const startBreak = asyncHandler(async (req, res) => {
+  const { employeeId, breakType, customTime } = req.body;
+  const result = await attendanceService.startBreak(employeeId, breakType, customTime);
+  res.status(200).json(result);
+});
+
+/**
+ * Route: POST /api/attendance/break/end
+ */
+const endBreak = asyncHandler(async (req, res) => {
+  const { employeeId } = req.body;
+  const result = await attendanceService.endBreak(employeeId);
+  res.status(200).json(result);
+});
+
+/**
+ * Route: POST /api/attendance/fix-missing-clock-out
+ */
+const fixMissingClockOut = asyncHandler(async (req, res) => {
+  const { recordId, clockOutTime, breakStart, breakEnd } = req.body;
+  const result = await attendanceService.fixMissingClockOut(recordId, clockOutTime, breakStart, breakEnd);
+  res.status(200).json(result);
+});
+
+/**
+ * Get Attendance By ID
+ * Route: GET /api/attendance/:id
+ */
+const getAttendanceById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const record = await attendanceService.getAttendanceById(id);
+  res.status(200).json(record);
+});
+
+module.exports = {
+  getAllAttendance,
+  getAttendanceForEmployee,
+  clockIn,
+  clockOut,
+  getStats,
+  getTodayAttendance,
+  startBreak,
+  endBreak,
+  fixMissingClockOut,
+  getAttendanceById,
+};

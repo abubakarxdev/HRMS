@@ -14,45 +14,45 @@ async function main() {
   const employee1 = await prisma.user.create({
     data: {
       employeeId: 'emp-001',
-      name: 'Alice Johnson',
-      email: 'employee@example.com',
+      name: 'Abu Bakar',
+      email: 'abubakar@gmail.com',
       passwordHash: passwordHash,
       position: 'Software Engineer',
       department: 'Technology',
       role: 'EMPLOYEE',
       status: 'Active',
-      hireDate: new Date('2022-08-15'),
-      avatar: 'https://i.pravatar.cc/150?u=emp-001',
+      hireDate: new Date('2025-11-24'),
+      avatar: 'https://avatar.iran.liara.run/public/17',
     },
   });
 
   const manager1 = await prisma.user.create({
     data: {
       employeeId: 'emp-002',
-      name: 'Bob Williams',
-      email: 'manager@example.com',
+      name: 'Faisal Chohan',
+      email: 'faisal@gmail.com',
       passwordHash: passwordHash,
       position: 'Engineering Manager',
       department: 'Technology',
       role: 'MANAGER',
       status: 'Active',
       hireDate: new Date('2021-05-20'),
-      avatar: 'https://i.pravatar.cc/150?u=emp-002',
+      avatar: 'https://avatar.iran.liara.run/public/13',
     },
   });
   
   const hrAdmin = await prisma.user.create({
     data: {
       employeeId: 'emp-005',
-      name: 'Catherine Davis',
-      email: 'hr@example.com',
+      name: 'Madiha Kareem',
+      email: 'hr@gmail.com',
       passwordHash: passwordHash,
       position: 'HR Director',
       department: 'Human Resources',
       role: 'ADMIN_HR',
       status: 'Active',
       hireDate: new Date('2020-02-10'),
-      avatar: 'https://i.pravatar.cc/150?u=emp-005',
+      avatar: 'https://avatar.iran.liara.run/public/73',
     },
   });
 
@@ -64,13 +64,65 @@ async function main() {
 
 
   // Seed Attendance Records
-  await prisma.attendanceRecord.createMany({
-    data: [
-      { employeeId: employee1.id, date: new Date('2023-10-25'), clockIn: '09:05:00', clockOut: '17:30:00', status: 'Present', breakHours: 1 },
-      { employeeId: employee1.id, date: new Date('2023-10-26'), clockIn: '09:00:00', clockOut: '17:00:00', status: 'Present', breakHours: 0.5 },
-      { employeeId: manager1.id, date: new Date('2023-10-26'), clockIn: '08:45:00', clockOut: '17:15:00', status: 'Present', breakHours: 1 },
-      { employeeId: hrAdmin.id, date: new Date('2023-10-26'), status: 'OnLeave' },
-    ],
+  // Seed Attendance Records and Sessions
+  const attendanceData = [
+    { 
+      employeeId: employee1.id, 
+      date: new Date('2023-10-25'), 
+      checkIn: new Date('2023-10-25T09:05:00'), 
+      checkOut: new Date('2023-10-25T17:30:00'), 
+      status: 'Present', 
+      breakHours: 1 
+    },
+    { 
+      employeeId: employee1.id, 
+      date: new Date('2023-10-26'), 
+      checkIn: new Date('2023-10-26T09:00:00'), 
+      checkOut: new Date('2023-10-26T17:00:00'), 
+      status: 'Present', 
+      breakHours: 0.5 
+    },
+    { 
+      employeeId: manager1.id, 
+      date: new Date('2023-10-26'), 
+      checkIn: new Date('2023-10-26T08:45:00'), 
+      checkOut: new Date('2023-10-26T17:15:00'), 
+      status: 'Present', 
+      breakHours: 1 
+    },
+  ];
+
+  for (const data of attendanceData) {
+    const record = await prisma.attendanceRecord.create({
+      data: {
+        employeeId: data.employeeId,
+        date: data.date,
+        status: data.status,
+        totalHours: 8, // Simplified
+        breakHours: data.breakHours,
+      },
+    });
+
+    if (data.checkIn) {
+      await prisma.attendanceSession.create({
+        data: {
+          attendanceRecordId: record.id,
+          checkIn: data.checkIn,
+          checkOut: data.checkOut,
+          type: 'WORK',
+          location: 'Office',
+        },
+      });
+    }
+  }
+
+  // Leave record
+  await prisma.attendanceRecord.create({
+    data: {
+      employeeId: hrAdmin.id,
+      date: new Date('2023-10-26'),
+      status: 'OnLeave',
+    },
   });
 
   // Seed Approval Requests

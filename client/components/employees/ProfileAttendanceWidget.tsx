@@ -6,6 +6,7 @@ import { AttendanceRecord, Employee } from '../../types';
 import ClockActionModal from '../attendance/ClockActionModal';
 import { useAppContext } from '../../contexts/AppContext';
 import ResolveMissingClockOutModal from '../attendance/ResolveMissingClockOutModal';
+import { toast } from 'sonner';
 
 
 const ClockIcon = () => (
@@ -46,7 +47,7 @@ const ProfileAttendanceWidget: React.FC<ProfileAttendanceWidgetProps> = ({ emplo
     
     const recordToFix = useMemo(() => 
         attendance.find(a => 
-            a.employeeId === employee.id && 
+            a.employeeId === parseInt(employee.id) && 
             a.clockIn && 
             !a.clockOut && 
             a.date !== today
@@ -104,6 +105,10 @@ const ProfileAttendanceWidget: React.FC<ProfileAttendanceWidgetProps> = ({ emplo
                     employee={employee}
                     action={modalAction}
                     todayRecord={todayRecord || undefined}
+                    onSuccess={() => {
+                        toast.success(modalAction === 'in' ? 'Clocked in successfully!' : 'Clocked out successfully!');
+                        closeModal();
+                    }}
                 />
             )}
             {recordToFix && isResolveModalOpen && (
@@ -112,7 +117,9 @@ const ProfileAttendanceWidget: React.FC<ProfileAttendanceWidgetProps> = ({ emplo
                     onClose={() => setIsResolveModalOpen(false)}
                     record={recordToFix}
                     onSuccess={async () => {
-                        await performClockAction(employee.id, 'in');
+                        const today = new Date().toISOString().split('T')[0];
+                        await performClockAction(employee.employeeId, 'in', undefined, undefined, undefined, today);
+                        toast.success('Missing clock-out resolved and clocked in!');
                     }}
                 />
             )}
