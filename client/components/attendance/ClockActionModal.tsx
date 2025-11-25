@@ -91,17 +91,38 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
           return false;
         }
       }
+
+      // Validate Check-out > Break End
+      const { end: breakEnd } = getBreakTimes();
+      if (breakEnd) {
+        const [endHour, endMin] = breakEnd.split(':').map(Number);
+        const breakEndDate = new Date();
+        breakEndDate.setHours(endHour, endMin, 0, 0);
+
+        if (selectedTime <= breakEndDate) {
+          showToast(`Clock out time must be after break end time (${breakEnd}).`, 'warning');
+          return false;
+        }
+      }
     }
     
     setToast(null);
     return true;
   };
 
+  const getBreakTimes = () => {
+    if (breakMode === 'none') return { start: null, end: null };
+    
+    let breakStartStr = breakMode === 'default' ? defaultBreak.start : (customBreakStart ? customBreakStart.format('HH:mm') : '');
+    let breakEndStr = breakMode === 'default' ? defaultBreak.end : (customBreakEnd ? customBreakEnd.format('HH:mm') : '');
+
+    return { start: breakStartStr, end: breakEndStr };
+  };
+
   const validateBreakTimes = (): boolean => {
     if (breakMode === 'none') return true;
     
-    let breakStart = breakMode === 'default' ? defaultBreak.start : (customBreakStart ? customBreakStart.format('HH:mm') : '');
-    let breakEnd = breakMode === 'default' ? defaultBreak.end : (customBreakEnd ? customBreakEnd.format('HH:mm') : '');
+    const { start: breakStart, end: breakEnd } = getBreakTimes();
 
     if (!breakStart || !breakEnd) {
       showToast('Please select both break start and end times.', 'warning');
@@ -112,9 +133,6 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
     const [endHour, endMin] = breakEnd.split(':').map(Number);
 
     // Validate 9 AM - 6 PM range
-    // Start: 9:00 - 17:59 (cannot start at 18:00 if that's the end of day)
-    // End: 9:01 - 18:00
-    
     const startTotalMinutes = startHour * 60 + startMin;
     const endTotalMinutes = endHour * 60 + endMin;
     const nineAmMinutes = 9 * 60;
@@ -131,19 +149,31 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
     }
 
     // End must be after start
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-    
-    if (endMinutes <= startMinutes) {
+    if (endTotalMinutes <= startTotalMinutes) {
       showToast('Break end time must be after break start time.', 'warning');
       return false;
     }
 
     // Duration: 15 min - 2 hours
-    const breakDuration = (endMinutes - startMinutes) / 60;
+    const breakDuration = (endTotalMinutes - startTotalMinutes) / 60;
     if (breakDuration < 0.25 || breakDuration > 2) {
       showToast('Break duration must be between 15 minutes and 2 hours.', 'warning');
       return false;
+    }
+
+    // Validate Break Start > Check-in Time
+    if (todayRecord?.sessions) {
+      const currentSession = todayRecord.sessions.find(s => !s.checkOut && s.type === 'WORK');
+      if (currentSession?.checkIn) {
+        const checkInDate = new Date(currentSession.checkIn);
+        const breakStartDate = new Date();
+        breakStartDate.setHours(startHour, startMin, 0, 0);
+
+        if (breakStartDate <= checkInDate) {
+          showToast(`Break start time (${breakStart}) must be after check-in time (${checkInDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}).`, 'warning');
+          return false;
+        }
+      }
     }
 
     setToast(null);
@@ -195,8 +225,15 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
       } else {
         onClose();
       }
-    } catch (e) {
-      showToast('An error occurred. Please try again.', 'error');
+    } catch (e: any) {
+      // Extract the specific error message from the API response
+      const errorMessage = e?.response?.data?.error || e?.message || 'An error occurred. Please try again.';
+      
+      // Determine toast type based on HTTP status code
+      // 400 = validation error (warning), 500+ = server error (error)
+      const toastType = e?.response?.status === 400 ? 'warning' : 'error';
+      
+      showToast(errorMessage, toastType);
     } finally {
       setLoading(false);
     }
