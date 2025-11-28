@@ -8,8 +8,8 @@ const login = async (req, res, next) => {
     }
 
     try {
-        const { accessToken, refreshToken } = await authService.login(email, password);
-        res.status(200).json({ accessToken, refreshToken });
+        const { accessToken, refreshToken, user } = await authService.login(email, password);
+        res.status(200).json({ accessToken, refreshToken, user });
     } catch (error) {
         // More specific error handling based on service layer exceptions
         if (error.message === 'Invalid credentials') {

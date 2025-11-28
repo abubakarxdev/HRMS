@@ -7,7 +7,7 @@ const authMiddleware = require("../middlewares/auth.middleware");
 router.get(
   "/employees",
   authMiddleware.protect,
-  authMiddleware.allowViewEmployees, // ADMIN_HR, MANAGER, EMPLOYEE
+  authMiddleware.allowViewEmployees, // ADMIN, HR, FINANCE, EMPLOYEE
   employeeController.getAllEmployees
 );
 
@@ -19,27 +19,27 @@ router.get(
   employeeController.getEmployeeById
 );
 
-// CREATE EMPLOYEE — HR ONLY
+// CREATE EMPLOYEE — ADMIN & HR
 router.post(
   "/employees",
   authMiddleware.protect,
-  authMiddleware.allowManageEmployees, // ADMIN_HR only
+  authMiddleware.allowManageEmployees, // ADMIN, HR
   employeeController.createEmployee
 );
 
-// UPDATE EMPLOYEE — HR ONLY
+// UPDATE EMPLOYEE — ADMIN & HR
 router.put(
   "/employees/:id",
   authMiddleware.protect,
-  authMiddleware.allowManageEmployees, // ADMIN_HR only
+  authMiddleware.allowManageEmployees, // ADMIN, HR
   employeeController.updateEmployee
 );
 
-// DELETE EMPLOYEE — HR ONLY
+// DELETE EMPLOYEE — ADMIN & HR
 router.delete(
   "/employees/:id",
   authMiddleware.protect,
-  authMiddleware.allowManageEmployees, // ADMIN_HR only
+  authMiddleware.allowManageEmployees, // ADMIN, HR
   employeeController.deleteEmployee
 );
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAppContext } from '../../contexts/AppContext';
+import { useHolidays, useAddHoliday } from '../../hooks/useHolidays';
 import { PublicHoliday } from '../../types';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -11,7 +11,8 @@ interface ManageHolidaysModalProps {
 }
 
 const ManageHolidaysModal: React.FC<ManageHolidaysModalProps> = ({ isOpen, onClose }) => {
-  const { holidays, addHoliday } = useAppContext();
+  const { data: holidays = [] } = useHolidays();
+  const addHolidayMutation = useAddHoliday();
   const [date, setDate] = useState('');
   const [name, setName] = useState('');
 
@@ -21,9 +22,12 @@ const ManageHolidaysModal: React.FC<ManageHolidaysModalProps> = ({ isOpen, onClo
     e.preventDefault();
     if (date && name) {
       const newHoliday: PublicHoliday = { date, name };
-      addHoliday(newHoliday);
-      setDate('');
-      setName('');
+      addHolidayMutation.mutate(newHoliday, {
+        onSuccess: () => {
+            setDate('');
+            setName('');
+        }
+      });
     }
   };
   
@@ -60,7 +64,7 @@ const ManageHolidaysModal: React.FC<ManageHolidaysModalProps> = ({ isOpen, onClo
                         onChange={e => setName(e.target.value)}
                         required
                     />
-                    <Button type="submit" size="md">Add</Button>
+                    <Button type="submit" size="md" isLoading={addHolidayMutation.isPending}>Add</Button>
                 </form>
 
                 <div className="max-h-60 overflow-y-auto">

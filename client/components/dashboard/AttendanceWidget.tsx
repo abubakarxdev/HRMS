@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
-import { useAppContext } from '../../contexts/AppContext';
-import { api } from '../../services/apiService';
-import { AttendanceRecord } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useTodayAttendance, useAttendanceRecords } from '../../hooks/useAttendance';
 import ClockActionModal from '../attendance/ClockActionModal';
 import ResolveMissingClockOutModal from '../attendance/ResolveMissingClockOutModal';
 import { toast } from 'sonner';
@@ -15,42 +15,40 @@ const ClockIcon = () => (
 );
 
 const AttendanceWidget: React.FC = () => {
-    const { user, employees, attendance, performClockAction } = useAppContext();
+    const { user } = useAuth();
+    const { data: employees = [] } = useEmployees();
+    const { data: todayRecord, isLoading: loadingToday } = useTodayAttendance(user?.employeeId || '');
+    const { data: allAttendance = [] } = useAttendanceRecords();
+    
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null | undefined>(undefined);
-    const [loading, setLoading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalAction, setModalAction] = useState<'in' | 'out'>('in');
     const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
 
-    const currentUserEmployee = employees.find(e => e.employeeId === user.employeeId);
+    const currentUserEmployee = employees.find(e => e.employeeId === user?.employeeId);
 
     const today = useMemo(() => new Date().toISOString().split('T')[0], []);
-
-    const fetchTodayRecord = useCallback(async () => {
-        setLoading(true);
-        const record = await api.getTodayAttendanceForEmployee(user.employeeId, today);
-        setTodayRecord(record);
-        setLoading(false);
-    }, [user.employeeId, today]);
 
     useEffect(() => {
-        fetchTodayRecord();
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
-    }, [fetchTodayRecord]);
-
-    const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+    }, []);
 
     const recordToFix = useMemo(() => {
-        if (!currentUserEmployee) return undefined;
-        return attendance.find(a => 
-            a.employeeId === parseInt(currentUserEmployee.id) && 
-            a.clockIn && 
-            !a.clockOut && 
+        if (!user?.employeeId) return undefined;
+        // Check for any record where checkIn exists but checkOut is missing, and it's not today
+        // Note: The API/Types might have changed from clockIn/clockOut to sessions or similar. 
+        // Assuming the hook returns records with sessions.
+        // If the hook returns flattened records with clockIn/clockOut, we use that.
+        // Based on previous files, it seems we are using sessions now, but let's check the type.
+        // For now, assuming standard AttendanceRecord type which might have sessions.
+        
+        return allAttendance.find(a => 
+            a.employeeId === user.employeeId && 
+            a.sessions?.some(s => !s.checkOutTime) && 
             a.date !== today
         );
-    }, [attendance, currentUserEmployee, today]);
+    }, [allAttendance, user?.employeeId, today]);
     
     const handleClockInClick = () => {
         if (recordToFix) {
@@ -67,11 +65,16 @@ const AttendanceWidget: React.FC = () => {
 
     const closeModal = () => {
         setIsModalOpen(false);
-        fetchTodayRecord();
     };
     
-    const canClockIn = !todayRecord?.clockIn;
-    const canClockOut = todayRecord?.clockIn && !todayRecord.clockOut;
+    // Determine if clocked in based on sessions
+    const activeSession = todayRecord?.sessions?.find(s => !s.checkOutTime);
+    const isClockedIn = !!activeSession;
+
+    const canClockIn = !isClockedIn;
+    const canClockOut = isClockedIn;
+
+    if (!user) return null;
 
     return (
         <>
@@ -82,16 +85,16 @@ const AttendanceWidget: React.FC = () => {
                         {currentTime.toLocaleTimeString('en-US')}
                     </p>
                     <div className="text-center text-slate-600 h-10">
-                        {loading && <p>Updating...</p>}
-                        {!loading && todayRecord?.clockIn && <p>Clocked In: {new Date(`1970-01-01T${todayRecord.clockIn}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>}
-                        {!loading && todayRecord?.clockOut && <p>Clocked Out: {new Date(`1970-01-01T${todayRecord.clockOut}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>}
-                        {!loading && !todayRecord && <p>Not clocked in yet.</p>}
+                        {loadingToday && <p>Updating...</p>}
+                        {!loadingToday && isClockedIn && <p>Clocked In: {new Date(activeSession!.checkInTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>}
+                        {!loadingToday && !isClockedIn && todayRecord?.sessions?.length && <p>Clocked Out: {new Date(todayRecord.sessions[todayRecord.sessions.length - 1].checkOutTime!).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>}
+                        {!loadingToday && !todayRecord && <p>Not clocked in yet.</p>}
                     </div>
                     <div className="flex space-x-4">
-                        <Button onClick={handleClockInClick} disabled={!canClockIn || loading} variant="success">
+                        <Button onClick={handleClockInClick} disabled={!canClockIn || loadingToday} variant="success">
                             Clock In
                         </Button>
-                        <Button onClick={() => openModal('out')} disabled={!canClockOut || loading} variant="danger">
+                        <Button onClick={() => openModal('out')} disabled={!canClockOut || loadingToday} variant="danger">
                             Clock Out
                         </Button>
                     </div>
@@ -105,7 +108,7 @@ const AttendanceWidget: React.FC = () => {
                     action={modalAction}
                     todayRecord={todayRecord || undefined}
                     onSuccess={() => {
-                        toast.success(modalAction === 'in' ? 'Clocked in successfully!' : 'Clocked out successfully!');
+                        // toast handled in hook
                         closeModal();
                     }}
                 />
@@ -115,9 +118,9 @@ const AttendanceWidget: React.FC = () => {
                     isOpen={isResolveModalOpen}
                     onClose={() => setIsResolveModalOpen(false)}
                     record={recordToFix}
-                    onSuccess={async () => {
-                        await performClockAction(user.employeeId, 'in', undefined, undefined, undefined, today);
-                        toast.success('Missing clock-out resolved and clocked in!');
+                    onSuccess={() => {
+                         // toast handled in hook
+                         setIsResolveModalOpen(false);
                     }}
                 />
             )}

@@ -1,23 +1,26 @@
 
 import React, { useState, useMemo } from 'react';
-import { useAppContext } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useAttendanceRecords } from '../../hooks/useAttendance';
 import StatCard from './StatCard';
-
 import ApprovalsPanel from './ApprovalsPanel';
 import AttendanceCard from '../attendance/AttendanceCard';
 import AttendanceSummaryCard from '../attendance/AttendanceSummaryCard';
 import ManageHolidaysModal from '../admin/ManageHolidaysModal';
 import Button from '../ui/Button';
-import { Role } from '../../types';
 import MissedClockOutAlert from './MissedClockOutAlert';
 import ResolveMissingClockOutModal from '../attendance/ResolveMissingClockOutModal';
 import EmployeeDashboard from './EmployeeDashboard';
+import FourSquare from '../ui/FourSquare';
 
 const Dashboard: React.FC = () => {
-    const { user } = useAppContext();
+    const { user } = useAuth();
+
+    if (!user) return null;
 
     // Route to EmployeeDashboard for regular employees
-    if (user.role === Role.EMPLOYEE) {
+    if (user.role === 'EMPLOYEE') {
         return <EmployeeDashboard />;
     }
 
@@ -26,9 +29,13 @@ const Dashboard: React.FC = () => {
 };
 
 const ManagerDashboard: React.FC = () => {
-    const { employees, attendance, approvals, user, holidays } = useAppContext();
+    const { user } = useAuth();
+    const { data: employees = [], isLoading: employeesLoading } = useEmployees();
+    const { data: attendance = [], isLoading: attendanceLoading } = useAttendanceRecords();
     const [isHolidaysModalOpen, setIsHolidaysModalOpen] = useState(false);
     const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
+
+    if (!user) return null;
 
     const recordToFix = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -36,44 +43,39 @@ const ManagerDashboard: React.FC = () => {
             .filter(a => a.employeeId === user.employeeId)
             .sort((a, b) => b.date.localeCompare(a.date));
         
-        return userAttendance.find(a => a.clockIn && !a.clockOut && a.date !== today);
+        // Find records with active sessions (no checkOut) that are not from today
+        return userAttendance.find(a => 
+            a.sessions?.some(s => !s.checkOutTime) && a.date !== today
+        );
     }, [attendance, user.employeeId]);
 
-    const targetHoursThisMonth = useMemo(() => {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = today.getMonth();
-        const holidayDates = holidays.map(h => h.date);
-
-        let workdays = 0;
-        const date = new Date(year, month, 1);
-        while (date.getMonth() === month) {
-            const dayOfWeek = date.getDay();
-            const dateString = date.toISOString().split('T')[0];
-            if (dayOfWeek > 0 && dayOfWeek < 6 && !holidayDates.includes(dateString)) {
-                workdays++;
-            }
-            date.setDate(date.getDate() + 1);
-        }
-        return workdays * 8;
-    }, [holidays]);
-
     const todayAttendanceStats = useMemo(() => {
-        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: user.timezone || 'Asia/Karachi' });
         
         const todayRecords = attendance.filter(r => {
-             if (new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal) return true;
-             if (r.sessions?.some(s => new Date(s.checkIn).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal)) return true;
+             if (new Date(r.date).toLocaleDateString('en-CA', { timeZone: user.timezone || 'Asia/Karachi' }) === todayLocal) return true;
+             if (r.sessions?.some(s => new Date(s.checkInTime).toLocaleDateString('en-CA', { timeZone: user.timezone || 'Asia/Karachi' }) === todayLocal)) return true;
              return false;
         });
         
-        const checkedIn = todayRecords.filter(a => a.sessions?.some(s => !s.checkOut)).length;
-        const onLeave = todayRecords.filter(a => a.status === 'On Leave').length;
+        const checkedIn = todayRecords.filter(a => a.sessions?.some(s => !s.checkOutTime)).length;
+        const onLeave = todayRecords.filter(a => a.status === 'ON_LEAVE').length;
         
         return { checkedIn, onLeave };
-    }, [attendance]);
+    }, [attendance, user.timezone]);
 
-    const isPrivilegedUser = user.role === Role.ADMIN_HR || user.role === Role.MANAGER;
+    const isPrivilegedUser = user.role === 'ADMIN' || user.role === 'HR';
+
+    // Show loading state
+    if (employeesLoading || attendanceLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <FourSquare />
+            </div>
+        );
+    }
+
+    const displayName = user.firstName || user.email.split('@')[0];
 
     return (
         <div className="space-y-8">
@@ -84,8 +86,8 @@ const ManagerDashboard: React.FC = () => {
                 />
             )}
             <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-slate-700">Welcome back, {user.name.split(' ')[0]}!</h2>
-                {user.role === Role.ADMIN_HR && (
+                <h2 className="text-xl font-semibold text-slate-700">Welcome back, {displayName}!</h2>
+                {user.role === 'ADMIN' && (
                     <Button onClick={() => setIsHolidaysModalOpen(true)}>Manage Holidays</Button>
                 )}
             </div>
@@ -94,7 +96,7 @@ const ManagerDashboard: React.FC = () => {
                 <StatCard title="Total Employees" value={employees.length} />
                 <StatCard title="Checked In Today" value={todayAttendanceStats.checkedIn} />
                 <StatCard title="On Leave Today" value={todayAttendanceStats.onLeave} />
-                <StatCard title="Pending Approvals" value={approvals.filter(a => a.status === 'Pending').length} />
+                <StatCard title="Pending Approvals" value={0} />
             </div>
 
             {/* Attendance Section - Side by Side */}

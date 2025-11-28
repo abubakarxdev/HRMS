@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useAppContext } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/AuthContext';
 import FormField from '../ui/FormField';
 import Button from '../ui/Button';
 import loginBg from '../../assets/login-bg.avif';
+import { toast } from 'sonner';
 
 const LogoIcon = () => (
     <svg className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
@@ -12,21 +13,20 @@ const LogoIcon = () => (
 );
 
 const Login: React.FC = () => {
-    const { login } = useAppContext();
+    const { login } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError('');
         setLoading(true);
         try {
-            await login(email, password);
-            // On success, the app state will change and redirect automatically.
+            await login({ email, password });
+            toast.success('Login successful!');
         } catch (err: any) {
-            setError(err.message || 'Invalid email or password.');
+            const message = err.response?.data?.error || err.response?.data?.message || err.message || 'Invalid email or password.';
+            toast.error(message);
             setLoading(false);
         }
     };
@@ -79,15 +79,6 @@ const Login: React.FC = () => {
                             required
                         />
                         
-                        {error && (
-                            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center animate-pulse">
-                                <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                {error}
-                            </div>
-                        )}
-
                         <div className="pt-2">
                             <Button 
                                 type="submit" 

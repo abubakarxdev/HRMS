@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppContext } from '../../contexts/AppContext';
-import { api } from '../../services/apiService';
-import { AttendanceRecord } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTodayAttendance, useClockIn, useClockOut } from '../../hooks/useAttendance';
 import Button from '../ui/Button';
 import ClockActionModal from './ClockActionModal';
 import ResolveMissingClockOutModal from './ResolveMissingClockOutModal';
@@ -14,9 +13,10 @@ import duration from 'dayjs/plugin/duration';
 dayjs.extend(duration);
 
 const AttendanceCard: React.FC = () => {
-  const { user, attendance, performClockAction, employees } = useAppContext();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
+  const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
+  const { data: todayRecord, refetch } = useTodayAttendance(user?.employeeId || '', today);
   const [currentTime, setCurrentTime] = useState(dayjs());
   const [elapsedTime, setElapsedTime] = useState<string>("00:00:00");
   
@@ -24,41 +24,29 @@ const AttendanceCard: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalAction, setModalAction] = useState<'in' | 'out'>('in');
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
-  const [showLog, setShowLog] = useState(false);
-
-  const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
-
-  const fetchData = async () => {
-    if (!user?.employeeId) return;
-    try {
-        const todayData = await api.getTodayAttendanceForEmployee(user.employeeId, today);
-        setTodayRecord(todayData);
-    } catch (error) {
-        console.error("Failed to fetch attendance data", error);
-    }
-  };
 
   useEffect(() => {
-    fetchData();
     const timer = setInterval(() => setCurrentTime(dayjs()), 1000);
     return () => clearInterval(timer);
-  }, [user?.employeeId, today]);
+  }, []);
 
   // Determine status and active session
   const getStatus = (): { text: string; color: string; bg: string; border: string } => {
-    if (todayRecord?.status === 'On Leave') {
+    if (todayRecord?.status === 'ON_LEAVE') {
         return { text: 'On Leave', color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200' };
     }
     
-    const openSession = todayRecord?.sessions?.find(s => !s.checkOut);
+    const openSession = todayRecord?.sessions?.find(s => !s.checkOutTime);
     if (openSession) {
-        if (openSession.type === 'BREAK') {
+        // Check if there's an active break
+        const activeBreak = openSession.breaks?.find(b => !b.endTime);
+        if (activeBreak) {
             return { text: 'On Break', color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200' };
         }
         return { text: 'Checked In', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' };
     }
     
-    if (todayRecord?.sessions?.length && todayRecord.sessions.length > 0 && todayRecord.sessions.every(s => s.checkOut)) {
+    if (todayRecord?.sessions?.length && todayRecord.sessions.length > 0 && todayRecord.sessions.every(s => s.checkOutTime)) {
         return { text: 'Checked Out', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' };
     }
     
@@ -73,9 +61,9 @@ const AttendanceCard: React.FC = () => {
       let interval: NodeJS.Timeout;
       
       if (isClockedIn && todayRecord?.sessions) {
-          const currentSession = todayRecord.sessions.find(s => !s.checkOut);
-          if (currentSession?.checkIn) {
-              const start = dayjs(currentSession.checkIn);
+          const currentSession = todayRecord.sessions.find(s => !s.checkOutTime);
+          if (currentSession?.checkInTime) {
+              const start = dayjs(currentSession.checkInTime);
               
               const updateTimer = () => {
                   const now = dayjs();
@@ -94,26 +82,6 @@ const AttendanceCard: React.FC = () => {
       return () => clearInterval(interval);
   }, [isClockedIn, todayRecord]);
 
-  const recordToFix = useMemo(() => {
-      if (!user || employees.length === 0) return undefined;
-      const currentEmployee = employees.find(e => e.employeeId === user.employeeId);
-      if (!currentEmployee) return undefined;
-      
-      return attendance.find(a => 
-          a.employeeId === parseInt(currentEmployee.id) && 
-          a.sessions?.some(s => s.checkIn && !s.checkOut) && 
-          a.date !== today
-      );
-  }, [attendance, user, employees, today]);
-
-  const handleClockInClick = () => {
-      if (recordToFix) {
-          setIsResolveModalOpen(true);
-      } else {
-          openModal('in');
-      }
-  };
-
   const openModal = (action: 'in' | 'out') => {
     setModalAction(action);
     setIsModalOpen(true);
@@ -121,7 +89,7 @@ const AttendanceCard: React.FC = () => {
   
   const closeModal = () => {
     setIsModalOpen(false);
-    fetchData();
+    refetch();
   };
 
   const handleModalSuccess = (message: string) => {
@@ -133,11 +101,10 @@ const AttendanceCard: React.FC = () => {
   const workSessions = useMemo(() => {
       if (!todayRecord?.sessions) return [];
       return todayRecord.sessions
-          .filter(s => !s.type || s.type === 'WORK')
-          .sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime());
+          .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
   }, [todayRecord]);
 
-  const activeSession = workSessions.find(s => !s.checkOut);
+  const activeSession = workSessions.find(s => !s.checkOutTime);
   const firstSession = workSessions[0];
   const lastSession = workSessions[workSessions.length - 1];
 
@@ -205,10 +172,10 @@ const AttendanceCard: React.FC = () => {
                             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Check In</span>
                         </div>
                         <p className="text-lg font-bold text-slate-800">
-                            {activeSession?.checkIn 
-                                ? dayjs(activeSession.checkIn).format('hh:mm A') 
-                                : firstSession?.checkIn 
-                                    ? dayjs(firstSession.checkIn).format('hh:mm A')
+                            {activeSession?.checkInTime 
+                                ? dayjs(activeSession.checkInTime).format('hh:mm A') 
+                                : firstSession?.checkInTime 
+                                    ? dayjs(firstSession.checkInTime).format('hh:mm A')
                                     : <span className="text-slate-400 text-base font-normal">Not checked in</span>}
                         </p>
                     </div>
@@ -221,8 +188,8 @@ const AttendanceCard: React.FC = () => {
                             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Check Out</span>
                         </div>
                         <p className="text-lg font-bold text-slate-800">
-                            {lastSession?.checkOut 
-                                ? dayjs(lastSession.checkOut).format('hh:mm A') 
+                            {lastSession?.checkOutTime 
+                                ? dayjs(lastSession.checkOutTime).format('hh:mm A') 
                                 : <span className="text-slate-400 text-base font-normal">--:--</span>}
                         </p>
                     </div>
@@ -232,7 +199,7 @@ const AttendanceCard: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {!isClockedIn ? (
                         <Button 
-                            onClick={handleClockInClick} 
+                            onClick={() => openModal('in')} 
                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg transition-all py-3 text-base justify-center"
                         >
                             <FiPlay className="mr-2" /> Check In
@@ -262,22 +229,13 @@ const AttendanceCard: React.FC = () => {
             <ClockActionModal
                 isOpen={isModalOpen}
                 onClose={closeModal}
-                employee={user as any}
+                employee={{
+                    ...user,
+                    id: user.employeeId || ''
+                } as any}
                 action={modalAction}
                 todayRecord={todayRecord || undefined}
                 onSuccess={() => handleModalSuccess(modalAction === 'in' ? 'Clocked in successfully!' : 'Clocked out successfully!')}
-            />
-        )}
-
-        {recordToFix && isResolveModalOpen && user && (
-            <ResolveMissingClockOutModal
-                isOpen={isResolveModalOpen}
-                onClose={() => setIsResolveModalOpen(false)}
-                record={recordToFix}
-                onSuccess={async () => {
-                    await performClockAction(user.employeeId, 'in', undefined, undefined, undefined, today);
-                    handleModalSuccess('Missing clock-out resolved and clocked in!');
-                }}
             />
         )}
     </div>

@@ -6,7 +6,10 @@ import {
   Navigate,
   useParams,
 } from "react-router-dom";
-import { AppProvider, useAppContext } from "./contexts/AppContext";
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { queryClient } from './lib/queryClient';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from "./components/layout/Layout";
 import Dashboard from "./components/dashboard/Dashboard";
 import EmployeeDirectory from "./components/employees/EmployeeDirectory";
@@ -21,22 +24,24 @@ import Toaster from "./components/ui/Toaster";
 import FourSquare from "./components/ui/FourSquare";
 
 const App: React.FC = () => {
-  // We wrap the entire application in BrowserRouter to enable routing
   return (
     <BrowserRouter>
-      <AppProvider>
-        <AuthGate />
-        <Toaster />
-      </AppProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <AuthGate />
+          <Toaster />
+        </AuthProvider>
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
     </BrowserRouter>
   );
 };
 
 const AuthGate: React.FC = () => {
-  const { user, loading } = useAppContext();
+  const { user, isLoading } = useAuth();
 
   // Loading State
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <FourSquare />
@@ -48,9 +53,7 @@ const AuthGate: React.FC = () => {
   if (!user) {
     return (
       <Routes>
-        {/* Use hardcoded /login path as it's outside the main authenticated routes */}
         <Route path="/login" element={<Login />} />
-        {/* Redirect any other attempts to /login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -86,7 +89,6 @@ const Main: React.FC = () => {
         />
 
         {/* Attendance Routes */}
-
         <Route
           path={NAVIGATION_PATHS.TEAM_ATTENDANCE}
           element={<TeamSnapshot />}
@@ -114,7 +116,6 @@ const EmployeeProfileWrapper: React.FC = () => {
 
   // Ensure the employeeId exists before rendering the profile
   if (!employeeId) {
-    // Redirect to the directory if the ID is missing in the URL
     return <Navigate to={NAVIGATION_PATHS.EMPLOYEES} replace />;
   }
 

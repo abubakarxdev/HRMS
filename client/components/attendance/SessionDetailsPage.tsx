@@ -86,8 +86,8 @@ const SessionDetailsPage: React.FC = () => {
         );
     }
 
-    const workSessions = record.sessions?.filter(s => s.type === 'WORK') || [];
-    const breakSessions = record.sessions?.filter(s => s.type === 'BREAK') || [];
+    const workSessions = record.sessions || [];
+    const breakSessions = record.sessions?.flatMap(s => s.breaks || []) || [];
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -118,7 +118,7 @@ const SessionDetailsPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <h2 className="text-2xl font-bold text-white">
-                                        {new Date(record.date).toLocaleDateString('en-US', { 
+                                        {new Date(workSessions[0]?.checkInTime || record.date).toLocaleDateString('en-US', { 
                                             weekday: 'long', 
                                             month: 'long', 
                                             day: 'numeric',
@@ -143,7 +143,7 @@ const SessionDetailsPage: React.FC = () => {
                                     <FiClock className="text-indigo-200" size={18} />
                                     <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider">Total Work Hours</p>
                                 </div>
-                                <p className="text-2xl font-bold text-white">{formatDuration(record.totalHours || 0)}</p>
+                                <p className="text-2xl font-bold text-white">{formatDuration((record.totalWorkMinutes || 0) / 60)}</p>
                                 <p className="text-indigo-200 text-xs mt-1">Breaks excluded</p>
                             </div>
                             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
@@ -151,7 +151,7 @@ const SessionDetailsPage: React.FC = () => {
                                     <FiCoffee className="text-orange-200" size={18} />
                                     <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider">Total Break</p>
                                 </div>
-                                <p className="text-2xl font-bold text-white">{formatDuration(record.breakHours || 0)}</p>
+                                <p className="text-2xl font-bold text-white">{formatDuration((record.totalBreakMinutes || 0) / 60)}</p>
                             </div>
                             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 col-span-2 md:col-span-1">
                                 <div className="flex items-center gap-2 mb-2">
@@ -200,11 +200,11 @@ const SessionDetailsPage: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-mono font-medium text-slate-900">{formatTime(session.checkIn)}</div>
+                                            <div className="text-sm font-mono font-medium text-slate-900">{formatTime(session.checkInTime)}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            {session.checkOut ? (
-                                                <div className="text-sm font-mono font-medium text-slate-900">{formatTime(session.checkOut)}</div>
+                                            {session.checkOutTime ? (
+                                                <div className="text-sm font-mono font-medium text-slate-900">{formatTime(session.checkOutTime)}</div>
                                             ) : (
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
                                                     Ongoing
@@ -219,7 +219,7 @@ const SessionDetailsPage: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm font-bold text-slate-900">
-                                                {calculateSessionDuration(session.checkIn, session.checkOut)}
+                                                {calculateSessionDuration(session.checkInTime, session.checkOutTime)}
                                             </span>
                                         </td>
                                     </tr>
@@ -269,11 +269,11 @@ const SessionDetailsPage: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-mono font-medium text-slate-900">{formatTime(breakSession.checkIn)}</div>
+                                            <div className="text-sm font-mono font-medium text-slate-900">{formatTime(breakSession.startTime)}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            {breakSession.checkOut ? (
-                                                <div className="text-sm font-mono font-medium text-slate-900">{formatTime(breakSession.checkOut)}</div>
+                                            {breakSession.endTime ? (
+                                                <div className="text-sm font-mono font-medium text-slate-900">{formatTime(breakSession.endTime)}</div>
                                             ) : (
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
                                                     Ongoing
@@ -282,7 +282,7 @@ const SessionDetailsPage: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-sm font-bold text-slate-900">
-                                                {calculateSessionDuration(breakSession.checkIn, breakSession.checkOut)}
+                                                {calculateSessionDuration(breakSession.startTime, breakSession.endTime)}
                                             </span>
                                         </td>
                                     </tr>

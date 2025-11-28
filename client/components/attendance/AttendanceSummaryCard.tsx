@@ -1,137 +1,85 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAppContext } from '../../contexts/AppContext';
-import { api } from '../../services/apiService';
-import { AttendanceRecord } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTodayAttendance, useAttendanceStats } from '../../hooks/useAttendance';
 
-const formatHoursMinutes = (decimalHours: number): string => {
-    const hours = Math.floor(decimalHours);
-    const minutes = Math.round((decimalHours - hours) * 60);
-    return `${hours}h ${minutes}m`;
+const formatHoursMinutes = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    return `${hours}h ${mins}m`;
 };
 
 const AttendanceSummaryCard: React.FC = () => {
-    const { user, attendance } = useAppContext();
-    const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
-    const [workedHours, setWorkedHours] = useState({ today: 0, week: 0, month: 0 });
-    
+    const { user } = useAuth();
     const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
-
-    const fetchData = async () => {
-        if (!user?.employeeId) return;
-        try {
-            const todayData = await api.getTodayAttendanceForEmployee(user.employeeId, today);
-            setTodayRecord(todayData);
-        } catch (error) {
-            console.error("Failed to fetch attendance data", error);
-        }
-    };
+    const { data: todayRecord } = useTodayAttendance(user?.employeeId || '', today);
+    const { data: stats } = useAttendanceStats(user?.employeeId || '');
+    
+    const [liveMinutes, setLiveMinutes] = useState({ today: 0, week: 0, month: 0 });
 
     useEffect(() => {
-        fetchData();
-    }, [user?.employeeId, today]);
-
-    useEffect(() => {
-        if (!user) return;
+        if (!stats) return;
         
-        const calculateAllHours = () => {
-            const now = new Date();
-            const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
-
-            let liveHoursToday = 0;
-            if (todayRecord) {
-                if (todayRecord.totalHours) {
-                    liveHoursToday = todayRecord.totalHours;
-                }
+        const calculateLiveMinutes = () => {
+            let todayMinutes = 0;
+            
+            if (todayRecord?.sessions) {
+                const now = new Date().getTime();
                 
-                if (todayRecord.sessions) {
-                    let sessionHours = 0;
-                    todayRecord.sessions.forEach(session => {
-                        if (session.type !== 'WORK') return;
+                todayRecord.sessions.forEach(session => {
+                    if (!session.checkInTime) return;
+                    
+                    const start = new Date(session.checkInTime).getTime();
+                    // Use checkOutTime if available, otherwise use now (for active session)
+                    const end = session.checkOutTime 
+                        ? new Date(session.checkOutTime).getTime() 
+                        : now;
                         
-                        if (session.checkOut) {
-                            const start = new Date(session.checkIn).getTime();
-                            const end = new Date(session.checkOut).getTime();
-                            const diff = Math.max(0, end - start);
-                            sessionHours += diff / (1000 * 60 * 60);
-                        } else {
-                            const start = new Date(session.checkIn).getTime();
-                            const end = now.getTime();
-                            const diff = Math.max(0, end - start);
-                            sessionHours += diff / (1000 * 60 * 60);
-                        }
-                    });
-                    liveHoursToday = sessionHours;
-                }
+                    const grossDuration = Math.floor((end - start) / (1000 * 60));
+                    
+                    // Calculate breaks
+                    let breakMinutes = 0;
+                    if (session.breaks && session.breaks.length > 0) {
+                        breakMinutes = session.breaks.reduce((acc, b) => {
+                            if (!b.startTime) return acc;
+                            
+                            const breakStart = new Date(b.startTime).getTime();
+                            const breakEnd = b.endTime 
+                                ? new Date(b.endTime).getTime() 
+                                : now;
+                                
+                            // Cap break end at session end
+                            const effectiveBreakEnd = Math.min(breakEnd, end);
+                            
+                            // Only count if break started before session ended
+                            if (breakStart < effectiveBreakEnd) {
+                                return acc + Math.floor((effectiveBreakEnd - breakStart) / (1000 * 60));
+                            }
+                            return acc;
+                        }, 0);
+                    }
+                    
+                    todayMinutes += Math.max(0, grossDuration - breakMinutes);
+                });
+            } else if (stats?.minutesToday) {
+                // Fallback to stats if no sessions loaded yet (though todayRecord should have them)
+                todayMinutes = stats.minutesToday;
             }
-
-            const startOfWeek = new Date(now);
-            startOfWeek.setHours(0,0,0,0);
-            startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-            // Filter past records - use numeric employeeId from todayRecord if available
-            const userNumericId = todayRecord?.employeeId;
-            const pastRecords = attendance.filter(r => {
-                // Compare numeric IDs
-                if (userNumericId && r.employeeId !== userNumericId) return false;
-                if (!userNumericId && String(r.employeeId) !== String(user.employeeId)) return false;
-                
-                const recordDatePKT = new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
-                return recordDatePKT !== todayStr;
-            });
-
-            const completedHoursWeek = pastRecords
-                .filter(r => {
-                    const recordDate = new Date(r.date);
-                    return recordDate >= startOfWeek;
-                })
-                .reduce((acc, r) => acc + Math.max(0, r.totalHours || 0), 0);
-                
-            const completedHoursMonth = pastRecords
-                .filter(r => {
-                    const recordDate = new Date(r.date);
-                    return recordDate >= startOfMonth;
-                })
-                .reduce((acc, r) => acc + Math.max(0, r.totalHours || 0), 0);
             
-            console.log('[AttendanceSummaryCard] Detailed Debug:', {
-                todayStr,
-                userNumericId,
-                liveHoursToday,
-                allAttendanceRecords: attendance.map(r => ({ 
-                    employeeId: r.employeeId, 
-                    date: r.date, 
-                    totalHours: r.totalHours,
-                    datePKT: new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' })
-                })),
-                pastRecordsCount: pastRecords.length,
-                pastRecords: pastRecords.map(r => ({ date: r.date, totalHours: r.totalHours })),
-                startOfWeek: startOfWeek.toISOString(),
-                startOfMonth: startOfMonth.toISOString(),
-                completedHoursWeek,
-                completedHoursMonth,
-                finalCalculation: {
-                    today: Math.max(0, liveHoursToday),
-                    week: completedHoursWeek + Math.max(0, liveHoursToday),
-                    month: completedHoursMonth + Math.max(0, liveHoursToday)
-                }
-            });
-            
-            setWorkedHours({
-                today: Math.max(0, liveHoursToday),
-                week: completedHoursWeek + Math.max(0, liveHoursToday),
-                month: completedHoursMonth + Math.max(0, liveHoursToday),
+            setLiveMinutes({
+                today: Math.max(0, todayMinutes),
+                week: Math.max(0, (stats.minutesThisWeek || 0) - (stats.minutesToday || 0) + todayMinutes),
+                month: Math.max(0, (stats.minutesThisMonth || 0) - (stats.minutesToday || 0) + todayMinutes),
             });
         };
 
-        calculateAllHours();
+        calculateLiveMinutes();
 
-        const isClockedIn = todayRecord?.sessions?.some(s => !s.checkOut);
+        const isClockedIn = todayRecord?.sessions?.some(s => !s.checkOutTime);
         if (isClockedIn) {
-            const interval = setInterval(calculateAllHours, 60000);
+            const interval = setInterval(calculateLiveMinutes, 60000);
             return () => clearInterval(interval);
         }
-    }, [attendance, todayRecord, user]);
+    }, [stats, todayRecord]);
 
     if (!user) return null;
 
@@ -142,26 +90,26 @@ const AttendanceSummaryCard: React.FC = () => {
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
                         <span className="text-sm text-slate-500">Logged Today</span>
-                        <span className="text-sm font-bold text-slate-900">{formatHoursMinutes(Math.max(0, workedHours.today))}</span>
+                        <span className="text-sm font-bold text-slate-900">{formatHoursMinutes(liveMinutes.today)}</span>
                     </div>
                     <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${Math.min(100, (workedHours.today / 8) * 100)}%` }}></div>
+                        <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${Math.min(100, (liveMinutes.today / 480) * 100)}%` }}></div>
                     </div>
 
                     <div className="flex justify-between items-center pt-2">
                         <span className="text-sm text-slate-500">Logged This Week</span>
-                        <span className="text-sm font-bold text-slate-900">{formatHoursMinutes(Math.max(0, workedHours.week))}</span>
+                        <span className="text-sm font-bold text-slate-900">{formatHoursMinutes(liveMinutes.week)}</span>
                     </div>
                     <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.min(100, (workedHours.week / 40) * 100)}%` }}></div>
+                        <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.min(100, (liveMinutes.week / 2400) * 100)}%` }}></div>
                     </div>
 
                     <div className="flex justify-between items-center pt-2">
                         <span className="text-sm text-slate-500">Logged This Month</span>
-                        <span className="text-sm font-bold text-slate-900">{formatHoursMinutes(Math.max(0, workedHours.month))}</span>
+                        <span className="text-sm font-bold text-slate-900">{formatHoursMinutes(liveMinutes.month)}</span>
                     </div>
                     <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-purple-500 h-full rounded-full" style={{ width: `${Math.min(100, (workedHours.month / 160) * 100)}%` }}></div>
+                        <div className="bg-purple-500 h-full rounded-full" style={{ width: `${Math.min(100, (liveMinutes.month / 9600) * 100)}%` }}></div>
                     </div>
                 </div>
             </div>

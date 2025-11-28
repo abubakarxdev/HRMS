@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
-import { useAppContext } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useEmployee, useEmployees } from '../../hooks/useEmployees';
+import { useEmployeeAttendance } from '../../hooks/useAttendance';
+import { useEmployeeAuditLogs } from '../../hooks/useAuditLogs';
 import { useNavigate } from 'react-router-dom';
 import { NAVIGATION_PATHS } from '../../constants';
-import { api } from '../../services/apiService';
-import { Employee, AttendanceRecord, AuditLog } from '../../types';
+import { AttendanceRecord } from '../../types';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -63,43 +65,21 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string; 
 );
 
 const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
-  const { employees, user } = useAppContext();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [employee, setEmployee] = useState<Employee | null>(null);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [empData, attData, logData] = await Promise.all([
-        api.getEmployeeById(employeeId),
-        api.getAttendanceForEmployee(employeeId),
-        api.getAuditLogsForEmployee(employeeId),
-      ]);
-      setEmployee(empData || null);
-      setAttendance(attData);
-      setAuditLogs(logData);
-    } catch (error) {
-      console.error("Failed to fetch profile data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [employeeId]);
   
-  useEffect(() => {
-    fetchData();
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(fetchData, 60000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+  const { data: employee, isLoading: loadingEmployee } = useEmployee(employeeId);
+  const { data: employees = [] } = useEmployees(); // For manager lookup
+  const { data: attendance = [], isLoading: loadingAttendance } = useEmployeeAttendance(employeeId);
+  const { data: auditLogs = [], isLoading: loadingLogs } = useEmployeeAuditLogs(employeeId);
+
+  const loading = loadingEmployee || loadingAttendance || loadingLogs;
 
   if (loading) return <div className="text-center py-8">Loading profile...</div>;
   if (!employee) return <div className="text-center py-8">Employee not found.</div>;
 
-  const manager = employees.find(e => e.employeeId === employee.managerId);
-  const isOwnProfile = user.employeeId === employee.employeeId;
+  const manager = employees.find(e => e.id === employee.manager?.id);
+  const isOwnProfile = user?.employeeId === employee.id;
 
   // Calculate attendance statistics
   const now = new Date();
@@ -138,21 +118,35 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
       return records.reduce((acc, rec) => {
           let hours = 0;
           let breakHours = 0;
-          if (rec.sessions) {
+          
+          if (rec.totalWorkMinutes) {
+              hours = rec.totalWorkMinutes / 60;
+          } else if (rec.sessions) {
+              // Fallback calculation
               rec.sessions.forEach(session => {
-                  if (session.type === 'WORK' && session.checkOut) {
-                      const start = new Date(session.checkIn).getTime();
-                      const end = new Date(session.checkOut).getTime();
+                  if (session.checkOutTime) {
+                      const start = new Date(session.checkInTime).getTime();
+                      const end = new Date(session.checkOutTime).getTime();
                       hours += (end - start) / (1000 * 60 * 60);
-                  } else if (session.type === 'BREAK' && session.checkOut) {
-                      const start = new Date(session.checkIn).getTime();
-                      const end = new Date(session.checkOut).getTime();
-                      breakHours += (end - start) / (1000 * 60 * 60);
                   }
               });
-          } else if (rec.totalHours) {
-              hours = rec.totalHours;
           }
+          
+          if (rec.totalBreakMinutes) {
+              breakHours = rec.totalBreakMinutes / 60;
+          } else if (rec.sessions) {
+              // Fallback break calculation
+               rec.sessions.forEach(session => {
+                   session.breaks?.forEach(b => {
+                       if (b.endTime) {
+                           const start = new Date(b.startTime).getTime();
+                           const end = new Date(b.endTime).getTime();
+                           breakHours += (end - start) / (1000 * 60 * 60);
+                       }
+                   });
+               });
+          }
+
           return {
               totalHours: acc.totalHours + hours,
               totalBreakHours: acc.totalBreakHours + breakHours,
@@ -176,17 +170,16 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
   // Prepare chart data
   const chartData = last30Days.map(rec => {
     let hours = 0;
-    
-    if (rec.sessions) {
-      rec.sessions.forEach(session => {
-        if (session.type === 'WORK' && session.checkOut) {
-          const start = new Date(session.checkIn).getTime();
-          const end = new Date(session.checkOut).getTime();
-          hours += (end - start) / (1000 * 60 * 60);
-        }
-      });
-    } else if (rec.totalHours) {
-      hours = rec.totalHours;
+    if (rec.totalWorkMinutes) {
+        hours = rec.totalWorkMinutes / 60;
+    } else if (rec.sessions) {
+        rec.sessions.forEach(session => {
+            if (session.checkOutTime) {
+                const start = new Date(session.checkInTime).getTime();
+                const end = new Date(session.checkOutTime).getTime();
+                hours += (end - start) / (1000 * 60 * 60);
+            }
+        });
     }
     
     return {
@@ -258,32 +251,37 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
     return `${h}h ${m}m`;
   };
 
+  const employeeName = employee.firstName ? `${employee.firstName} ${employee.lastName}` : (employee.name || 'Unknown');
+  const employeeRole = employee.user?.role || employee.position || 'Employee';
+  const employeeOffice = employee.office?.name || employee.department || 'N/A';
+  const managerName = manager ? (manager.firstName ? `${manager.firstName} ${manager.lastName}` : manager.name) : 'N/A';
+
   return (
     <div className="space-y-6">
       <Card>
         <div className="flex flex-col md:flex-row items-start space-y-4 md:space-y-0 md:space-x-6">
           <img 
             className="h-32 w-32 rounded-full object-cover" 
-            src={employee.avatar || `https://placehold.co/200x200/4F46E5/FFFFFF?text=${employee.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}`}
+            src={employee.avatarUrl || `https://placehold.co/200x200/4F46E5/FFFFFF?text=${employeeName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}`}
             alt="Employee Avatar"
             onError={(e) => {
-              const initials = employee.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+              const initials = employeeName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
               e.currentTarget.src = `https://placehold.co/200x200/4F46E5/FFFFFF?text=${initials}`;
             }}
           />
           <div className="flex-1">
-            <h2 className="text-2xl font-bold text-slate-900">{employee.name}</h2>
-            <p className="text-lg text-primary-600">{employee.position}</p>
-            <p className="text-md text-slate-600">{employee.department}</p>
+            <h2 className="text-2xl font-bold text-slate-900">{employeeName}</h2>
+            <p className="text-lg text-primary-600">{employeeRole}</p>
+            <p className="text-md text-slate-600">{employeeOffice}</p>
             <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <InfoField label="Email" value={employee.email} />
-              <InfoField label="Hire Date" value={new Date(employee.hireDate).toLocaleDateString()} />
-              <InfoField label="Manager" value={manager?.name} />
+              <InfoField label="Email" value={employee.workEmail || employee.email} />
+              <InfoField label="Joining Date" value={new Date(employee.joiningDate || employee.hireDate).toLocaleDateString()} />
+              <InfoField label="Manager" value={managerName} />
               <InfoField label="Status" value={employee.status} />
             </div>
           </div>
           <div>
-            {user?.role === 'ADMIN_HR' && (
+            {(user?.role === 'ADMIN' || user?.role === 'HR') && (
               <Button onClick={() => navigate(`${NAVIGATION_PATHS.EMPLOYEES}/edit/${employee.id}`)}>
                 Edit Profile
               </Button>

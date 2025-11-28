@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Card from '../ui/Card';
-import { useAppContext } from '../../contexts/AppContext';
-import { api } from '../../services/apiService';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAttendanceStats } from '../../hooks/useAttendance';
 
 const InfoRow: React.FC<{ label: string, value: string }> = ({ label, value }) => (
     <div className="flex justify-between items-baseline">
@@ -17,44 +17,20 @@ const formatHoursMinutes = (totalHours: number): string => {
 };
 
 const MyHoursSummaryCard: React.FC = () => {
-    const { user } = useAppContext();
-    const [workedHours, setWorkedHours] = useState({ today: 0, week: 0, month: 0 });
-    const [loading, setLoading] = useState(true);
+    const { user } = useAuth();
+    const { data: stats, isLoading } = useAttendanceStats(user?.employeeId || '');
 
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                // Use the same API as AttendanceDashboard
-                const stats = await api.getStats(user.employeeId);
-                
-                setWorkedHours({
-                    today: stats.hoursToday || 0,
-                    week: stats.hoursThisWeek || 0,
-                    month: stats.hoursThisMonth || 0,
-                });
-                setLoading(false);
-            } catch (error) {
-                console.error('Failed to fetch stats', error);
-                setLoading(false);
-            }
-        };
-
-        fetchStats();
-
-        // Update every minute
-        const interval = setInterval(fetchStats, 60000);
-        return () => clearInterval(interval);
-    }, [user.employeeId]);
+    if (!user) return null;
 
     return (
         <Card title="My Hours Summary">
-            {loading ? (
+            {isLoading ? (
                 <div className="text-center text-slate-500 py-4">Loading...</div>
             ) : (
                 <div className="space-y-3">
-                    <InfoRow label="Logged Today" value={formatHoursMinutes(workedHours.today)} />
-                    <InfoRow label="Logged This Week" value={formatHoursMinutes(workedHours.week)} />
-                    <InfoRow label="Logged This Month" value={formatHoursMinutes(workedHours.month)} />
+                    <InfoRow label="Logged Today" value={stats?.hoursToday || "0h 0m"} />
+                    <InfoRow label="Logged This Week" value={stats?.hoursThisWeek || "0h 0m"} />
+                    <InfoRow label="Logged This Month" value={stats?.hoursThisMonth || "0h 0m"} />
                 </div>
             )}
         </Card>

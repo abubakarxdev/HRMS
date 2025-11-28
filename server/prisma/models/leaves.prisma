@@ -1,0 +1,46 @@
+model LeaveSetting {
+  id            String @id @default(uuid())
+  legalEntityId String
+  policyType    String // 'FullTime', 'Probation'
+  config        Json // { annual: 14, sick: 10 }
+
+  legalEntity LegalEntity @relation(fields: [legalEntityId], references: [id])
+
+  @@map("leave_settings")
+}
+
+model LeaveBalance {
+  id         String @id @default(uuid())
+  employeeId String
+  year       Int
+  leaveType  String // 'Annual', 'Sick'
+
+  totalCredits Int
+  usedCredits  Int @default(0)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year, leaveType])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id         String @id @default(uuid())
+  employeeId String
+
+  leaveType String // 'Annual', 'Sick'
+
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  reason          String?
+  managerComments String?
+  status          String   @default("Pending") // Pending, Approved, Rejected
+
+  attachmentUrl String?
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("leave_requests")
+}

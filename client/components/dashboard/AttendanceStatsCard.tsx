@@ -1,47 +1,34 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useAppContext } from '../../contexts/AppContext';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { api } from '../../services/apiService';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useAttendanceRecords } from '../../hooks/useAttendance';
 import { AttendanceRecord } from '../../types';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const AttendanceStatsCard: React.FC = () => {
-    const { employees } = useAppContext();
+    const { data: employees = [] } = useEmployees();
+    const { data: allRecords = [], isLoading: loading } = useAttendanceRecords();
     const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([]);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchTodayAttendance = async () => {
-            try {
-                const allRecords = await api.getAllAttendance();
-                // Get today's date in Asia/Karachi time YYYY-MM-DD
-                const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+        if (allRecords.length > 0) {
+            // Get today's date in Asia/Karachi time YYYY-MM-DD
+            const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+            
+            const todaysRecords = allRecords.filter(r => {
+                // Check if record date is today (Asia/Karachi)
+                if (new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal) return true;
                 
-                const todaysRecords = allRecords.filter(r => {
-                    // Check if record date is today (Asia/Karachi)
-                    if (new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal) return true;
-                    
-                    // Check if any session is today (Asia/Karachi)
-                    if (r.sessions?.some(s => new Date(s.checkIn).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal)) return true;
-                    
-                    return false;
-                });
-                setTodayAttendance(todaysRecords);
-            } catch (error) {
-                console.error("Failed to fetch attendance", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchTodayAttendance();
-        
-        // Refresh every 30 seconds
-        const interval = setInterval(fetchTodayAttendance, 30000);
-        return () => clearInterval(interval);
-    }, []);
+                // Check if any session is today (Asia/Karachi)
+                if (r.sessions?.some(s => new Date(s.checkInTime).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal)) return true;
+                
+                return false;
+            });
+            setTodayAttendance(todaysRecords);
+        }
+    }, [allRecords]);
 
     const stats = useMemo(() => {
         const attendanceByEmployee = new Map();
@@ -54,21 +41,23 @@ const AttendanceStatsCard: React.FC = () => {
         let onLeave = 0;
 
         employees.forEach(emp => {
-            const record = attendanceByEmployee.get(emp.id);
+            const record = attendanceByEmployee.get(emp.id); // Assuming employeeId in record matches emp.id
             
             if (!record) {
                 absent++;
                 return;
             }
             
-            if (record.status === 'On Leave') {
+            if (record.status === 'ON_LEAVE') {
                 onLeave++;
                 return;
             }
             
-            const openSession = record.sessions?.find(s => !s.checkOut);
+            const openSession = record.sessions?.find(s => !s.checkOutTime);
             if (openSession) {
-                if (openSession.type === 'BREAK') {
+                // Check if on break
+                const isBreak = openSession.breaks?.some(b => !b.endTime);
+                if (isBreak) {
                     onBreak++;
                 } else {
                     present++;
@@ -76,7 +65,7 @@ const AttendanceStatsCard: React.FC = () => {
                 return;
             }
             
-            if (record.sessions?.length > 0 && record.sessions.every(s => s.checkOut)) {
+            if (record.sessions?.length > 0 && record.sessions.every(s => s.checkOutTime)) {
                 checkedOut++;
                 return;
             }

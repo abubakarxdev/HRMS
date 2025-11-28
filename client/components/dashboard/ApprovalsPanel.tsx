@@ -1,12 +1,11 @@
-
 import React from 'react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
-import { useAppContext } from '../../contexts/AppContext';
+import { useApprovals, useUpdateApproval } from '../../hooks/useApprovals';
 import { ApprovalRequest } from '../../types';
 
 const ApprovalItem: React.FC<{ request: ApprovalRequest }> = ({ request }) => {
-    const { handleApproval } = useAppContext();
+    const updateApprovalMutation = useUpdateApproval();
 
     return (
         <li className="flex items-center justify-between py-3">
@@ -15,20 +14,34 @@ const ApprovalItem: React.FC<{ request: ApprovalRequest }> = ({ request }) => {
                 <p className="text-sm text-slate-500">{request.details}</p>
             </div>
             <div className="flex-shrink-0 space-x-2">
-                <Button size="sm" variant="success" onClick={() => handleApproval(request.id, 'Approved')}>Approve</Button>
-                <Button size="sm" variant="danger" onClick={() => handleApproval(request.id, 'Rejected')}>Reject</Button>
+                <Button 
+                    size="sm" 
+                    variant="success" 
+                    onClick={() => updateApprovalMutation.mutate({ id: request.id, status: 'Approved' })}
+                    isLoading={updateApprovalMutation.isPending}
+                >
+                    Approve
+                </Button>
+                <Button 
+                    size="sm" 
+                    variant="danger" 
+                    onClick={() => updateApprovalMutation.mutate({ id: request.id, status: 'Rejected' })}
+                    isLoading={updateApprovalMutation.isPending}
+                >
+                    Reject
+                </Button>
             </div>
         </li>
     );
 }
 
 const ApprovalsPanel: React.FC = () => {
-    const { approvals, loading } = useAppContext();
+    const { data: approvals = [], isLoading } = useApprovals();
     const pendingApprovals = approvals.filter(a => a.status === 'Pending');
 
     return (
         <Card title="Pending Approvals">
-            {loading ? (
+            {isLoading ? (
                 <p>Loading approvals...</p>
             ) : pendingApprovals.length > 0 ? (
                 <ul className="divide-y divide-slate-200">

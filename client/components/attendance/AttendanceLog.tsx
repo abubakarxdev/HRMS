@@ -1,22 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FiEye, FiCalendar, FiClock, FiMapPin, FiFilter, FiRefreshCw, FiUser, FiUsers } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
-import { useAppContext } from '../../contexts/AppContext';
-import { api } from '../../services/apiService';
-import { AttendanceRecord, Role, Employee } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useEmployeeAttendance, useAttendanceRecords } from '../../hooks/useAttendance';
 import Button from '../ui/Button';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { Autocomplete, TextField, Avatar, Box, Typography } from '@mui/material';
 import dayjs, { Dayjs } from 'dayjs';
+import FourSquare from '../ui/FourSquare';
 
 const AttendanceLog: React.FC = () => {
-    const { user } = useAppContext();
+    const { user } = useAuth();
     const navigate = useNavigate();
-    const [logs, setLogs] = useState<AttendanceRecord[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: allEmployees = [] } = useEmployees();
     
     // HR Specific State
-    const [employees, setEmployees] = useState<Employee[]>([]);
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('myself');
 
     // Date Filters
@@ -27,149 +26,112 @@ const AttendanceLog: React.FC = () => {
     });
     const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
 
-    const isHR = user?.role === Role.ADMIN_HR;
+    const isHR = user?.role === "ADMIN" || user?.role === "HR";
 
-    // Fetch employees for HR
-    useEffect(() => {
-        if (isHR) {
-            const fetchEmployees = async () => {
-                try {
-                    const data = await api.getEmployees();
-                    setEmployees(data);
-                } catch (error) {
-                    console.error("Failed to fetch employees", error);
-                }
-            };
-            fetchEmployees();
-        }
-    }, [isHR]);
+    // Determine which employee ID to fetch
+    const targetEmployeeId = selectedEmployeeId === 'myself' ? user?.employeeId || '' : selectedEmployeeId;
+    
+    // Fetch attendance data based on selection
+    const shouldFetchEmployee = selectedEmployeeId !== 'all' && !!targetEmployeeId;
+    const shouldFetchAll = selectedEmployeeId === 'all' && isHR;
+    
+    const { data: employeeAttendance = [], isLoading: attendanceLoading } = useEmployeeAttendance(
+        shouldFetchEmployee ? targetEmployeeId : ''
+    );
+    
+    const { data: allAttendance = [], isLoading: allAttendanceLoading } = useAttendanceRecords();
 
-    // Initialize selectedEmployeeId
-    useEffect(() => {
-        if (user?.employeeId) {
-            setSelectedEmployeeId(user.employeeId);
-        }
-    }, [user?.employeeId]);
+    const loading = selectedEmployeeId === 'all' ? allAttendanceLoading : attendanceLoading;
+    const rawLogs = selectedEmployeeId === 'all' ? allAttendance : employeeAttendance;
 
-    const fetchLogs = async (start: Dayjs | null = startDate, end: Dayjs | null = endDate, empId: string = selectedEmployeeId) => {
-        if (!user?.employeeId) return;
-        setLoading(true);
-        try {
-            let data: AttendanceRecord[] = [];
-            
-            if (empId === 'all' && isHR) {
-                data = await api.getAllAttendance();
-            } else {
-                // If "myself" or specific ID, use that ID. 
-                // Note: If empId is 'myself', we use user.employeeId
-                const targetId = empId === 'myself' ? user.employeeId : empId;
-                data = await api.getAttendanceForEmployee(targetId);
-            }
-            
-            // Filter by date range
-            const filtered = data.filter(record => {
-                if (!start || !end) return true;
-                // Handle date comparison robustly using PKT
-                const recordDate = dayjs(record.date);
-                return recordDate.isAfter(start.startOf('day')) && recordDate.isBefore(end.endOf('day'));
-            });
-            
-            // Sort by date desc
-            filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            
-            setLogs(filtered);
-        } catch (error) {
-            console.error("Failed to fetch attendance logs", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (selectedEmployeeId) {
-            fetchLogs();
-        }
-    }, [selectedEmployeeId, user?.employeeId]);
+    // Filter by date range
+    const logs = useMemo(() => {
+        const filtered = rawLogs.filter(record => {
+            if (!startDate || !endDate) return true;
+            const recordDate = dayjs(record.date);
+            return recordDate.isAfter(startDate.startOf('day')) && recordDate.isBefore(endDate.endOf('day'));
+        });
+        
+        // Sort by date desc
+        return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [rawLogs, startDate, endDate]);
 
     const handleApplyFilters = () => {
-        fetchLogs();
+        // Filters are applied automatically via useMemo
     };
 
     const handleReset = () => {
         const d = new Date();
         d.setDate(d.getDate() - 30);
-        const newStart = dayjs(d);
-        const newEnd = dayjs();
-        
-        setStartDate(newStart);
-        setEndDate(newEnd);
-        
-        fetchLogs(newStart, newEnd); 
+        setStartDate(dayjs(d));
+        setEndDate(dayjs());
     };
 
-    const formatDuration = (hours: number) => {
-        if (hours < 0) return "0h 0m"; // Prevent negative display
-        const h = Math.floor(hours);
-        const m = Math.round((hours - h) * 60);
+    const formatDuration = (minutes: number) => {
+        if (minutes < 0) return "0h 0m";
+        const h = Math.floor(minutes / 60);
+        const m = Math.round(minutes % 60);
         return `${h}h ${m}m`;
     };
     
-    const totalFilteredHours = logs.reduce((acc, record) => acc + (record.totalHours || 0), 0);
-    const averageHours = logs.length > 0 ? totalFilteredHours / logs.length : 0;
-    const presentDays = logs.filter(r => r.status === 'Present').length;
+    const totalFilteredMinutes = logs.reduce((acc, record) => acc + (record.totalWorkMinutes || 0), 0);
+    const averageMinutes = logs.length > 0 ? totalFilteredMinutes / logs.length : 0;
+    const presentDays = logs.filter(r => r.status === 'PRESENT').length;
 
-    const getSessionTimes = (record: AttendanceRecord) => {
+    const getSessionTimes = (record: any) => {
         if (!record.sessions || record.sessions.length === 0) return { checkIn: null, checkOut: null };
         
-        // Sort sessions by time just in case
         const sortedSessions = [...record.sessions].sort((a, b) => 
-            new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime()
+            new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime()
         );
         
         const firstSession = sortedSessions[0];
         const lastSession = sortedSessions[sortedSessions.length - 1];
         
         return {
-            checkIn: firstSession.checkIn,
-            checkOut: lastSession.checkOut
+            checkIn: firstSession.checkInTime,
+            checkOut: lastSession.checkOutTime
         };
     };
 
-    const handleViewDetails = (record: AttendanceRecord) => {
+    const handleViewDetails = (record: any) => {
         navigate(`/attendance/session/${record.id}`);
     };
 
     // Helper to get employee details
-    const getEmployeeDetails = (recordEmployeeId: number | string) => {
-        // recordEmployeeId might be a number or string at runtime despite type definition
-        const searchId = String(recordEmployeeId);
-        return employees.find(e => 
-            e.id === searchId || 
-            e.employeeId === searchId || 
-            // Fallback for numeric comparison if IDs are numeric strings
-            parseInt(e.id) === Number(recordEmployeeId)
-        );
+    const getEmployeeDetails = (recordEmployeeId: string) => {
+        return allEmployees.find(e => e.id === recordEmployeeId);
+    };
+
+    // Type for employee options
+    type EmployeeOption = {
+        label: string;
+        id: string;
+        type: 'special' | 'employee';
+        avatar?: string;
+        position?: string;
+        rawId?: string;
     };
 
     // Prepare options for Autocomplete
-    const employeeOptions = useMemo(() => {
-        const options = [
+    const employeeOptions = useMemo<EmployeeOption[]>(() => {
+        const options: EmployeeOption[] = [
             { label: 'All Employees', id: 'all', type: 'special' },
             { label: 'My Attendance', id: 'myself', type: 'special' },
-            ...employees.map(emp => ({
-                label: emp.name,
-                id: emp.employeeId, // Use custom ID for fetching logic
-                type: 'employee',
-                avatar: emp.avatar,
-                position: emp.position,
-                rawId: emp.id // Keep raw ID for reference if needed
+            ...allEmployees.map(emp => ({
+                label: `${emp.firstName} ${emp.lastName}`,
+                id: emp.id,
+                type: 'employee' as const,
+                avatar: emp.avatarUrl,
+                position: emp.employeeIdNumber,
+                rawId: emp.id
             }))
         ];
         return options;
-    }, [employees]);
+    }, [allEmployees]);
 
     const selectedOption = useMemo(() => {
-        return employeeOptions.find(opt => opt.id === selectedEmployeeId) || employeeOptions[1]; // Default to 'myself'
+        return employeeOptions.find(opt => opt.id === selectedEmployeeId) || employeeOptions[1];
     }, [selectedEmployeeId, employeeOptions]);
 
     return (
@@ -195,7 +157,7 @@ const AttendanceLog: React.FC = () => {
                     </div>
                     <div>
                         <p className="text-sm font-medium text-slate-500">Total Hours</p>
-                        <p className="text-2xl font-bold text-slate-900">{formatDuration(totalFilteredHours)}</p>
+                        <p className="text-2xl font-bold text-slate-900">{formatDuration(totalFilteredMinutes)}</p>
                     </div>
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 group hover:border-emerald-200 transition-colors">
@@ -213,7 +175,7 @@ const AttendanceLog: React.FC = () => {
                     </div>
                     <div>
                         <p className="text-sm font-medium text-slate-500">Avg. Daily Hours</p>
-                        <p className="text-2xl font-bold text-slate-900">{formatDuration(averageHours)}</p>
+                        <p className="text-2xl font-bold text-slate-900">{formatDuration(averageMinutes)}</p>
                     </div>
                 </div>
             </div>
@@ -359,7 +321,7 @@ const AttendanceLog: React.FC = () => {
                                 logs.map((record) => {
                                     const { checkIn, checkOut } = getSessionTimes(record);
                                     const location = record.sessions?.[0]?.location || '-';
-                                    const breakDuration = record.breakHours ? formatDuration(record.breakHours) : '-';
+                                    const breakMinutes = record.totalBreakMinutes || 0;
                                     const hasSessions = (record.sessions?.length || 0) > 0;
                                     const employee = selectedEmployeeId === 'all' ? getEmployeeDetails(record.employeeId) : null;
                                     
@@ -369,45 +331,47 @@ const AttendanceLog: React.FC = () => {
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center">
                                                         <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs mr-3 overflow-hidden">
-                                                            {employee?.avatar ? (
-                                                                <img src={employee.avatar} alt="" className="h-full w-full object-cover" />
+                                                            {employee?.avatarUrl ? (
+                                                                <img src={employee.avatarUrl} alt="" className="h-full w-full object-cover" />
                                                             ) : (
-                                                                (employee?.name || 'U').charAt(0)
+                                                                (employee?.firstName || 'U').charAt(0)
                                                             )}
                                                         </div>
                                                         <div>
-                                                            <div className="text-sm font-medium text-slate-900">{employee?.name || `ID: ${record.employeeId}`}</div>
-                                                            <div className="text-xs text-slate-500">{employee?.position || 'Employee'}</div>
+                                                            <div className="text-sm font-medium text-slate-900">
+                                                                {employee ? `${employee.firstName} ${employee.lastName}` : `ID: ${record.employeeId}`}
+                                                            </div>
+                                                            <div className="text-xs text-slate-500">{employee?.employeeIdNumber || 'Employee'}</div>
                                                         </div>
                                                     </div>
                                                 </td>
                                             )}
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm font-medium text-slate-900">
-                                                    {new Date(record.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                                    {new Date(checkIn || record.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                                                 </div>
                                                 <div className="text-xs text-slate-500">
-                                                    {new Date(record.date).getFullYear()}
+                                                    {new Date(checkIn || record.date).getFullYear()}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className={`px-2.5 py-0.5 inline-flex text-xs font-bold rounded-full border ${
-                                                    record.status === 'Present' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                    record.status === 'Absent' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                                    record.status === 'On Leave' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                    record.status === 'PRESENT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                    record.status === 'ABSENT' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                    record.status === 'ON_LEAVE' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                                     'bg-slate-50 text-slate-700 border-slate-200'
                                                 }`}>
                                                     {record.status}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-mono">
-                                                {checkIn ? new Date(checkIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' }) : '-'}
+                                                {checkIn ? new Date(checkIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-mono">
-                                                {checkOut ? new Date(checkOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Karachi' }) : '-'}
+                                                {checkOut ? new Date(checkOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                                                {breakDuration}
+                                                {formatDuration(breakMinutes)}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                                                 <div className="flex items-center gap-1.5">
@@ -417,7 +381,7 @@ const AttendanceLog: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="text-sm font-bold text-slate-700">
-                                                    {formatDuration(record.totalHours || 0)}
+                                                    {formatDuration(record.totalWorkMinutes || 0)}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
