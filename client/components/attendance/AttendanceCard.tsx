@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { useTodayAttendance, useClockIn, useClockOut } from '../../hooks/useAttendance';
+import { useTodayAttendance, useClockIn, useClockOut, useEmployeeAttendance } from '../../hooks/useAttendance';
 import Button from '../ui/Button';
 import ClockActionModal from './ClockActionModal';
 import ResolveMissingClockOutModal from './ResolveMissingClockOutModal';
@@ -17,6 +17,16 @@ const AttendanceCard: React.FC = () => {
   const navigate = useNavigate();
   const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
   const { data: todayRecord, refetch } = useTodayAttendance(user?.employeeId || '', today);
+  const { data: attendanceHistory = [] } = useEmployeeAttendance(user?.employeeId || '');
+  
+  // Check for pending checkout from previous days
+  const pendingRecord = useMemo(() => {
+      return attendanceHistory.find(r => 
+          r.sessions?.some(s => !s.checkOutTime) && 
+          new Date(r.date).toDateString() !== new Date().toDateString()
+      );
+  }, [attendanceHistory]);
+
   const [currentTime, setCurrentTime] = useState(dayjs());
   const [elapsedTime, setElapsedTime] = useState<string>("00:00:00");
   
@@ -32,6 +42,10 @@ const AttendanceCard: React.FC = () => {
 
   // Determine status and active session
   const getStatus = (): { text: string; color: string; bg: string; border: string } => {
+    if (pendingRecord) {
+        return { text: 'Pending Checkout', color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200' };
+    }
+
     if (todayRecord?.status === 'ON_LEAVE') {
         return { text: 'On Leave', color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200' };
     }
@@ -113,7 +127,7 @@ const AttendanceCard: React.FC = () => {
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden relative group">
         {/* Decorative background elements */}
-        <div className={`absolute top-0 left-0 w-full h-1.5 ${isClockedIn ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-slate-300 to-slate-400'}`}></div>
+        <div className={`absolute top-0 left-0 w-full h-1.5 ${isClockedIn ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : pendingRecord ? 'bg-gradient-to-r from-orange-400 to-amber-500' : 'bg-gradient-to-r from-slate-300 to-slate-400'}`}></div>
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-50 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
         
         <div className="p-6 sm:p-8 relative z-10">
@@ -132,7 +146,24 @@ const AttendanceCard: React.FC = () => {
 
                 {/* Main Timer Section */}
                 <div className="flex flex-col items-center justify-center py-4">
-                    {isClockedIn ? (
+                    {pendingRecord ? (
+                        <div className="flex flex-col items-center text-center">
+                            <div className="bg-orange-100 p-4 rounded-full mb-3 animate-pulse">
+                                <FiClock size={32} className="text-orange-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-800">Missing Clock Out</h3>
+                            <p className="text-sm text-slate-500 mt-1 max-w-xs">
+                                You forgot to clock out on <span className="font-semibold">{new Date(pendingRecord.date).toLocaleDateString()}</span>. 
+                                Please resolve this to continue.
+                            </p>
+                            <Button 
+                                onClick={() => setIsResolveModalOpen(true)}
+                                className="mt-4 bg-orange-600 hover:bg-orange-700 text-white"
+                            >
+                                Resolve Now
+                            </Button>
+                        </div>
+                    ) : isClockedIn ? (
                         <div className="relative">
                             {/* Pulsing Effect */}
                             <div className="absolute inset-0 bg-emerald-100 rounded-full blur-xl opacity-40 animate-pulse"></div>
@@ -196,31 +227,33 @@ const AttendanceCard: React.FC = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {!isClockedIn ? (
+                {!pendingRecord && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {!isClockedIn ? (
+                            <Button 
+                                onClick={() => openModal('in')} 
+                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg transition-all py-3 text-base justify-center"
+                            >
+                                <FiPlay className="mr-2" /> Check In
+                            </Button>
+                        ) : (
+                            <Button 
+                                onClick={() => openModal('out')} 
+                                className="w-full bg-rose-600 hover:bg-rose-700 text-white shadow-md hover:shadow-lg transition-all py-3 text-base justify-center"
+                            >
+                                <FiSquare className="mr-2 fill-current" /> Check Out
+                            </Button>
+                        )}
                         <Button 
-                            onClick={() => openModal('in')} 
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg transition-all py-3 text-base justify-center"
+                            type="button"
+                            variant="outline" 
+                            onClick={() => navigate('/attendance/log')} 
+                            className="w-full border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 justify-center py-3"
                         >
-                            <FiPlay className="mr-2" /> Check In
+                            View History
                         </Button>
-                    ) : (
-                        <Button 
-                            onClick={() => openModal('out')} 
-                            className="w-full bg-rose-600 hover:bg-rose-700 text-white shadow-md hover:shadow-lg transition-all py-3 text-base justify-center"
-                        >
-                            <FiSquare className="mr-2 fill-current" /> Check Out
-                        </Button>
-                    )}
-                    <Button 
-                        type="button"
-                        variant="outline" 
-                        onClick={() => navigate('/attendance/log')} 
-                        className="w-full border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 justify-center py-3"
-                    >
-                        View History
-                    </Button>
-                </div>
+                    </div>
+                )}
             </div>
         </div>
 
@@ -236,6 +269,19 @@ const AttendanceCard: React.FC = () => {
                 action={modalAction}
                 todayRecord={todayRecord || undefined}
                 onSuccess={() => handleModalSuccess(modalAction === 'in' ? 'Clocked in successfully!' : 'Clocked out successfully!')}
+            />
+        )}
+        
+        {pendingRecord && isResolveModalOpen && (
+            <ResolveMissingClockOutModal
+                isOpen={isResolveModalOpen}
+                onClose={() => setIsResolveModalOpen(false)}
+                record={pendingRecord}
+                onSuccess={() => {
+                    refetch();
+                    // Also refetch history to clear pending state
+                    // queryClient.invalidateQueries(...) handled in hook
+                }}
             />
         )}
     </div>

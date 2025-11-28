@@ -94,4 +94,6 @@ export interface EndBreakResponse {
 export interface FixMissingClockOutRequest {
   recordId: string;
   clockOutTime: string;
+  breakStartTime?: string;
+  breakEndTime?: string;
 }

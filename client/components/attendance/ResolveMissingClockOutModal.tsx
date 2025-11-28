@@ -17,6 +17,8 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
   
   // Time selection
   const [clockOutTime, setClockOutTime] = useState<Dayjs | null>(null);
+  const [breakStartTime, setBreakStartTime] = useState<Dayjs | null>(null);
+  const [breakEndTime, setBreakEndTime] = useState<Dayjs | null>(null);
   
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'success' } | null>(null);
 
@@ -36,7 +38,7 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
 
   const validateTime = (time: Dayjs | null): boolean => {
     if (!time) {
-      showToast('Please select a time.', 'warning');
+      showToast('Please select a clock-out time.', 'warning');
       return false;
     }
     
@@ -54,6 +56,35 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
         showToast('Clock out time must be after clock in time.', 'warning');
         return false;
       }
+
+      // Validate break times if provided
+      if (breakStartTime || breakEndTime) {
+          if (!breakStartTime || !breakEndTime) {
+              showToast('Both break start and end times are required if adding a break.', 'warning');
+              return false;
+          }
+
+          const bStartH = breakStartTime.hour();
+          const bStartM = breakStartTime.minute();
+          const bEndH = breakEndTime.hour();
+          const bEndM = breakEndTime.minute();
+
+          const bStartTotal = bStartH * 60 + bStartM;
+          const bEndTotal = bEndH * 60 + bEndM;
+
+          if (bStartTotal <= inTotalMinutes) {
+              showToast('Break start must be after clock in.', 'warning');
+              return false;
+          }
+          if (bEndTotal <= bStartTotal) {
+              showToast('Break end must be after break start.', 'warning');
+              return false;
+          }
+          if (outTotalMinutes <= bEndTotal) {
+              showToast('Clock out must be after break end.', 'warning');
+              return false;
+          }
+      }
     }
     
     setToast(null);
@@ -70,16 +101,26 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
     try {
       // Prepare time payload (combine record date with selected time)
       if (!clockOutTime) return;
-      const hours = clockOutTime.hour();
-      const minutes = clockOutTime.minute();
-      const clockOutDateTime = new Date(recordDate);
-      clockOutDateTime.setHours(hours, minutes, 0, 0);
-      const timePayload = clockOutDateTime.toISOString();
+      
+      const formatTimePayload = (time: Dayjs) => {
+          const hours = time.hour();
+          const minutes = time.minute();
+          const dt = new Date(recordDate);
+          dt.setHours(hours, minutes, 0, 0);
+          return dt.toISOString();
+      };
 
-      await fixMissingClockOut({
+      const payload: any = {
         recordId: record.id,
-        clockOutTime: timePayload,
-      });
+        clockOutTime: formatTimePayload(clockOutTime),
+      };
+
+      if (breakStartTime && breakEndTime) {
+          payload.breakStartTime = formatTimePayload(breakStartTime);
+          payload.breakEndTime = formatTimePayload(breakEndTime);
+      }
+
+      await fixMissingClockOut(payload);
       
       if (onSuccess) {
         await onSuccess();
@@ -144,6 +185,32 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
                   slotProps={{ textField: { fullWidth: true } }}
                 />
             </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break Start (Optional)</label>
+                    <TimePicker
+                      value={breakStartTime}
+                      onChange={(newValue) => {
+                        setBreakStartTime(newValue);
+                        if (toast) setToast(null);
+                      }}
+                      slotProps={{ textField: { fullWidth: true } }}
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break End (Optional)</label>
+                    <TimePicker
+                      value={breakEndTime}
+                      onChange={(newValue) => {
+                        setBreakEndTime(newValue);
+                        if (toast) setToast(null);
+                      }}
+                      slotProps={{ textField: { fullWidth: true } }}
+                    />
+                </div>
+            </div>
+
             <p className="text-xs text-slate-500 mt-1 break-words">Must be after {clockInTime}</p>
           </div>
 

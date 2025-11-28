@@ -86,8 +86,8 @@ const endBreak = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/fix-missing-clock-out
  */
 const fixMissingClockOut = asyncHandler(async (req, res) => {
-  const { recordId, clockOutTime } = req.body;
-  const result = await attendanceService.fixMissingClockOut(recordId, clockOutTime);
+  const { recordId, clockOutTime, breakStartTime, breakEndTime } = req.body;
+  const result = await attendanceService.fixMissingClockOut(recordId, clockOutTime, breakStartTime, breakEndTime);
   res.status(200).json(result);
 });
 

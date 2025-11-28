@@ -485,7 +485,7 @@ const getAttendanceById = async (id) => {
  * @param {string} clockOutTime - ISO string
  * @returns {Promise<Object>}
  */
-const fixMissingClockOut = async (recordId, clockOutTime) => {
+const fixMissingClockOut = async (recordId, clockOutTime, breakStartTime, breakEndTime) => {
   try {
     const record = await attendanceRepository.findAttendanceRecordById(recordId);
 
@@ -502,6 +502,32 @@ const fixMissingClockOut = async (recordId, clockOutTime) => {
 
     // Update all open sessions
     for (const session of openSessions) {
+      // Handle break creation if times provided
+      if (breakStartTime && breakEndTime) {
+         const bStart = new Date(breakStartTime);
+         const bEnd = new Date(breakEndTime);
+         
+         // Validations
+         if (bStart <= new Date(session.checkInTime)) throw new Error("Break start must be after check in");
+         if (bEnd <= bStart) throw new Error("Break end must be after break start");
+         if (checkOutDate <= bEnd) throw new Error("Check out must be after break end");
+
+         await attendanceRepository.createBreak({
+            sessionId: session.id,
+            startTime: bStart,
+            endTime: bEnd,
+            durationMinutes: dateUtil.calculateDurationMinutes(bStart, bEnd)
+         });
+         
+         // Add to session breaks for duration calculation
+         if (!session.breaks) session.breaks = [];
+         session.breaks.push({ 
+             startTime: bStart, 
+             endTime: bEnd, 
+             durationMinutes: dateUtil.calculateDurationMinutes(bStart, bEnd) 
+         });
+      }
+
       const durationMinutes = calculateSessionDuration(
         session.checkInTime,
         checkOutDate,
