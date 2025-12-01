@@ -183,9 +183,17 @@ const clockIn = async (employeeId, location = "Office", customTime = null) => {
  * @param {string} customTime - Optional custom clock out time
  * @returns {Promise<Object>}
  */
-const clockOut = async (employeeId, customTime = null) => {
+/**
+ * Clock Out
+ * @param {string} employeeId
+ * @param {string} customTime - Optional custom clock out time
+ * @param {string} breakStart - Optional break start time (HH:mm)
+ * @param {string} breakEnd - Optional break end time (HH:mm)
+ * @returns {Promise<Object>}
+ */
+const clockOut = async (employeeId, customTime = null, breakStart = null, breakEnd = null) => {
   try {
-    const { employeeId: empId } = await getEmployeeInfo(employeeId);
+    const { employeeId: empId, timezone } = await getEmployeeInfo(employeeId);
 
     // Find the most recent open session
     const openSession = await attendanceRepository.findOpenSession(empId);
@@ -199,6 +207,63 @@ const clockOut = async (employeeId, customTime = null) => {
     // Validate checkout time is after checkin
     if (checkOutTime <= new Date(openSession.checkInTime)) {
       throw new Error("Clock out time must be after clock in time.");
+    }
+
+    // Handle Break Creation if times are provided
+    if (breakStart && breakEnd) {
+      // Parse HH:mm to Date objects relative to the session date
+      // We assume the break happened on the same day as the session check-in
+      // or the check-out day. A safer bet for "default" breaks is usually relative to the day.
+      // However, since we receive HH:mm, we need to construct the full date.
+      
+      // Strategy: Use the date part of checkOutTime (or checkInTime) and combine with HH:mm
+      // If check-in and check-out are on different days, this gets tricky.
+      // For simplicity, we'll assume the break happened on the day of check-out 
+      // (most common for "I took a break today") OR we can try to be smart.
+      
+      // Let's use the date of the check-out time as the base.
+      const baseDate = new Date(checkOutTime);
+      const [startHour, startMin] = breakStart.split(':').map(Number);
+      const [endHour, endMin] = breakEnd.split(':').map(Number);
+      
+      const breakStartTime = new Date(baseDate);
+      breakStartTime.setHours(startHour, startMin, 0, 0);
+      
+      const breakEndTime = new Date(baseDate);
+      breakEndTime.setHours(endHour, endMin, 0, 0);
+      
+      // Validations
+      if (breakStartTime <= new Date(openSession.checkInTime)) {
+         // If break start is before check-in, maybe it was on the check-in day (if overnight)?
+         // But for now, let's enforce standard validation and throw error if invalid.
+         // Actually, let's try to fix the date if it looks wrong (e.g. overnight shift),
+         // but simpler to just validate for now.
+         throw new Error("Break start time must be after clock in time.");
+      }
+      
+      if (breakEndTime <= breakStartTime) {
+        throw new Error("Break end time must be after break start time.");
+      }
+      
+      if (checkOutTime <= breakEndTime) {
+        throw new Error("Clock out time must be after break end time.");
+      }
+
+      // Create the break
+      await attendanceRepository.createBreak({
+        sessionId: openSession.id,
+        startTime: breakStartTime,
+        endTime: breakEndTime,
+        durationMinutes: dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime)
+      });
+      
+      // Add to session object for duration calculation below
+      if (!openSession.breaks) openSession.breaks = [];
+      openSession.breaks.push({
+        startTime: breakStartTime,
+        endTime: breakEndTime,
+        durationMinutes: dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime)
+      });
     }
 
     // Calculate session duration (excluding breaks)
