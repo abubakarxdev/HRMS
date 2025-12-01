@@ -5,6 +5,7 @@ import Button from '../ui/Button';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import dayjs, { Dayjs } from 'dayjs';
 import { toast } from 'sonner';
+import { formatTime, getDefaultBreakTimes } from '../../utils/attendanceUtils';
 
 interface ClockActionModalProps {
   isOpen: boolean;
@@ -37,34 +38,16 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
   const [customBreakEnd, setCustomBreakEnd] = useState<Dayjs | null>(null);
   
   const [loading, setLoading] = useState(false);
-  const [localToast, setLocalToast] = useState<{ message: string; type: 'error' | 'warning' | 'success' } | null>(null);
 
-  const showToast = (message: string, type: 'error' | 'warning' | 'success' = 'error') => {
-    setLocalToast({ message, type });
-    setTimeout(() => setLocalToast(null), 3000);
-  };
 
   if (!isOpen) return null;
 
   // Get day-based default break times
-  const getDefaultBreakTimes = () => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      return { start: '', end: '', label: 'Weekend - No default break' };
-    } else if (dayOfWeek === 5) {
-      return { start: '13:00', end: '14:30', label: 'Friday: 1:00 PM - 2:30 PM' };
-    } else {
-      return { start: '13:00', end: '14:00', label: 'Mon-Thu: 1:00 PM - 2:00 PM' };
-    }
-  };
-
   const defaultBreak = useMemo(() => getDefaultBreakTimes(), []);
 
   const validateTime = (time: Dayjs | null): boolean => {
     if (!time) {
-      showToast('Please select a time.', 'warning');
+      toast.warning('Please select a time.');
       return false;
     }
 
@@ -78,7 +61,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
     const bufferTime = new Date(now.getTime() + 2 * 60000);
     
     if (selectedTime > bufferTime) {
-      showToast('Cannot select a future time.', 'warning');
+      toast.warning('Cannot select a future time.');
       return false;
     }
 
@@ -89,7 +72,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
         const checkInDate = new Date(currentSession.checkInTime);
         // Allow check-out in the same minute (rare but possible)
         if (selectedTime < checkInDate) {
-          showToast('Clock out time must be after clock in time.', 'warning');
+          toast.warning('Clock out time must be after clock in time.');
           return false;
         }
       }
@@ -102,13 +85,14 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
         breakEndDate.setHours(endHour, endMin, 0, 0);
 
         if (selectedTime <= breakEndDate) {
-          showToast(`Clock out time must be after break end time (${breakEnd}).`, 'warning');
+          const formattedSelectedTime = formatTime(selectedTime);
+          const formattedBreakEnd = formatTime(breakEndDate);
+          toast.warning(`Clock out time (${formattedSelectedTime}) must be after break end time (${formattedBreakEnd}).`);
           return false;
         }
       }
     }
     
-    setLocalToast(null);
     return true;
   };
 
@@ -127,7 +111,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
     const { start: breakStart, end: breakEnd } = getBreakTimes();
 
     if (!breakStart || !breakEnd) {
-      showToast('Please select both break start and end times.', 'warning');
+      toast.warning('Please select both break start and end times.');
       return false;
     }
 
@@ -141,25 +125,25 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
     const sixPmMinutes = 18 * 60;
 
     if (startTotalMinutes < nineAmMinutes || startTotalMinutes >= sixPmMinutes) {
-      showToast('Break start time must be between 9:00 AM and 6:00 PM.', 'warning');
+      toast.warning('Break start time must be between 9:00 AM and 6:00 PM.');
       return false;
     }
 
     if (endTotalMinutes <= nineAmMinutes || endTotalMinutes > sixPmMinutes) {
-      showToast('Break end time must be between 9:00 AM and 6:00 PM.', 'warning');
+      toast.warning('Break end time must be between 9:00 AM and 6:00 PM.');
       return false;
     }
 
     // End must be after start
     if (endTotalMinutes <= startTotalMinutes) {
-      showToast('Break end time must be after break start time.', 'warning');
+      toast.warning('Break end time must be after break start time.');
       return false;
     }
 
     // Duration: 15 min - 2 hours
     const breakDuration = (endTotalMinutes - startTotalMinutes) / 60;
     if (breakDuration < 0.25 || breakDuration > 2) {
-      showToast('Break duration must be between 15 minutes and 2 hours.', 'warning');
+      toast.warning('Break duration must be between 15 minutes and 2 hours.');
       return false;
     }
 
@@ -172,13 +156,14 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
         breakStartDate.setHours(startHour, startMin, 0, 0);
 
         if (breakStartDate <= checkInDate) {
-          showToast(`Break start time (${breakStart}) must be after check-in time (${checkInDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}).`, 'warning');
+          const formattedBreakStart = formatTime(breakStartDate);
+          const formattedCheckIn = formatTime(checkInDate);
+          toast.warning(`Break start time (${formattedBreakStart}) must be after check-in time (${formattedCheckIn}).`);
           return false;
         }
       }
     }
 
-    setLocalToast(null);
     return true;
   };
 
@@ -189,13 +174,12 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
 
   const handleSubmit = async () => {
     // Validate time
-    const timeToUse = timeMode === 'now' ? undefined : customTime;
-    if (timeMode === 'custom' && !validateTime(customTime)) {
+    const timeToUse = timeMode === 'now' ? dayjs() : customTime;
+    if (!validateTime(timeToUse)) {
       return;
     }
 
     setLoading(true);
-    setLocalToast(null);
 
     try {
       // Prepare time payload
@@ -244,9 +228,11 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
       
       // Determine toast type based on HTTP status code
       // 400 = validation error (warning), 500+ = server error (error)
-      const toastType = e?.response?.status === 400 ? 'warning' : 'error';
-      
-      showToast(errorMessage, toastType);
+      if (e?.response?.status === 400) {
+        toast.warning(errorMessage);
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -272,29 +258,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
 
         {/* Content */}
         <div className="p-6 space-y-4">
-          {localToast && (
-            <div className={`p-4 rounded-md border-l-4 shadow-sm mb-4 ${
-              localToast.type === 'error' ? 'bg-red-50 border-red-500 text-red-700' : 
-              localToast.type === 'warning' ? 'bg-yellow-50 border-yellow-500 text-yellow-700' : 
-              'bg-green-50 border-green-500 text-green-700'
-            }`}>
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  {localToast.type === 'warning' && <span className="text-xl">⚠️</span>}
-                  {localToast.type === 'error' && <span className="text-xl">❌</span>}
-                  {localToast.type === 'success' && <span className="text-xl">✅</span>}
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-bold">
-                    {localToast.type === 'error' ? 'Error' : localToast.type === 'warning' ? 'Warning' : 'Success'}
-                  </p>
-                  <p className="text-sm mt-1">
-                    {localToast.message}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+
           <p className="text-slate-600">
             <strong>Employee:</strong> {employeeName}
           </p>
@@ -309,7 +273,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                 <div className="space-y-2">
                   <button
                     className={`w-full p-3 rounded-lg border-2 text-left transition-all ${breakMode === 'default' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setBreakMode('default'); setLocalToast(null); }}
+                    onClick={() => { setBreakMode('default'); }}
                   >
                     <div className="font-medium text-slate-800">✓ Default Break</div>
                     <div className="text-sm text-slate-600">{defaultBreak.label}</div>
@@ -317,7 +281,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                   
                   <button
                     className={`w-full p-3 rounded-lg border-2 text-left transition-all ${breakMode === 'custom' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setBreakMode('custom'); setLocalToast(null); }}
+                    onClick={() => { setBreakMode('custom'); }}
                   >
                     <div className="font-medium text-slate-800">⏰ Custom Break</div>
                     <div className="text-sm text-slate-600">Set your own break times (9 AM - 6 PM)</div>
@@ -325,7 +289,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                   
                   <button
                     className={`w-full p-3 rounded-lg border-2 text-left transition-all ${breakMode === 'none' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setBreakMode('none'); setLocalToast(null); }}
+                    onClick={() => { setBreakMode('none'); }}
                   >
                     <div className="font-medium text-slate-800">⊘ No Break</div>
                     <div className="text-sm text-slate-600">I didn't take a break today</div>
@@ -341,7 +305,6 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                       value={customBreakStart}
                       onChange={(newValue) => {
                         setCustomBreakStart(newValue);
-                        if (localToast) setLocalToast(null);
                       }}
                       slotProps={{ textField: { fullWidth: true } }}
                       minTime={dayjs().set('hour', 9).set('minute', 0)}
@@ -354,7 +317,6 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                       value={customBreakEnd}
                       onChange={(newValue) => {
                         setCustomBreakEnd(newValue);
-                        if (localToast) setLocalToast(null);
                       }}
                       slotProps={{ textField: { fullWidth: true } }}
                       minTime={dayjs().set('hour', 9).set('minute', 0)}
@@ -376,7 +338,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                 <div className="space-y-2">
                   <button
                     className={`w-full p-3 rounded-lg border-2 text-left transition-all ${location === 'Office' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setLocation('Office'); setLocalToast(null); }}
+                    onClick={() => { setLocation('Office'); }}
                   >
                     <div className="font-medium text-slate-800">🏢 Office</div>
                     <div className="text-sm text-slate-600">Working from the office</div>
@@ -384,7 +346,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                   
                   <button
                     className={`w-full p-3 rounded-lg border-2 text-left transition-all ${location === 'Home' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setLocation('Home'); setLocalToast(null); }}
+                    onClick={() => { setLocation('Home'); }}
                   >
                     <div className="font-medium text-slate-800">🏠 Home</div>
                     <div className="text-sm text-slate-600">Working from home</div>
@@ -404,7 +366,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                 <div className="space-y-2">
                   <button
                     className={`w-full p-3 rounded-lg border-2 text-left transition-all ${timeMode === 'now' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setTimeMode('now'); setLocalToast(null); }}
+                    onClick={() => { setTimeMode('now'); }}
                   >
                     <div className="font-medium text-slate-800">⏱️ Current Time</div>
                     <div className="text-sm text-slate-600">{new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
@@ -412,7 +374,7 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                   
                   <button
                     className={`w-full p-3 rounded-lg border-2 text-left transition-all ${timeMode === 'custom' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setTimeMode('custom'); setLocalToast(null); }}
+                    onClick={() => { setTimeMode('custom'); }}
                   >
                     <div className="font-medium text-slate-800">🕐 Custom Time</div>
                     <div className="text-sm text-slate-600">Select a specific time (today only)</div>
@@ -434,7 +396,6 @@ const ClockActionModal: React.FC<ClockActionModalProps> = ({ isOpen, onClose, em
                       value={customTime}
                       onChange={(newValue) => {
                         setCustomTime(newValue);
-                        if (localToast) setLocalToast(null);
                       }}
                       slotProps={{ textField: { fullWidth: true } }}
                     />
