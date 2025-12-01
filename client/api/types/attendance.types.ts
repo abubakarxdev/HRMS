@@ -69,6 +69,8 @@ export interface ClockInResponse {
 export interface ClockOutRequest {
   employeeId: string;
   customTime?: string;
+  breakStart?: string;
+  breakEnd?: string;
 }
 
 export interface StartBreakRequest {
