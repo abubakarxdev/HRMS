@@ -129,7 +129,7 @@ const SessionDetailsPage: React.FC = () => {
                                     {record.employee && (
                                         <p className="text-indigo-100 text-sm mt-1 flex items-center gap-2">
                                             <FiUser size={14} />
-                                            {record.employee.name}
+                                            {`${record.employee.firstName} ${record.employee.lastName}`}
                                         </p>
                                     )}
                                 </div>
