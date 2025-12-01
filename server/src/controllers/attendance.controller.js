@@ -39,8 +39,8 @@ const clockIn = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/clock-out
  */
 const clockOut = asyncHandler(async (req, res) => {
-  const { employeeId, customTime } = req.body;
-  const result = await attendanceService.clockOut(employeeId, customTime);
+  const { employeeId, customTime, breakStart, breakEnd } = req.body;
+  const result = await attendanceService.clockOut(employeeId, customTime, breakStart, breakEnd);
   res.status(200).json(result);
 });
 
