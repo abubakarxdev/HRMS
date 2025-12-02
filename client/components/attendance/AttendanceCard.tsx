@@ -10,6 +10,11 @@ import { FiClock, FiLogIn, FiLogOut, FiCoffee, FiPlay, FiSquare } from 'react-ic
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 dayjs.extend(duration);
 
 const AttendanceCard: React.FC = () => {
@@ -27,7 +32,8 @@ const AttendanceCard: React.FC = () => {
       );
   }, [attendanceHistory]);
 
-  const [currentTime, setCurrentTime] = useState(dayjs());
+  const userTimezone = user?.timezone || 'Asia/Karachi';
+  const [currentTime, setCurrentTime] = useState(dayjs().tz(userTimezone));
   const [elapsedTime, setElapsedTime] = useState<string>("00:00:00");
   
   // Modal State
@@ -36,9 +42,9 @@ const AttendanceCard: React.FC = () => {
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(dayjs()), 1000);
+    const timer = setInterval(() => setCurrentTime(dayjs().tz(userTimezone)), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [userTimezone]);
 
   // Determine status and active session
   const getStatus = (): { text: string; color: string; bg: string; border: string } => {
@@ -204,9 +210,9 @@ const AttendanceCard: React.FC = () => {
                         </div>
                         <p className="text-lg font-bold text-slate-800">
                             {activeSession?.checkInTime 
-                                ? dayjs(activeSession.checkInTime).format('hh:mm A') 
+                                ? dayjs(activeSession.checkInTime).tz(userTimezone).format('hh:mm A') 
                                 : firstSession?.checkInTime 
-                                    ? dayjs(firstSession.checkInTime).format('hh:mm A')
+                                    ? dayjs(firstSession.checkInTime).tz(userTimezone).format('hh:mm A')
                                     : <span className="text-slate-400 text-base font-normal">Not checked in</span>}
                         </p>
                     </div>
@@ -220,7 +226,7 @@ const AttendanceCard: React.FC = () => {
                         </div>
                         <p className="text-lg font-bold text-slate-800">
                             {lastSession?.checkOutTime 
-                                ? dayjs(lastSession.checkOutTime).format('hh:mm A') 
+                                ? dayjs(lastSession.checkOutTime).tz(userTimezone).format('hh:mm A') 
                                 : <span className="text-slate-400 text-base font-normal">--:--</span>}
                         </p>
                     </div>
@@ -268,6 +274,7 @@ const AttendanceCard: React.FC = () => {
                 } as any}
                 action={modalAction}
                 todayRecord={todayRecord || undefined}
+                timezone={userTimezone}
                 onSuccess={() => handleModalSuccess(modalAction === 'in' ? 'Clocked in successfully!' : 'Clocked out successfully!')}
             />
         )}
