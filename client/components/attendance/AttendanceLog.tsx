@@ -9,6 +9,11 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { Autocomplete, TextField, Avatar, Box, Typography } from '@mui/material';
 import dayjs, { Dayjs } from 'dayjs';
 import FourSquare from '../ui/FourSquare';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const AttendanceLog: React.FC = () => {
     const { user } = useAuth();
@@ -70,7 +75,7 @@ const AttendanceLog: React.FC = () => {
     const formatDuration = (minutes: number) => {
         if (minutes < 0) return "0h 0m";
         const h = Math.floor(minutes / 60);
-        const m = Math.round(minutes % 60);
+        const m = Math.ceil(minutes % 60); // Round up to match session details
         return `${h}h ${m}m`;
     };
     
@@ -348,10 +353,18 @@ const AttendanceLog: React.FC = () => {
                                             )}
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="text-sm font-medium text-slate-900">
-                                                    {new Date(checkIn || record.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                                    {new Date(checkIn || record.date).toLocaleDateString('en-US', { 
+                                                        weekday: 'short', 
+                                                        month: 'short', 
+                                                        day: 'numeric',
+                                                        timeZone: user?.timezone || 'Asia/Karachi'
+                                                    })}
                                                 </div>
                                                 <div className="text-xs text-slate-500">
-                                                    {new Date(checkIn || record.date).getFullYear()}
+                                                    {new Date(checkIn || record.date).toLocaleDateString('en-US', { 
+                                                        year: 'numeric',
+                                                        timeZone: user?.timezone || 'Asia/Karachi'
+                                                    })}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
@@ -365,10 +378,10 @@ const AttendanceLog: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-mono">
-                                                {checkIn ? new Date(checkIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                                {checkIn ? dayjs(checkIn).tz(user?.timezone || 'Asia/Karachi').format('hh:mm A') : '-'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-mono">
-                                                {checkOut ? new Date(checkOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                                {checkOut ? dayjs(checkOut).tz(user?.timezone || 'Asia/Karachi').format('hh:mm A') : '-'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                                                 {formatDuration(breakMinutes)}
