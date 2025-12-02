@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useAppContext } from '../../contexts/AppContext';
-import { api } from '../../services/apiService';
-import { AttendanceStats, AttendanceRecord } from '../../types';
+import React, { useMemo } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useEmployeeAttendance } from '../../hooks/useAttendance';
 import Card from '../ui/Card';
 import AttendanceCard from '../attendance/AttendanceCard';
 import AttendanceSummaryCard from '../attendance/AttendanceSummaryCard';
+import FourSquare from '../ui/FourSquare';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,25 +30,8 @@ ChartJS.register(
 );
 
 const EmployeeDashboard: React.FC = () => {
-  const { user } = useAppContext();
-  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!user?.employeeId) return;
-      try {
-        const historyData = await api.getAttendanceForEmployee(user.employeeId);
-        setAttendanceHistory(historyData);
-      } catch (error) {
-        console.error('Failed to fetch employee dashboard data', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [user?.employeeId]);
+  const { user } = useAuth();
+  const { data: attendanceHistory = [], isLoading } = useEmployeeAttendance(user?.employeeId || '');
 
   // Prepare chart data - last 7 days
   const chartData = useMemo(() => {
@@ -58,18 +41,62 @@ const EmployeeDashboard: React.FC = () => {
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
-      last7Days.push(date.toISOString().split('T')[0]);
+      // Use local date string YYYY-MM-DD
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      last7Days.push(`${year}-${month}-${day}`);
     }
 
-    const hoursPerDay = last7Days.map(date => {
-      const record = attendanceHistory.find(r => r.date.split('T')[0] === date);
-      return record?.totalHours || 0;
+    // Create a map of effective date -> record to avoid double counting
+    const recordMap = new Map();
+    attendanceHistory.forEach(r => {
+        let dateStr = '';
+        // Try to find a session that matches the date first
+        if (r.sessions && r.sessions.length > 0) {
+            const firstSession = r.sessions[0];
+            if (firstSession.checkInTime) {
+                const sessionDate = new Date(firstSession.checkInTime);
+                const sYear = sessionDate.getFullYear();
+                const sMonth = String(sessionDate.getMonth() + 1).padStart(2, '0');
+                const sDay = String(sessionDate.getDate()).padStart(2, '0');
+                dateStr = `${sYear}-${sMonth}-${sDay}`;
+            }
+        }
+
+        // Fallback to record date if no session date derived
+        if (!dateStr) {
+            const recordDate = new Date(r.date);
+            const rYear = recordDate.getFullYear();
+            const rMonth = String(recordDate.getMonth() + 1).padStart(2, '0');
+            const rDay = String(recordDate.getDate()).padStart(2, '0');
+            dateStr = `${rYear}-${rMonth}-${rDay}`;
+        }
+        
+        // If multiple records map to same date (unlikely but possible), keep the one with most minutes
+        if (recordMap.has(dateStr)) {
+            const existing = recordMap.get(dateStr);
+            if ((r.totalWorkMinutes || 0) > (existing.totalWorkMinutes || 0)) {
+                recordMap.set(dateStr, r);
+            }
+        } else {
+            recordMap.set(dateStr, r);
+        }
+    });
+
+    const hoursPerDay = last7Days.map(dateStr => {
+      const record = recordMap.get(dateStr);
+      // Convert minutes to hours
+      const hours = record?.totalWorkMinutes ? (record.totalWorkMinutes / 60) : 0;
+      return Number(hours.toFixed(2)); // Keep 2 decimals for precision
     });
 
     return {
-      labels: last7Days.map(date => {
-        const d = new Date(date);
-        return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      labels: last7Days.map(dateStr => {
+        // Parse YYYY-MM-DD manually to avoid timezone shifts
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const date = new Date(y, m - 1, d);
+        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       }),
       datasets: [
         {
@@ -93,6 +120,17 @@ const EmployeeDashboard: React.FC = () => {
       title: {
         display: false,
       },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            const value = context.raw;
+            if (value === 0) return '0h 0m';
+            const h = Math.floor(value);
+            const m = Math.round((value - h) * 60);
+            return `${h}h ${m}m`;
+          }
+        }
+      }
     },
     scales: {
       y: {
@@ -106,19 +144,23 @@ const EmployeeDashboard: React.FC = () => {
     },
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-slate-500">Loading your dashboard...</p>
+        <FourSquare />
       </div>
     );
   }
+
+  if (!user) return null;
+
+  const displayName = user.firstName || user.email.split('@')[0];
 
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-slate-700">
-          Welcome back, {user.name.split(' ')[0]}!
+          Welcome back, {displayName}!
         </h2>
       </div>
 

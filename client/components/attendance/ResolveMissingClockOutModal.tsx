@@ -1,65 +1,44 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { AttendanceRecord } from '../../types';
-import { useAppContext } from '../../contexts/AppContext';
+import { useFixMissingClockOut } from '../../hooks/useAttendance';
 import Button from '../ui/Button';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import dayjs, { Dayjs } from 'dayjs';
+import { toast } from 'sonner';
+import { formatTime } from '../../utils/attendanceUtils';
+
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ResolveMissingClockOutModalProps {
   isOpen: boolean;
   onClose: () => void;
   record: AttendanceRecord;
-  onSuccess?: () => Promise<void>;
+  onSuccess?: () => Promise<void> | void;
 }
 
 const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = ({ isOpen, onClose, record, onSuccess }) => {
-  const { fixMissingClockOut } = useAppContext();
-  
-  // Step management (1 = break selection, 2 = time selection)
-  const [step, setStep] = useState<1 | 2>(1);
+  const { user } = useAuth();
+  const { mutateAsync: fixMissingClockOut, isPending: loading } = useFixMissingClockOut();
   
   // Time selection
   const [clockOutTime, setClockOutTime] = useState<Dayjs | null>(null);
+  const [breakStartTime, setBreakStartTime] = useState<Dayjs | null>(null);
+  const [breakEndTime, setBreakEndTime] = useState<Dayjs | null>(null);
   
-  // Break selection
-  const [breakMode, setBreakMode] = useState<'default' | 'custom' | 'none'>('default');
-  const [customBreakStart, setCustomBreakStart] = useState<Dayjs | null>(null);
-  const [customBreakEnd, setCustomBreakEnd] = useState<Dayjs | null>(null);
-  
-  const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'success' } | null>(null);
 
-  const showToast = (message: string, type: 'error' | 'warning' | 'success' = 'error') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   if (!isOpen) return null;
 
   // Get the date of the missing record
   const recordDate = new Date(record.date);
-  const recordDayOfWeek = recordDate.getDay();
 
   // Find the open session to get clockIn time
-  const openSession = record.sessions?.find(s => !s.checkOut);
-  const clockInTime = openSession?.checkIn ? new Date(openSession.checkIn).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '';
-
-  // Get day-based default break times for the missing record's day
-  const getDefaultBreakTimes = () => {
-    if (recordDayOfWeek === 0 || recordDayOfWeek === 6) {
-      return { start: '', end: '', label: 'Weekend - No default break' };
-    } else if (recordDayOfWeek === 5) {
-      return { start: '13:00', end: '14:30', label: 'Friday: 1:00 PM - 2:30 PM' };
-    } else {
-      return { start: '13:00', end: '14:00', label: 'Mon-Thu: 1:00 PM - 2:00 PM' };
-    }
-  };
-
-  const defaultBreak = useMemo(() => getDefaultBreakTimes(), [recordDayOfWeek]);
+  const openSession = record.sessions?.find(s => !s.checkOutTime);
+  const clockInTime = openSession?.checkInTime ? new Date(openSession.checkInTime).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '';
 
   const validateTime = (time: Dayjs | null): boolean => {
     if (!time) {
-      showToast('Please select a time.', 'warning');
+      toast.warning('Please select a clock-out time.');
       return false;
     }
     
@@ -74,71 +53,49 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
       const inTotalMinutes = inHours * 60 + inMinutes;
       
       if (outTotalMinutes <= inTotalMinutes) {
-        showToast('Clock out time must be after clock in time.', 'warning');
+        const formattedOut = formatTime(time);
+        const formattedIn = formatTime(dayjs().set('hour', inHours).set('minute', inMinutes));
+        toast.warning(`Clock out time (${formattedOut}) must be after clock in time (${formattedIn}).`);
         return false;
+      }
+
+      // Validate break times if provided
+      if (breakStartTime || breakEndTime) {
+          if (!breakStartTime || !breakEndTime) {
+              toast.warning('Both break start and end times are required if adding a break.');
+              return false;
+          }
+
+          const bStartH = breakStartTime.hour();
+          const bStartM = breakStartTime.minute();
+          const bEndH = breakEndTime.hour();
+          const bEndM = breakEndTime.minute();
+
+          const bStartTotal = bStartH * 60 + bStartM;
+          const bEndTotal = bEndH * 60 + bEndM;
+
+          if (bStartTotal <= inTotalMinutes) {
+              const formattedBStart = formatTime(breakStartTime);
+              const formattedIn = formatTime(dayjs().set('hour', inHours).set('minute', inMinutes));
+              toast.warning(`Break start (${formattedBStart}) must be after clock in (${formattedIn}).`);
+              return false;
+          }
+          if (bEndTotal <= bStartTotal) {
+              const formattedBEnd = formatTime(breakEndTime);
+              const formattedBStart = formatTime(breakStartTime);
+              toast.warning(`Break end (${formattedBEnd}) must be after break start (${formattedBStart}).`);
+              return false;
+          }
+          if (outTotalMinutes <= bEndTotal) {
+              const formattedOut = formatTime(time);
+              const formattedBEnd = formatTime(breakEndTime);
+              toast.warning(`Clock out (${formattedOut}) must be after break end (${formattedBEnd}).`);
+              return false;
+          }
       }
     }
     
-    setToast(null);
     return true;
-  };
-
-  const validateBreakTimes = (): boolean => {
-    if (breakMode === 'none') return true;
-    
-    let breakStart = breakMode === 'default' ? defaultBreak.start : (customBreakStart ? customBreakStart.format('HH:mm') : '');
-    let breakEnd = breakMode === 'default' ? defaultBreak.end : (customBreakEnd ? customBreakEnd.format('HH:mm') : '');
-
-    if (!breakStart || !breakEnd) {
-      showToast('Please select both break start and end times.', 'warning');
-      return false;
-    }
-
-    const [startHour, startMin] = breakStart.split(':').map(Number);
-    const [endHour, endMin] = breakEnd.split(':').map(Number);
-
-    // Validate 9 AM - 6 PM range
-    // Start: 9:00 - 17:59
-    // End: 9:01 - 18:00
-    
-    const startTotalMinutes = startHour * 60 + startMin;
-    const endTotalMinutes = endHour * 60 + endMin;
-    const nineAmMinutes = 9 * 60;
-    const sixPmMinutes = 18 * 60;
-
-    if (startTotalMinutes < nineAmMinutes || startTotalMinutes >= sixPmMinutes) {
-      showToast('Break start time must be between 9:00 AM and 6:00 PM.', 'warning');
-      return false;
-    }
-
-    if (endTotalMinutes <= nineAmMinutes || endTotalMinutes > sixPmMinutes) {
-      showToast('Break end time must be between 9:00 AM and 6:00 PM.', 'warning');
-      return false;
-    }
-
-    // Validate break end is after break start
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-    
-    if (endMinutes <= startMinutes) {
-      showToast('Break end time must be after break start time.', 'warning');
-      return false;
-    }
-
-    // Validate reasonable break duration (15 min - 2 hours)
-    const breakDuration = (endMinutes - startMinutes) / 60;
-    if (breakDuration < 0.25 || breakDuration > 2) {
-      showToast('Break duration must be between 15 minutes and 2 hours.', 'warning');
-      return false;
-    }
-
-    setToast(null);
-    return true;
-  };
-
-  const handleBreakNext = () => {
-    if (!validateBreakTimes()) return;
-    setStep(2); // Move to time selection
   };
 
   const handleSubmit = async () => {
@@ -146,36 +103,40 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
       return;
     }
     
-    setLoading(true);
-    setToast(null);
+
 
     try {
-      // Prepare break data
-      let breakStart = breakMode === 'default' ? defaultBreak.start : (breakMode === 'custom' && customBreakStart ? customBreakStart.format('HH:mm') : undefined);
-      let breakEnd = breakMode === 'default' ? defaultBreak.end : (breakMode === 'custom' && customBreakEnd ? customBreakEnd.format('HH:mm') : undefined);
-
       // Prepare time payload (combine record date with selected time)
       if (!clockOutTime) return;
-      const hours = clockOutTime.hour();
-      const minutes = clockOutTime.minute();
-      const clockOutDateTime = new Date(recordDate);
-      clockOutDateTime.setHours(hours, minutes, 0, 0);
-      const timePayload = clockOutDateTime.toISOString();
+      
+      const formatTimePayload = (time: Dayjs) => {
+          const hours = time.hour();
+          const minutes = time.minute();
+          const dt = new Date(recordDate);
+          dt.setHours(hours, minutes, 0, 0);
+          return dt.toISOString();
+      };
 
-      await fixMissingClockOut(record.id, timePayload, breakStart, breakEnd);
+      const payload: any = {
+        recordId: record.id,
+        clockOutTime: formatTimePayload(clockOutTime),
+      };
+
+      if (breakStartTime && breakEndTime) {
+          payload.breakStartTime = formatTimePayload(breakStartTime);
+          payload.breakEndTime = formatTimePayload(breakEndTime);
+      }
+
+      await fixMissingClockOut(payload);
       
       if (onSuccess) {
         await onSuccess();
       }
       onClose();
     } catch (e) {
-      showToast('An unexpected error occurred.', 'error');
-    } finally {
-      setLoading(false);
+      toast.error('An unexpected error occurred.');
     }
   };
-
-  const title = step === 1 ? 'Select Break Time' : 'Add Missing Clock-Out';
 
   return (
     <div 
@@ -187,145 +148,74 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
         onClick={e => e.stopPropagation()}
       >
         <div className="p-4 border-b border-slate-200 flex justify-between items-center sticky top-0 bg-white">
-          <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
+          <h3 className="text-lg font-semibold text-slate-800">Add Missing Clock-Out</h3>
           <Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>&times;</Button>
         </div>
         
         <div className="p-6 space-y-4">
-          {toast && (
-            <div className={`p-3 rounded-md border ${
-              toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-600' : 
-              toast.type === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : 
-              'bg-green-50 border-green-200 text-green-600'
-            }`}>
-              <p className="text-sm font-medium flex items-center">
-                {toast.type === 'warning' && <span className="mr-2">⚠️</span>}
-                {toast.type === 'error' && <span className="mr-2">❌</span>}
-                {toast.message}
-              </p>
-            </div>
-          )}
+
           {/* Warning Banner */}
           <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm">
             <p className="font-medium text-yellow-800 mb-1">⚠️ Missing Clock-Out Detected</p>
-            <p><strong>Date:</strong> {recordDate.toLocaleDateString()}</p>
-            <p><strong>Clocked In at:</strong> {openSession?.checkIn ? new Date(openSession.checkIn).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Unknown'}</p>
+            <p><strong>Date:</strong> {recordDate.toLocaleDateString('en-US', { timeZone: user?.timezone || 'Asia/Karachi' })}</p>
+            <p><strong>Clocked In at:</strong> {openSession?.checkInTime ? new Date(openSession.checkInTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: user?.timezone || 'Asia/Karachi' }) : 'Unknown'}</p>
             <p className="text-yellow-700 mt-2">Please complete your clock-out for this day.</p>
           </div>
 
-          {/* STEP 1: Break Selection */}
-          {step === 1 && (
-            <>
-              <div className="border-t pt-4">
-                <label className="block text-sm font-medium text-slate-700 mb-3">
-                  Did you take a break on {recordDate.toLocaleDateString()}?
-                </label>
-                <div className="space-y-2">
-                  <button
-                    className={`w-full p-3 rounded-lg border-2 text-left transition-all ${breakMode === 'default' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setBreakMode('default'); setToast(null); }}
-                  >
-                    <div className="font-medium text-slate-800">✓ Default Break</div>
-                    <div className="text-sm text-slate-600">{defaultBreak.label}</div>
-                  </button>
-                  
-                  <button
-                    className={`w-full p-3 rounded-lg border-2 text-left transition-all ${breakMode === 'custom' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setBreakMode('custom'); setToast(null); }}
-                  >
-                    <div className="font-medium text-slate-800">⏰ Custom Break</div>
-                    <div className="text-sm text-slate-600">Set your own break times (9 AM - 6 PM)</div>
-                  </button>
-                  
-                  <button
-                    className={`w-full p-3 rounded-lg border-2 text-left transition-all ${breakMode === 'none' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => { setBreakMode('none'); setToast(null); }}
-                  >
-                    <div className="font-medium text-slate-800">⊘ No Break</div>
-                    <div className="text-sm text-slate-600">I didn't take a break that day</div>
-                  </button>
-                </div>
+          <div className="border-t pt-4">
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+              <div className="p-2 bg-slate-100 border border-slate-200 rounded text-slate-600">
+                {recordDate.toLocaleDateString('en-US', { timeZone: user?.timezone || 'Asia/Karachi' })}
               </div>
-
-              {breakMode === 'custom' && (
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Break Start (9:00 AM - 6:00 PM)</label>
-                    <TimePicker
-                      value={customBreakStart}
-                      onChange={(newValue) => {
-                        setCustomBreakStart(newValue);
-                        if (toast) setToast(null);
-                      }}
-                      slotProps={{ textField: { fullWidth: true } }}
-                      minTime={dayjs().set('hour', 9).set('minute', 0)}
-                      maxTime={dayjs().set('hour', 18).set('minute', 0)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Break End (9:00 AM - 6:00 PM)</label>
-                    <TimePicker
-                      value={customBreakEnd}
-                      onChange={(newValue) => {
-                        setCustomBreakEnd(newValue);
-                        if (toast) setToast(null);
-                      }}
-                      slotProps={{ textField: { fullWidth: true } }}
-                      minTime={dayjs().set('hour', 9).set('minute', 0)}
-                      maxTime={dayjs().set('hour', 18).set('minute', 0)}
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* STEP 2: Time Selection */}
-          {step === 2 && (
-            <div className="border-t pt-4">
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
-                <div className="p-2 bg-slate-100 border border-slate-200 rounded text-slate-600">
-                  {recordDate.toLocaleDateString()}
-                </div>
-              </div>
-              <div className="mb-3">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Clock-Out Time</label>
-                  <TimePicker
-                    value={clockOutTime}
-                    onChange={(newValue) => {
-                      setClockOutTime(newValue);
-                      if (toast) setToast(null);
-                    }}
-                    slotProps={{ textField: { fullWidth: true } }}
-                  />
-              </div>
-              <p className="text-xs text-slate-500 mt-1 break-words">Must be after {clockInTime}</p>
             </div>
-          )}
+            <div className="mb-3">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Clock-Out Time</label>
+                <TimePicker
+                  value={clockOutTime}
+                  onChange={(newValue) => {
+                    setClockOutTime(newValue);
+                  }}
+                  slotProps={{ textField: { fullWidth: true } }}
+                  timezone={user?.timezone || 'Asia/Karachi'}
+                />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break Start (Optional)</label>
+                    <TimePicker
+                      value={breakStartTime}
+                      onChange={(newValue) => {
+                        setBreakStartTime(newValue);
+                      }}
+                      slotProps={{ textField: { fullWidth: true } }}
+                      timezone={user?.timezone || 'Asia/Karachi'}
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Break End (Optional)</label>
+                    <TimePicker
+                      value={breakEndTime}
+                      onChange={(newValue) => {
+                        setBreakEndTime(newValue);
+                      }}
+                      slotProps={{ textField: { fullWidth: true } }}
+                      timezone={user?.timezone || 'Asia/Karachi'}
+                    />
+                </div>
+            </div>
 
+            <p className="text-xs text-slate-500 mt-1 break-words">Must be after {clockInTime}</p>
+          </div>
 
         </div>
 
         <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end space-x-2 sticky bottom-0">
-          {step === 1 ? (
-            <>
-              <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
-              <Button onClick={handleBreakNext} disabled={loading}>
-                Next: Select Time →
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" onClick={() => setStep(1)} disabled={loading}>
-                ← Back
-              </Button>
-              <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
-              <Button onClick={handleSubmit} disabled={loading} isLoading={loading}>
-                {loading ? 'Saving...' : 'Save Clock-Out'}
-              </Button>
-            </>
-          )}
+            <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={loading} isLoading={loading}>
+              {loading ? 'Saving...' : 'Save Clock-Out'}
+            </Button>
         </div>
       </div>
     </div>

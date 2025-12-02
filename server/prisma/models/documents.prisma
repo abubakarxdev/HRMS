@@ -1,0 +1,52 @@
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model DocumentTemplate {
+  id          String  @id @default(uuid())
+  name        String
+  subject     String?
+  bodyContent String  @db.Text
+  isActive    Boolean @default(true)
+
+  issuedDocuments IssuedDocument[]
+  requests        DocumentRequest[]
+
+  createdAt DateTime @default(now())
+
+  @@map("document_templates")
+}
+
+model IssuedDocument {
+  id         String  @id @default(uuid())
+  employeeId String
+  templateId String?
+
+  templateNameSnapshot String?
+  generatedContent     String  @db.Text
+
+  employee Employee          @relation(fields: [employeeId], references: [id])
+  template DocumentTemplate? @relation(fields: [templateId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("issued_documents")
+}
+
+model DocumentRequest {
+  id         String  @id @default(uuid())
+  employeeId String
+  templateId String?
+
+  status   DocumentStatus @default(PENDING)
+  comments String?
+
+  employee Employee          @relation(fields: [employeeId], references: [id])
+  template DocumentTemplate? @relation(fields: [templateId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("document_requests")
+}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Employee, AttendanceRecord } from '../../types';
-import { useAppContext } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAttendanceRecords } from '../../hooks/useAttendance';
 
 interface EmployeeAttendanceCardProps {
   employee: Employee;
@@ -15,7 +16,8 @@ const formatHoursMinutes = (decimalHours: number): string => {
 };
 
 const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employee, todayRecord }) => {
-  const { user, attendance } = useAppContext();
+  const { user } = useAuth();
+  const { data: attendance = [] } = useAttendanceRecords();
   const [workedHours, setWorkedHours] = useState({ today: 0, week: 0, month: 0 });
 
   const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
@@ -23,92 +25,82 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
   useEffect(() => {
     const calculateAllHours = () => {
         const now = new Date();
-        // Enforce Asia/Karachi timezone
-        const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+        const userTimezone = user?.timezone || 'Asia/Karachi';
+        // Use user's timezone for "today" check
+        const todayStr = now.toLocaleDateString('en-CA', { timeZone: userTimezone });
 
         let liveHoursToday = 0;
         if (todayRecord) {
-            // Use totalHours from backend if available (for closed records) or calculate from sessions
-            if (todayRecord.totalHours) {
-                liveHoursToday = todayRecord.totalHours;
+            // Use totalWorkMinutes from backend if available (converted to hours)
+            if (todayRecord.totalWorkMinutes) {
+                liveHoursToday = todayRecord.totalWorkMinutes / 60;
             }
             
             // If there are sessions, calculate live time for open sessions
             if (todayRecord.sessions) {
                 let sessionHours = 0;
                 todayRecord.sessions.forEach(session => {
-                    if (session.type !== 'WORK') return; // Only count WORK sessions
+                    // All sessions are WORK sessions now
                     
-                    if (session.checkOut) {
-                        const start = new Date(session.checkIn).getTime();
-                        const end = new Date(session.checkOut).getTime();
+                    if (session.checkOutTime) {
+                        const start = new Date(session.checkInTime).getTime();
+                        const end = new Date(session.checkOutTime).getTime();
                         const diff = Math.max(0, end - start);
                         sessionHours += diff / (1000 * 60 * 60);
                     } else {
                         // Open session
-                        const start = new Date(session.checkIn).getTime();
+                        const start = new Date(session.checkInTime).getTime();
                         const end = now.getTime();
                         const diff = Math.max(0, end - start);
                         sessionHours += diff / (1000 * 60 * 60);
                     }
                 });
                 // Use calculated session hours if it's more accurate (e.g. live update)
-                liveHoursToday = sessionHours;
-            } else {
-                 // Fallback or no data
-                 liveHoursToday = 0;
+                // However, backend totalWorkMinutes might exclude breaks correctly.
+                // For open sessions, we need to add the current duration.
+                // But let's stick to session calculation for "live" feel if open.
+                const hasOpenSession = todayRecord.sessions.some(s => !s.checkOutTime);
+                if (hasOpenSession) {
+                    liveHoursToday = sessionHours;
+                }
             }
         }
 
-        const startOfWeek = new Date(now);
-        startOfWeek.setHours(0,0,0,0);
-        startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        // Calculate start of week/month in User's Timezone
+        // This is tricky in JS without a library like date-fns-tz, but we can approximate
+        // or rely on the backend stats. 
+        // Ideally, this component should just receive stats from the parent or a hook, 
+        // rather than calculating them itself, to avoid logic duplication and timezone bugs.
+        // But for now, let's fix the filtering.
 
         const pastRecords = attendance.filter(r => {
             if (String(r.employeeId) !== String(employee.id)) return false;
             
-            // Convert record date to Asia/Karachi to check if it's "today"
-            const recordDatePKT = new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
-            return recordDatePKT !== todayStr;
+            // Convert record date to User's Timezone to check if it's "today"
+            const recordDateUser = new Date(r.date).toLocaleDateString('en-CA', { timeZone: userTimezone });
+            return recordDateUser !== todayStr;
         });
+
+        // Simple approximation for week/month start (local time) - this might still be slightly off
+        // if the browser timezone differs from user timezone, but it's better than hardcoded Karachi.
+        const startOfWeek = new Date(now);
+        startOfWeek.setHours(0,0,0,0);
+        startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
         const completedHoursWeek = pastRecords
             .filter(r => {
                 const recordDate = new Date(r.date);
                 return recordDate >= startOfWeek;
             })
-            .reduce((acc, r) => acc + Math.max(0, r.totalHours || 0), 0);
+            .reduce((acc, r) => acc + Math.max(0, (r.totalWorkMinutes || 0) / 60), 0);
             
         const completedHoursMonth = pastRecords
             .filter(r => {
                 const recordDate = new Date(r.date);
                 return recordDate >= startOfMonth;
             })
-            .reduce((acc, r) => acc + Math.max(0, r.totalHours || 0), 0);
-        
-        console.log('[EmployeeAttendanceCard] Detailed Debug:', {
-            employeeName: employee.name,
-            employeeId: employee.id,
-            todayStr,
-            liveHoursToday,
-            todayRecordTotalHours: todayRecord?.totalHours,
-            allAttendanceForThisEmployee: attendance.filter(r => r.employeeId === employee.id).map(r => ({ 
-                date: r.date, 
-                totalHours: r.totalHours,
-                datePKT: new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' })
-            })),
-            pastRecordsCount: pastRecords.length,
-            pastRecords: pastRecords.map(r => ({ date: r.date, totalHours: r.totalHours })),
-            startOfWeek: startOfWeek.toISOString(),
-            completedHoursWeek,
-            completedHoursMonth,
-            finalCalculation: {
-                today: Math.max(0, liveHoursToday),
-                week: completedHoursWeek + Math.max(0, liveHoursToday),
-                month: completedHoursMonth + Math.max(0, liveHoursToday)
-            }
-        });
+            .reduce((acc, r) => acc + Math.max(0, (r.totalWorkMinutes || 0) / 60), 0);
         
         setWorkedHours({
             today: Math.max(0, liveHoursToday),
@@ -119,7 +111,7 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
 
     calculateAllHours();
 
-    const isClockedIn = todayRecord?.sessions?.some(s => !s.checkOut);
+    const isClockedIn = todayRecord?.sessions?.some(s => !s.checkOutTime);
 
     if (isClockedIn) {
         const interval = setInterval(calculateAllHours, 60000);
@@ -128,20 +120,22 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
   }, [attendance, todayRecord, employee.id]);
 
   const getStatus = (): { text: string; color: string } => {
-    if (todayRecord?.status === 'On Leave') {
+    if (todayRecord?.status === 'ON_LEAVE') {
         return { text: 'On Leave', color: 'text-yellow-600' };
     }
     
     // Check for open session
-    const openSession = todayRecord?.sessions?.find(s => !s.checkOut);
+    const openSession = todayRecord?.sessions?.find(s => !s.checkOutTime);
     if (openSession) {
-        if (openSession.type === 'BREAK') {
+        // Check if on break (break without endTime)
+        const onBreak = openSession.breaks?.some(b => !b.endTime);
+        if (onBreak) {
             return { text: 'On Break', color: 'text-orange-600' };
         }
         return { text: 'Present', color: 'text-green-600' };
     }
     
-    if (todayRecord?.sessions?.length > 0 && todayRecord.sessions.every(s => s.checkOut)) {
+    if (todayRecord?.sessions && todayRecord.sessions.length > 0 && todayRecord.sessions.every(s => s.checkOutTime)) {
         return { text: 'Checked Out', color: 'text-blue-600' };
     }
     
@@ -149,15 +143,17 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
   };
 
   const { text: statusText, color: statusColor } = getStatus();
-  const isCurrentUser = user.employeeId === employee.id;
+  const isCurrentUser = user?.employeeId === employee.id;
+  const employeeName = employee.firstName ? `${employee.firstName} ${employee.lastName}` : (employee.name || 'Unknown');
+  const employeeRole = employee.user?.role || employee.position || 'Employee';
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 flex flex-col justify-between hover:shadow-md transition-shadow">
       <div>
         <div className="flex justify-between items-start">
             <div>
-                <p className="font-bold text-base text-slate-800 truncate">{employee.name}</p>
-                <p className="text-xs text-slate-500 truncate">{employee.position}</p>
+                <p className="font-bold text-base text-slate-800 truncate">{employeeName}</p>
+                <p className="text-xs text-slate-500 truncate">{employeeRole}</p>
             </div>
             {isCurrentUser && (
                 <span className="text-xs bg-primary-100 text-primary-700 font-semibold px-2 py-0.5 rounded-full">You</span>

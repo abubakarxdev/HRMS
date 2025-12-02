@@ -1,169 +1,367 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../config/prisma");
 
+/**
+ * Find user by employee ID
+ */
 const findUserByEmployeeId = async (employeeId) => {
-  return await prisma.user.findUnique({
-    where: { employeeId },
-    select: { id: true },
-  });
-};
-
-const findUserById = async (id) => {
-  return await prisma.user.findUnique({
-    where: { id },
-    select: { id: true },
-  });
-};
-
-const findAllAttendance = async () => {
-  return await prisma.attendanceRecord.findMany({
-    orderBy: {
-      date: "desc",
-    },
-    include: {
-      sessions: true,
-      employee: {
-        select: {
-          id: true,
-          employeeId: true,
-          name: true,
-        },
+  try {
+    return await prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { 
+        id: true,
+        user: {
+          select: {
+            id: true,
+            timezone: true
+          }
+        }
       },
-    },
-  });
-};
-
-const findAttendanceByUserId = async (userId) => {
-  return await prisma.attendanceRecord.findMany({
-    where: {
-      employeeId: userId,
-    },
-    orderBy: {
-      date: "desc",
-    },
-    include: {
-      sessions: true,
-    },
-  });
-};
-
-const findAttendanceRecord = async (userId, date) => {
-  return await prisma.attendanceRecord.findUnique({
-    where: {
-      unique_attendance_per_day: {
-        employeeId: userId,
-        date: date,
-      },
-    },
-    include: {
-      sessions: true,
-    },
-  });
-};
-
-const createAttendanceRecord = async (data) => {
-  return await prisma.attendanceRecord.create({
-    data,
-  });
-};
-
-const createSession = async (data) => {
-  return await prisma.attendanceSession.create({
-    data,
-  });
-};
-
-const findOpenSession = async (userId, type = "WORK") => {
-  return await prisma.attendanceSession.findFirst({
-    where: {
-      attendanceRecord: {
-        employeeId: userId,
-      },
-      checkOut: null,
-      type: type,
-    },
-    include: {
-      attendanceRecord: {
-        include: { sessions: true },
-      },
-    },
-    orderBy: {
-      checkIn: "desc",
-    },
-  });
-};
-
-const updateSession = async (id, data) => {
-  return await prisma.attendanceSession.update({
-    where: { id },
-    data,
-  });
-};
-
-const findAttendanceRecordById = async (id) => {
-  return await prisma.attendanceRecord.findUnique({
-    where: { id },
-    include: {
-      sessions: true,
-      employee: {
-        select: {
-          id: true,
-          employeeId: true,
-          name: true,
-        },
-      },
-    },
-  });
-};
-
-const updateAttendanceRecord = async (id, data) => {
-  return await prisma.attendanceRecord.update({
-    where: { id },
-    data,
-    include: { sessions: true },
-  });
-};
-
-const updateManySessions = async (criteria, data) => {
-  return await prisma.attendanceSession.updateMany({
-    where: criteria,
-    data,
-  });
-};
-
-const findAttendanceRecordsByDateRange = async (userId, startDate, endDate) => {
-  const whereClause = {
-    employeeId: userId,
-  };
-
-  if (startDate && endDate) {
-    whereClause.date = {
-      gte: startDate,
-      lte: endDate,
-    };
-  } else if (startDate) {
-    whereClause.date = {
-      gte: startDate,
-    };
+    });
+  } catch (error) {
+    throw new Error(`Error finding user by employee ID: ${error.message}`);
   }
+};
 
-  return await prisma.attendanceRecord.findMany({
-    where: whereClause,
-  });
+/**
+ * Find user by ID
+ */
+const findUserById = async (id) => {
+  try {
+    return await prisma.user.findUnique({
+      where: { id },
+      select: { 
+        id: true,
+        timezone: true,
+        employeeId: true
+      },
+    });
+  } catch (error) {
+    throw new Error(`Error finding user by ID: ${error.message}`);
+  }
+};
+
+/**
+ * Find all attendance records with sessions and breaks
+ */
+const findAllAttendance = async () => {
+  try {
+    return await prisma.attendanceRecord.findMany({
+      orderBy: {
+        date: "desc",
+      },
+      include: {
+        sessions: {
+          include: {
+            breaks: true
+          }
+        },
+        employee: {
+          select: {
+            id: true,
+            employeeIdNumber: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    throw new Error(`Error finding all attendance: ${error.message}`);
+  }
+};
+
+/**
+ * Find attendance by employee ID
+ */
+const findAttendanceByEmployeeId = async (employeeId) => {
+  try {
+    return await prisma.attendanceRecord.findMany({
+      where: {
+        employeeId: employeeId,
+      },
+      orderBy: {
+        date: "desc",
+      },
+      include: {
+        sessions: {
+          include: {
+            breaks: true
+          }
+        },
+      },
+    });
+  } catch (error) {
+    throw new Error(`Error finding attendance by employee ID: ${error.message}`);
+  }
+};
+
+/**
+ * Find attendance record for a specific date
+ */
+const findAttendanceRecord = async (employeeId, date) => {
+  try {
+    // Ensure we cover the entire day (24 hours from the start time)
+    const startOfDay = new Date(date);
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+    return await prisma.attendanceRecord.findFirst({
+      where: {
+        employeeId: employeeId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay
+        }
+      },
+      include: {
+        sessions: {
+          include: {
+            breaks: true
+          },
+          orderBy: {
+            checkInTime: 'asc'
+          }
+        },
+      },
+    });
+  } catch (error) {
+    throw new Error(`Error finding attendance record: ${error.message}`);
+  }
+};
+
+/**
+ * Create attendance record
+ */
+const createAttendanceRecord = async (data) => {
+  try {
+    return await prisma.attendanceRecord.create({
+      data,
+      include: {
+        sessions: {
+          include: {
+            breaks: true
+          }
+        }
+      }
+    });
+  } catch (error) {
+    throw new Error(`Error creating attendance record: ${error.message}`);
+  }
+};
+
+/**
+ * Create session
+ */
+const createSession = async (data) => {
+  try {
+    return await prisma.session.create({
+      data,
+      include: {
+        breaks: true
+      }
+    });
+  } catch (error) {
+    throw new Error(`Error creating session: ${error.message}`);
+  }
+};
+
+/**
+ * Create break
+ */
+const createBreak = async (data) => {
+  try {
+    return await prisma.break.create({
+      data,
+    });
+  } catch (error) {
+    throw new Error(`Error creating break: ${error.message}`);
+  }
+};
+
+/**
+ * Find open session (session without checkOutTime)
+ */
+const findOpenSession = async (employeeId) => {
+  try {
+    return await prisma.session.findFirst({
+      where: {
+        attendanceRecord: {
+          employeeId: employeeId,
+        },
+        checkOutTime: null,
+        status: 'ACTIVE'
+      },
+      include: {
+        attendanceRecord: {
+          include: { 
+            sessions: {
+              include: {
+                breaks: true
+              }
+            }
+          },
+        },
+        breaks: true
+      },
+      orderBy: {
+        checkInTime: "desc",
+      },
+    });
+  } catch (error) {
+    throw new Error(`Error finding open session: ${error.message}`);
+  }
+};
+
+/**
+ * Update session
+ */
+const updateSession = async (id, data) => {
+  try {
+    return await prisma.session.update({
+      where: { id },
+      data,
+      include: {
+        breaks: true
+      }
+    });
+  } catch (error) {
+    throw new Error(`Error updating session: ${error.message}`);
+  }
+};
+
+/**
+ * Update break
+ */
+const updateBreak = async (id, data) => {
+  try {
+    return await prisma.break.update({
+      where: { id },
+      data,
+    });
+  } catch (error) {
+    throw new Error(`Error updating break: ${error.message}`);
+  }
+};
+
+/**
+ * Find attendance record by ID
+ */
+const findAttendanceRecordById = async (id) => {
+  try {
+    return await prisma.attendanceRecord.findUnique({
+      where: { id },
+      include: {
+        sessions: {
+          include: {
+            breaks: true
+          },
+          orderBy: {
+            checkInTime: 'asc'
+          }
+        },
+        employee: {
+          select: {
+            id: true,
+            employeeIdNumber: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    throw new Error(`Error finding attendance record by ID: ${error.message}`);
+  }
+};
+
+/**
+ * Update attendance record
+ */
+const updateAttendanceRecord = async (id, data) => {
+  try {
+    return await prisma.attendanceRecord.update({
+      where: { id },
+      data,
+      include: { 
+        sessions: {
+          include: {
+            breaks: true
+          }
+        }
+      },
+    });
+  } catch (error) {
+    throw new Error(`Error updating attendance record: ${error.message}`);
+  }
+};
+
+/**
+ * Find attendance records by date range
+ */
+const findAttendanceRecordsByDateRange = async (employeeId, startDate, endDate) => {
+  try {
+    const whereClause = {
+      employeeId: employeeId,
+    };
+
+    if (startDate && endDate) {
+      whereClause.date = {
+        gte: startDate,
+        lte: endDate,
+      };
+    } else if (startDate) {
+      whereClause.date = {
+        gte: startDate,
+      };
+    }
+
+    return await prisma.attendanceRecord.findMany({
+      where: whereClause,
+      include: {
+        sessions: {
+          include: {
+            breaks: true
+          }
+        }
+      }
+    });
+  } catch (error) {
+    throw new Error(`Error finding attendance records by date range: ${error.message}`);
+  }
+};
+
+/**
+ * Find active break in a session
+ */
+const findActiveBreak = async (sessionId) => {
+  try {
+    return await prisma.break.findFirst({
+      where: {
+        sessionId: sessionId,
+        endTime: null
+      },
+      orderBy: {
+        startTime: 'desc'
+      }
+    });
+  } catch (error) {
+    throw new Error(`Error finding active break: ${error.message}`);
+  }
 };
 
 module.exports = {
   findUserByEmployeeId,
   findUserById,
   findAllAttendance,
-  findAttendanceByUserId,
+  findAttendanceByEmployeeId,
   findAttendanceRecord,
   createAttendanceRecord,
   createSession,
+  createBreak,
   findOpenSession,
   updateSession,
+  updateBreak,
   findAttendanceRecordById,
   updateAttendanceRecord,
-  updateManySessions,
   findAttendanceRecordsByDateRange,
+  findActiveBreak,
 };

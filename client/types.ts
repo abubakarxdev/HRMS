@@ -1,7 +1,9 @@
 export enum Role {
-  ADMIN_HR = 'ADMIN_HR',
-  MANAGER = 'MANAGER',
+  ADMIN = 'ADMIN',
+  HR = 'HR',
+  FINANCE = 'FINANCE',
   EMPLOYEE = 'EMPLOYEE',
+  MANAGER = 'MANAGER', // Deprecated
 }
 
 export enum View {
@@ -15,56 +17,106 @@ export enum View {
 
 export interface User {
   id: string;
-  name: string;
+  firstName?: string;
+  lastName?: string;
+  email: string;
   role: Role;
-  employeeId: string;
+  employeeId: string | null;
+  timezone: string;
 }
 
+// Updated Employee Interface
 export interface Employee {
   id: string;
-  employeeId: string;
-  name: string;
-  email: string;
-  position: string;
-  department: string;
-  managerId?: string;
-  hireDate: string;
-  avatar: string;
-  status: 'Active' | 'Inactive';
-  nid: string; // Encrypted
-  bankDetails: string; // Encrypted
+  employeeIdNumber: string;
+  firstName: string;
+  lastName: string;
+  workEmail: string;
+  personalEmail?: string | null;
+  avatarUrl?: string | null;
+  status: string;
+  joiningDate: string;
+
+  // Relations
+  user?: {
+    id: string;
+    email: string;
+    role: 'ADMIN' | 'HR' | 'FINANCE' | 'EMPLOYEE';
+    timezone: string;
+  };
+  legalEntity?: {
+    id: string;
+    name: string;
+  } | null;
+  office?: {
+    id: string;
+    name: string;
+  } | null;
+  manager?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+
+  // Legacy fields (optional for compatibility during migration)
+  name?: string;
+  position?: string;
+  department?: string;
 }
 
-export interface AttendanceSession {
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'ON_LEAVE';
+export type SessionStatus = 'ACTIVE' | 'COMPLETED';
+
+export interface Break {
+  id: string;
+  sessionId: string;
+  startTime: string;
+  endTime: string | null;
+  durationMinutes: number;
+}
+
+export interface Session {
   id: string;
   attendanceRecordId: string;
-  checkIn: string;
-  checkOut: string | null;
-  location: string | null;
-  type: 'WORK' | 'BREAK';
+  checkInTime: string;
+  checkOutTime: string | null;
+  location: string;
+  durationMinutes: number;
+  status: SessionStatus;
+  breaks: Break[];
 }
 
 export interface AttendanceRecord {
   id: string;
-  employeeId: number;
+  employeeId: string;
   date: string;
-  status: 'Present' | 'Absent' | 'On Leave';
-  breakStart?: string | null;
-  breakEnd?: string | null;
-  breakHours?: number;
-  totalHours?: number;
-  sessions?: AttendanceSession[];
+  status: AttendanceStatus;
+  totalWorkMinutes: number;
+  totalBreakMinutes: number;
+  sessions: Session[];
+
+  // Optional employee info
   employee?: {
     id: string;
-    employeeId: string;
-    name: string;
+    employeeIdNumber: string;
+    firstName: string;
+    lastName: string;
   };
+
+  // Legacy fields
+  totalHours?: number;
+  clockIn?: string;
+  clockOut?: string;
+  breakHours?: number;
 }
 
 export interface AttendanceStats {
-  hoursToday: number;
-  hoursThisWeek: number;
-  hoursThisMonth: number;
+  minutesToday: number;
+  minutesThisWeek: number;
+  minutesThisMonth: number;
+  hoursToday: string;
+  hoursThisWeek: string;
+  hoursThisMonth: string;
 }
 
 export interface ApprovalRequest {

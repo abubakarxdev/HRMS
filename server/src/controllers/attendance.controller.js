@@ -29,8 +29,8 @@ const getAttendanceForEmployee = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/clock-in
  */
 const clockIn = asyncHandler(async (req, res) => {
-  const { employeeId, location, customTime, recordDate } = req.body;
-  const result = await attendanceService.clockIn(employeeId, location, customTime, recordDate);
+  const { employeeId, location, customTime } = req.body;
+  const result = await attendanceService.clockIn(employeeId, location, customTime);
   res.status(200).json(result);
 });
 
@@ -39,8 +39,8 @@ const clockIn = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/clock-out
  */
 const clockOut = asyncHandler(async (req, res) => {
-  const { employeeId, customTime, breakStart, breakEnd, recordDate } = req.body;
-  const result = await attendanceService.clockOut(employeeId, customTime, breakStart, breakEnd, recordDate);
+  const { employeeId, customTime, breakStart, breakEnd } = req.body;
+  const result = await attendanceService.clockOut(employeeId, customTime, breakStart, breakEnd);
   res.status(200).json(result);
 });
 
@@ -68,8 +68,8 @@ const getTodayAttendance = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/break/start
  */
 const startBreak = asyncHandler(async (req, res) => {
-  const { employeeId, breakType, customTime } = req.body;
-  const result = await attendanceService.startBreak(employeeId, breakType, customTime);
+  const { employeeId, customTime } = req.body;
+  const result = await attendanceService.startBreak(employeeId, customTime);
   res.status(200).json(result);
 });
 
@@ -86,8 +86,8 @@ const endBreak = asyncHandler(async (req, res) => {
  * Route: POST /api/attendance/fix-missing-clock-out
  */
 const fixMissingClockOut = asyncHandler(async (req, res) => {
-  const { recordId, clockOutTime, breakStart, breakEnd } = req.body;
-  const result = await attendanceService.fixMissingClockOut(recordId, clockOutTime, breakStart, breakEnd);
+  const { recordId, clockOutTime, breakStartTime, breakEndTime } = req.body;
+  const result = await attendanceService.fixMissingClockOut(recordId, clockOutTime, breakStartTime, breakEndTime);
   res.status(200).json(result);
 });
 

@@ -2,23 +2,87 @@ const attendanceRepository = require("../repositories/attendance.repository");
 const dateUtil = require("../utils/date.util");
 
 /**
- * Helper to get internal User ID from string employeeId
- * @param {string} employeeIdStr 
- * @returns {Promise<string>}
+ * Helper to get employee and timezone from employeeId
+ * @param {string} employeeId 
+ * @returns {Promise<{employeeId: string, timezone: string}>}
  */
-const getUserId = async (employeeIdStr) => {
-  // First try to find by employeeId (string)
-  let user = await attendanceRepository.findUserByEmployeeId(employeeIdStr);
+const getEmployeeInfo = async (employeeId) => {
+  try {
+    const employee = await attendanceRepository.findUserByEmployeeId(employeeId);
+    
+    if (!employee) {
+      throw new Error(`Employee with ID ${employeeId} not found`);
+    }
 
-  // If not found, try finding by internal id (UUID string)
-  if (!user) {
-    user = await attendanceRepository.findUserById(employeeIdStr);
+    const timezone = employee.user?.timezone || dateUtil.DEFAULT_TIMEZONE;
+    
+    return {
+      employeeId: employee.id,
+      timezone
+    };
+  } catch (error) {
+    throw new Error(`Error fetching employee info: ${error.message}`);
   }
+};
 
-  if (!user) {
-    throw new Error(`User with employeeId ${employeeIdStr} not found`);
+/**
+ * Calculate session duration excluding breaks
+ * @param {Date} checkInTime 
+ * @param {Date} checkOutTime 
+ * @param {Array} breaks 
+ * @returns {number} Duration in minutes
+ */
+const calculateSessionDuration = (checkInTime, checkOutTime, breaks = []) => {
+  if (!checkInTime || !checkOutTime) return 0;
+  
+  const totalMinutes = dateUtil.calculateDurationMinutes(checkInTime, checkOutTime);
+  
+  // Subtract break durations
+  const breakMinutes = breaks.reduce((sum, breakItem) => {
+    return sum + (breakItem.durationMinutes || 0);
+  }, 0);
+  
+  return Math.max(0, totalMinutes - breakMinutes);
+};
+
+/**
+ * Update attendance record totals
+ * @param {string} recordId 
+ * @returns {Promise<Object>}
+ */
+const updateRecordTotals = async (recordId) => {
+  try {
+    const record = await attendanceRepository.findAttendanceRecordById(recordId);
+    
+    if (!record) {
+      throw new Error("Attendance record not found");
+    }
+
+    let totalWorkMinutes = 0;
+    let totalBreakMinutes = 0;
+
+    // Calculate totals from all sessions
+    record.sessions.forEach(session => {
+      if (session.checkInTime && session.checkOutTime) {
+        // Add session duration (already excludes breaks)
+        totalWorkMinutes += session.durationMinutes || 0;
+        
+        // Add break durations
+        session.breaks.forEach(breakItem => {
+          totalBreakMinutes += breakItem.durationMinutes || 0;
+        });
+      }
+    });
+
+    // Update record
+    return await attendanceRepository.updateAttendanceRecord(recordId, {
+      totalWorkMinutes,
+      totalBreakMinutes,
+      status: totalWorkMinutes > 0 ? 'PRESENT' : 'ABSENT'
+    });
+  } catch (error) {
+    throw new Error(`Error updating record totals: ${error.message}`);
   }
-  return user.id;
 };
 
 /**
@@ -26,7 +90,11 @@ const getUserId = async (employeeIdStr) => {
  * @returns {Promise<Array>}
  */
 const getAllAttendance = async () => {
-  return await attendanceRepository.findAllAttendance();
+  try {
+    return await attendanceRepository.findAllAttendance();
+  } catch (error) {
+    throw new Error(`Error fetching all attendance: ${error.message}`);
+  }
 };
 
 /**
@@ -35,8 +103,12 @@ const getAllAttendance = async () => {
  * @returns {Promise<Array>}
  */
 const getAttendanceForEmployee = async (employeeId) => {
-  const userId = await getUserId(employeeId);
-  return await attendanceRepository.findAttendanceByUserId(userId);
+  try {
+    const { employeeId: empId } = await getEmployeeInfo(employeeId);
+    return await attendanceRepository.findAttendanceByEmployeeId(empId);
+  } catch (error) {
+    throw new Error(`Error fetching employee attendance: ${error.message}`);
+  }
 };
 
 /**
@@ -46,213 +118,290 @@ const getAttendanceForEmployee = async (employeeId) => {
  * @param {string} customTime - Optional ISO string for custom check-in time
  * @returns {Promise<Object>}
  */
-const clockIn = async (employeeId, location = "Office", customTime = null, recordDateStr = null) => {
-  const userId = await getUserId(employeeId);
-  
-  // Use custom time if provided, otherwise use current server time
-  const checkInTime = customTime ? new Date(customTime) : dateUtil.getNow();
-  
-  // Normalize date for the record (midnight in target timezone)
-  let recordDate;
-  if (recordDateStr) {
-    recordDate = new Date(recordDateStr);
-  } else {
-    recordDate = dateUtil.getStartOfDay(checkInTime);
-  }
-
-  // Find or create attendance record for the day of check-in
-  let record = await attendanceRepository.findAttendanceRecord(userId, recordDate);
-
-  if (!record) {
-    record = await attendanceRepository.createAttendanceRecord({
-      employeeId: userId,
-      date: recordDate,
-      status: "Present",
-    });
-  }
-
-  // VALIDATION: Check if new check-in time is greater than previous checkout time
-  // This prevents time conflicts when creating multiple sessions
-  if (record.sessions && record.sessions.length > 0) {
-    // Find all completed WORK sessions (sessions with both checkIn and checkOut)
-    const completedWorkSessions = record.sessions.filter(
-      s => s.type === "WORK" && s.checkIn && s.checkOut
-    );
+const clockIn = async (employeeId, location = "Office", customTime = null) => {
+  try {
+    const { employeeId: empId, timezone } = await getEmployeeInfo(employeeId);
     
-    if (completedWorkSessions.length > 0) {
-      // Find the most recent checkout time
-      const lastCheckOut = completedWorkSessions.reduce((latest, session) => {
-        const sessionCheckOut = new Date(session.checkOut);
-        return sessionCheckOut > latest ? sessionCheckOut : latest;
-      }, new Date(0)); // Start with epoch time
+    // Use custom time if provided, otherwise use current server time
+    const checkInTime = customTime ? new Date(customTime) : dateUtil.getNow();
+    
+    // Get the "Day" in the employee's timezone
+    const recordDate = dateUtil.getStartOfDay(checkInTime, timezone);
+
+    // Find or create attendance record for the day
+    let record = await attendanceRepository.findAttendanceRecord(empId, recordDate);
+
+    if (!record) {
+      record = await attendanceRepository.createAttendanceRecord({
+        employeeId: empId,
+        date: recordDate,
+        status: "PRESENT",
+      });
+    }
+
+    // Check for open sessions
+    const openSession = await attendanceRepository.findOpenSession(empId);
+    if (openSession) {
+      throw new Error("You already have an active session. Please clock out first.");
+    }
+
+    // Validate: new check-in must be after previous checkout
+    if (record.sessions && record.sessions.length > 0) {
+      const completedSessions = record.sessions.filter(s => s.checkInTime && s.checkOutTime);
       
-      // Validate: new check-in must be after the last checkout
-      if (checkInTime <= lastCheckOut) {
-        const lastCheckOutStr = lastCheckOut.toLocaleString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true,
-          timeZone: 'Asia/Karachi'
-        });
-        const checkInTimeStr = checkInTime.toLocaleString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true,
-          timeZone: 'Asia/Karachi'
-        });
+      if (completedSessions.length > 0) {
+        const lastCheckOut = completedSessions.reduce((latest, session) => {
+          const sessionCheckOut = new Date(session.checkOutTime);
+          return sessionCheckOut > latest ? sessionCheckOut : latest;
+        }, new Date(0));
         
-        throw new Error(
-          `Invalid check-in time. New check-in time (${checkInTimeStr}) must be after the previous checkout time (${lastCheckOutStr}).`
-        );
+        if (checkInTime <= lastCheckOut) {
+          throw new Error(
+            `Invalid check-in time. New check-in must be after the previous checkout time.`
+          );
+        }
       }
     }
+
+    // Create a new session
+    const session = await attendanceRepository.createSession({
+      attendanceRecordId: record.id,
+      checkInTime: checkInTime,
+      location,
+      status: 'ACTIVE'
+    });
+
+    return { record, session };
+  } catch (error) {
+    throw new Error(`Clock in failed: ${error.message}`);
   }
-
-  // Create a new session
-  const session = await attendanceRepository.createSession({
-    attendanceRecordId: record.id,
-    checkIn: checkInTime,
-    location,
-    type: "WORK",
-  });
-
-  return { record, session };
 };
 
 /**
  * Clock Out
  * @param {string} employeeId
  * @param {string} customTime - Optional custom clock out time
- * @param {string} breakStart - Optional break start time (HH:MM format)
- * @param {string} breakEnd - Optional break end time (HH:MM format)
  * @returns {Promise<Object>}
  */
-const clockOut = async (employeeId, customTime = null, breakStart = null, breakEnd = null, recordDateStr = null) => {
-  const userId = await getUserId(employeeId);
+/**
+ * Clock Out
+ * @param {string} employeeId
+ * @param {string} customTime - Optional custom clock out time
+ * @param {string} breakStart - Optional break start time (HH:mm)
+ * @param {string} breakEnd - Optional break end time (HH:mm)
+ * @returns {Promise<Object>}
+ */
+const clockOut = async (employeeId, customTime = null, breakStart = null, breakEnd = null) => {
+  try {
+    const { employeeId: empId, timezone } = await getEmployeeInfo(employeeId);
 
-  // Find the most recent open WORK session for this employee
-  // We ignore recordDateStr for finding the session to handle overnight shifts 
-  // or date mismatches robustly.
-  const openSession = await attendanceRepository.findOpenSession(userId, "WORK");
+    // Find the most recent open session
+    const openSession = await attendanceRepository.findOpenSession(empId);
 
-  if (!openSession) {
-    throw new Error("No open session found to clock out from.");
-  }
-
-  const record = openSession.attendanceRecord;
-
-  // Update session with checkOut time
-  const checkOutTime = customTime ? new Date(customTime) : dateUtil.getNow();
-  await attendanceRepository.updateSession(openSession.id, { checkOut: checkOutTime });
-
-  // If break times provided, create a BREAK session
-  let breakHours = 0;
-
-  if (breakStart && breakEnd) {
-    // Parse break times (format: "HH:MM")
-    const [startHour, startMin] = breakStart.split(':').map(Number);
-    const [endHour, endMin] = breakEnd.split(':').map(Number);
-    
-    // Create DateTime objects for break times on the RECORD's date
-    // We need to be careful with timezone here. record.date is the "Day".
-    // We should construct the break times relative to that day in the target timezone.
-    // For now, assuming record.date is correct "Day" object.
-    const breakStartDateTime = new Date(record.date);
-    breakStartDateTime.setHours(startHour, startMin, 0, 0);
-    
-    const breakEndDateTime = new Date(record.date);
-    breakEndDateTime.setHours(endHour, endMin, 0, 0);
-    
-    // Create the BREAK session
-    await attendanceRepository.createSession({
-      attendanceRecordId: record.id,
-      checkIn: breakStartDateTime,
-      checkOut: breakEndDateTime,
-      type: "BREAK",
-      location: "Manual Break",
-    });
-    
-    const breakMilliseconds = breakEndDateTime - breakStartDateTime;
-    breakHours = breakMilliseconds / (1000 * 60 * 60);
-  }
-
-  // Recalculate total hours from ALL sessions
-  const updatedRecord = await attendanceRepository.findAttendanceRecordById(record.id);
-
-  let totalMilliseconds = 0;
-  let totalBreakMilliseconds = 0;
-
-  const workSessions = [];
-  const breakSessions = [];
-
-  console.log(`[DEBUG] Total sessions found: ${updatedRecord.sessions.length}`);
-  
-  updatedRecord.sessions.forEach((session) => {
-    if (session.checkIn && session.checkOut) {
-      const diff = session.checkOut - session.checkIn;
-      if (diff > 0) {
-        if (session.type === "WORK") {
-          totalMilliseconds += diff;
-          workSessions.push({ start: new Date(session.checkIn), end: new Date(session.checkOut) });
-          console.log(`[DEBUG] WORK session: ${session.checkIn} to ${session.checkOut}, diff: ${diff}ms (${(diff / (1000 * 60)).toFixed(2)} min)`);
-        } else if (session.type === "BREAK") {
-          totalBreakMilliseconds += diff;
-          breakSessions.push({ start: new Date(session.checkIn), end: new Date(session.checkOut) });
-          console.log(`[DEBUG] BREAK session: ${session.checkIn} to ${session.checkOut}, diff: ${diff}ms (${(diff / (1000 * 60)).toFixed(2)} min)`);
-        }
-      }
+    if (!openSession) {
+      throw new Error("No open session found to clock out from.");
     }
-  });
 
-  const totalWorkHours = totalMilliseconds / (1000 * 60 * 60);
-  const totalBreakHours = totalBreakMilliseconds / (1000 * 60 * 60);
-  
-  console.log(`[DEBUG] Total work milliseconds: ${totalMilliseconds}, hours: ${totalWorkHours.toFixed(4)}`);
-  console.log(`[DEBUG] Total break milliseconds: ${totalBreakMilliseconds}, hours: ${totalBreakHours.toFixed(4)}`);
-  
-  // Detect if breaks overlap with work sessions
-  // If a break falls within a work session time range, it needs to be subtracted
-  // If breaks are separate (startBreak/endBreak), they don't overlap and shouldn't be subtracted
-  let overlappingBreakMilliseconds = 0;
-  
-  breakSessions.forEach(breakSession => {
-    workSessions.forEach(workSession => {
-      // Check if break overlaps with this work session
-      const breakStart = breakSession.start.getTime();
-      const breakEnd = breakSession.end.getTime();
-      const workStart = workSession.start.getTime();
-      const workEnd = workSession.end.getTime();
+    const checkOutTime = customTime ? new Date(customTime) : dateUtil.getNow();
+    
+    // Validate checkout time is after checkin
+    if (checkOutTime <= new Date(openSession.checkInTime)) {
+      throw new Error("Clock out time must be after clock in time.");
+    }
+
+    // Handle Break Creation if times are provided
+    if (breakStart && breakEnd) {
+      // Parse HH:mm to Date objects relative to the session date in the user's timezone
+      // We assume the break happened on the same day as the session check-in
+      // or the check-out day.
       
-      // Break overlaps if it starts before work ends AND ends after work starts
-      if (breakStart < workEnd && breakEnd > workStart) {
-        // Calculate the overlapping portion
-        const overlapStart = Math.max(breakStart, workStart);
-        const overlapEnd = Math.min(breakEnd, workEnd);
-        const overlap = overlapEnd - overlapStart;
-        
-        if (overlap > 0) {
-          overlappingBreakMilliseconds += overlap;
-          console.log(`[DEBUG] Found overlapping break: ${overlap}ms (${(overlap / (1000 * 60)).toFixed(2)} min)`);
-        }
-      }
-    });
-  });
-  
-  const overlappingBreakHours = overlappingBreakMilliseconds / (1000 * 60 * 60);
-  console.log(`[DEBUG] Total overlapping break hours: ${overlappingBreakHours.toFixed(4)}`);
-  
-  // Only subtract overlapping breaks from work hours
-  const netWorkHours = totalWorkHours - overlappingBreakHours;
-  
-  console.log(`[DEBUG] Net work hours (work - overlapping breaks): ${netWorkHours.toFixed(4)}`);
+      // Use the check-out time as the base date, but ensure we respect the timezone
+      const baseDate = dateUtil.dayjs(checkOutTime).tz(timezone);
+      const [startHour, startMin] = breakStart.split(':').map(Number);
+      const [endHour, endMin] = breakEnd.split(':').map(Number);
+      
+      const breakStartTime = baseDate.hour(startHour).minute(startMin).second(0).millisecond(0);
+      const breakEndTime = baseDate.hour(endHour).minute(endMin).second(0).millisecond(0);
+      
+      const checkInTimeDate = dateUtil.dayjs(openSession.checkInTime).tz(timezone);
+      const checkOutTimeDate = dateUtil.dayjs(checkOutTime).tz(timezone);
 
-  // Update record with work hours (overlapping breaks subtracted) and break hours (for display)
-  return await attendanceRepository.updateAttendanceRecord(record.id, {
-    totalHours: netWorkHours,
-    breakHours: totalBreakHours > 0 ? totalBreakHours : null,
-    breakStart: null,
-    breakEnd: null,
+      // Validations
+      if (breakStartTime.isBefore(checkInTimeDate)) {
+         throw new Error("Break start time must be after clock in time.");
+      }
+      
+      if (breakEndTime.isBefore(breakStartTime) || breakEndTime.isSame(breakStartTime)) {
+        throw new Error("Break end time must be after break start time.");
+      }
+      
+      if (checkOutTimeDate.isBefore(breakEndTime) || checkOutTimeDate.isSame(breakEndTime)) {
+        throw new Error("Clock out time must be after break end time.");
+      }
+
+      // Create the break
+      await attendanceRepository.createBreak({
+        sessionId: openSession.id,
+        startTime: breakStartTime,
+        endTime: breakEndTime,
+        durationMinutes: dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime)
+      });
+      
+      // Add to session object for duration calculation below
+      if (!openSession.breaks) openSession.breaks = [];
+      openSession.breaks.push({
+        startTime: breakStartTime,
+        endTime: breakEndTime,
+        durationMinutes: dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime)
+      });
+    }
+
+    // Calculate session duration (excluding breaks)
+    const durationMinutes = calculateSessionDuration(
+      openSession.checkInTime,
+      checkOutTime,
+      openSession.breaks || []
+    );
+
+    // Update session
+    await attendanceRepository.updateSession(openSession.id, { 
+      checkOutTime: checkOutTime,
+      durationMinutes,
+      status: 'COMPLETED'
+    });
+
+    // Update attendance record totals
+    const updatedRecord = await updateRecordTotals(openSession.attendanceRecord.id);
+
+    return updatedRecord;
+  } catch (error) {
+    throw new Error(`Clock out failed: ${error.message}`);
+  }
+};
+
+/**
+ * Start Break
+ * @param {string} employeeId
+ * @param {string} customTime - Optional custom break start time
+ * @returns {Promise<Object>}
+ */
+const startBreak = async (employeeId, customTime = null) => {
+  try {
+    const { employeeId: empId } = await getEmployeeInfo(employeeId);
+
+    // Find open session
+    const openSession = await attendanceRepository.findOpenSession(empId);
+
+    if (!openSession) {
+      throw new Error("No active session found. Please clock in first.");
+    }
+
+    // Check if there's already an active break
+    const activeBreak = await attendanceRepository.findActiveBreak(openSession.id);
+    if (activeBreak) {
+      throw new Error("You already have an active break. Please end it first.");
+    }
+
+    const breakStartTime = customTime ? new Date(customTime) : dateUtil.getNow();
+
+    // Create break
+    const breakRecord = await attendanceRepository.createBreak({
+      sessionId: openSession.id,
+      startTime: breakStartTime,
+    });
+
+    return { session: openSession, break: breakRecord };
+  } catch (error) {
+    throw new Error(`Start break failed: ${error.message}`);
+  }
+};
+
+/**
+ * End Break
+ * @param {string} employeeId
+ * @param {string} customTime - Optional custom break end time
+ * @returns {Promise<Object>}
+ */
+const endBreak = async (employeeId, customTime = null) => {
+  try {
+    const { employeeId: empId } = await getEmployeeInfo(employeeId);
+
+    // Find open session
+    const openSession = await attendanceRepository.findOpenSession(empId);
+
+    if (!openSession) {
+      throw new Error("No active session found.");
+    }
+
+    // Find active break
+    const activeBreak = await attendanceRepository.findActiveBreak(openSession.id);
+    if (!activeBreak) {
+      throw new Error("No active break found to end.");
+    }
+
+    const breakEndTime = customTime ? new Date(customTime) : dateUtil.getNow();
+    
+    // Validate end time is after start time
+    if (breakEndTime <= new Date(activeBreak.startTime)) {
+      throw new Error("Break end time must be after break start time.");
+    }
+
+    // Calculate break duration
+    const durationMinutes = dateUtil.calculateDurationMinutes(
+      activeBreak.startTime,
+      breakEndTime
+    );
+
+    // Update break
+    const updatedBreak = await attendanceRepository.updateBreak(activeBreak.id, {
+      endTime: breakEndTime,
+      durationMinutes
+    });
+
+    return { session: openSession, break: updatedBreak };
+  } catch (error) {
+    throw new Error(`End break failed: ${error.message}`);
+  }
+};
+
+const calculateRecordMinutes = (record, now) => {
+  if (!record || !record.sessions) return 0;
+
+  let totalMinutes = 0;
+
+  record.sessions.forEach(session => {
+    if (!session.checkInTime) return;
+
+    // Determine session end time (CheckOut or Now)
+    const sessionEndTime = session.checkOutTime ? new Date(session.checkOutTime) : now;
+    const sessionStartTime = new Date(session.checkInTime);
+
+    // Calculate gross duration
+    const grossDuration = dateUtil.calculateDurationMinutes(sessionStartTime, sessionEndTime);
+
+    // Calculate total break duration
+    let totalBreakMinutes = 0;
+    if (session.breaks && session.breaks.length > 0) {
+      session.breaks.forEach(breakItem => {
+        if (!breakItem.startTime) return;
+        
+        const breakStartTime = new Date(breakItem.startTime);
+        // Break end is either stored endTime, or Now (if active), but capped at sessionEndTime
+        let breakEndTime = breakItem.endTime ? new Date(breakItem.endTime) : now;
+        
+        // Safety check: break shouldn't extend beyond session (though for active session/break both are 'now')
+        if (breakEndTime > sessionEndTime) breakEndTime = sessionEndTime;
+
+        totalBreakMinutes += dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime);
+      });
+    }
+
+    // Net duration
+    const netDuration = Math.max(0, grossDuration - totalBreakMinutes);
+    totalMinutes += netDuration;
   });
+
+  return Math.floor(totalMinutes);
 };
 
 /**
@@ -261,244 +410,140 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
  * @returns {Promise<Object>}
  */
 const getAttendanceStats = async (employeeId) => {
-  const userId = await getUserId(employeeId);
-  const now = dateUtil.getNow();
-  
-  // Today
-  const today = dateUtil.getStartOfDay(now);
-  
-  const todayRecord = await attendanceRepository.findAttendanceRecord(userId, today);
-
-  // Week (Start from Monday)
-  const startOfWeek = dateUtil.getStartOfDay(now);
-  const day = startOfWeek.getDay();
-  const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-  startOfWeek.setDate(diff);
-  // Note: getStartOfDay already set hours to 0, but setDate might preserve time if we didn't use it.
-  // Actually startOfWeek was created via getStartOfDay so it's 00:00.
-
-  const weekRecords = await attendanceRepository.findAttendanceRecordsByDateRange(userId, startOfWeek);
-
-  // Month
-  const startOfMonth = dateUtil.getStartOfDay(now);
-  startOfMonth.setDate(1);
-  const monthRecords = await attendanceRepository.findAttendanceRecordsByDateRange(userId, startOfMonth);
-
-  const sumHours = (records) => records.reduce((acc, curr) => acc + (curr.totalHours || 0), 0);
-
-  return {
-    hoursToday: todayRecord ? (todayRecord.totalHours || 0) : 0,
-    hoursThisWeek: sumHours(weekRecords),
-    hoursThisMonth: sumHours(monthRecords),
-  };
-};
-
-/**
- * Start Break
- * @param {string} employeeId
- * @param {string} breakType - "DEFAULT", "NO_BREAK", or "CUSTOM"
- * @param {string} customTime - Optional custom break start time
- * @returns {Promise<Object>}
- */
-const startBreak = async (employeeId, breakType = "DEFAULT", customTime) => {
-  const userId = await getUserId(employeeId);
-  const today = dateUtil.getStartOfDay();
-
-  const record = await attendanceRepository.findAttendanceRecord(userId, today);
-
-  if (!record) {
-    throw new Error("No attendance record found for today. Please clock in first.");
-  }
-
-  // Find open session (should be WORK)
-  const openSession = record.sessions.find((s) => !s.checkOut);
-  if (openSession) {
-    // End current work session
-    const endTime = customTime ? new Date(customTime) : dateUtil.getNow();
-    await attendanceRepository.updateSession(openSession.id, { checkOut: endTime });
-  }
-
-  // Start BREAK session
-  const breakStartTime = customTime ? new Date(customTime) : dateUtil.getNow();
-  const session = await attendanceRepository.createSession({
-    attendanceRecordId: record.id,
-    checkIn: breakStartTime,
-    type: "BREAK",
-    location: "Break", // Placeholder
-  });
-
-  return { record, session };
-};
-
-/**
- * End Break
- * @param {string} employeeId
- * @returns {Promise<Object>}
- */
-const endBreak = async (employeeId) => {
-  const userId = await getUserId(employeeId);
-  const today = dateUtil.getStartOfDay();
-
-  const record = await attendanceRepository.findAttendanceRecord(userId, today);
-
-  if (!record) {
-    throw new Error("No attendance record found for today.");
-  }
-
-  // Find open session (should be BREAK)
-  const openSession = record.sessions.find((s) => !s.checkOut && s.type === "BREAK");
-  if (!openSession) {
-    throw new Error("No open break session found.");
-  }
-
-  // End BREAK session
-  await attendanceRepository.updateSession(openSession.id, { checkOut: dateUtil.getNow() });
-
-  // Start WORK session (Resume work)
-  const session = await attendanceRepository.createSession({
-    attendanceRecordId: record.id,
-    checkIn: dateUtil.getNow(),
-    type: "WORK",
-    location: "Office", // Default back to Office, or could store previous location
-  });
-
-  return { record, session };
-};
-
-/**
- * Fix Missing Clock Out
- * @param {string} recordId
- * @param {string} clockOutTime - ISO string
- * @param {string} breakStart - HH:MM
- * @param {string} breakEnd - HH:MM
- * @returns {Promise<Object>}
- */
-const fixMissingClockOut = async (recordId, clockOutTime, breakStart, breakEnd) => {
-  const record = await attendanceRepository.findAttendanceRecordById(recordId);
-
-  if (!record) {
-    throw new Error("Attendance record not found");
-  }
-
-  const openSessions = record.sessions.filter((s) => !s.checkOut);
-  if (openSessions.length === 0) {
-    throw new Error("No open session found for this record");
-  }
-
-  // Update all open sessions with checkOut time
-  const checkOutDate = new Date(clockOutTime);
-  
-  await attendanceRepository.updateManySessions(
-    { 
-      attendanceRecordId: record.id,
-      checkOut: null 
-    },
-    { checkOut: checkOutDate }
-  );
-
-  // Calculate break hours
-  let breakHours = 0;
-
-  if (breakStart && breakEnd) {
-    const [startHour, startMin] = breakStart.split(':').map(Number);
-    const [endHour, endMin] = breakEnd.split(':').map(Number);
+  try {
+    const { employeeId: empId, timezone } = await getEmployeeInfo(employeeId);
+    const now = dateUtil.getNow();
     
-    // Use RECORD DATE for break times
-    const breakStartDateTime = new Date(record.date);
-    breakStartDateTime.setHours(startHour, startMin, 0, 0);
-    
-    const breakEndDateTime = new Date(record.date);
-    breakEndDateTime.setHours(endHour, endMin, 0, 0);
-    
-    // Create the BREAK session
-    await attendanceRepository.createSession({
-      attendanceRecordId: record.id,
-      checkIn: breakStartDateTime,
-      checkOut: breakEndDateTime,
-      type: "BREAK",
-      location: "Manual Break (Fix)",
-    });
+    // Today - Fetch records from Yesterday and Today to handle sessions attached to wrong record
+    // due to previous timezone bugs
+    const todayStart = dateUtil.getStartOfDay(now, timezone);
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+    const searchStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000); // Yesterday
 
-    const breakMilliseconds = breakEndDateTime - breakStartDateTime;
-    breakHours = breakMilliseconds / (1000 * 60 * 60);
-  }
+    // Use repository instead of direct prisma call
+    const recentRecords = await attendanceRepository.findAttendanceRecordsByDateRange(
+      empId,
+      searchStart,
+      todayEnd
+    );
 
-  // Recalculate total hours
-  const updatedRecord = await attendanceRepository.findAttendanceRecordById(record.id);
+    // Week (Start from Monday)
+    const startOfWeek = dateUtil.getStartOfWeek(now, timezone);
+    const weekRecords = await attendanceRepository.findAttendanceRecordsByDateRange(
+      empId, 
+      startOfWeek
+    );
 
-  let totalMilliseconds = 0;
-  let totalBreakMilliseconds = 0;
+    // Month
+    const startOfMonth = dateUtil.getStartOfMonth(now, timezone);
+    const monthRecords = await attendanceRepository.findAttendanceRecordsByDateRange(
+      empId, 
+      startOfMonth
+    );
 
-  const workSessions = [];
-  const breakSessions = [];
-
-  updatedRecord.sessions.forEach((session) => {
-    if (session.checkIn && session.checkOut) {
-      const diff = session.checkOut - session.checkIn;
-      if (diff > 0) {
-        if (session.type === "WORK") {
-          totalMilliseconds += diff;
-          workSessions.push({ start: new Date(session.checkIn), end: new Date(session.checkOut) });
-        } else if (session.type === "BREAK") {
-          totalBreakMilliseconds += diff;
-          breakSessions.push({ start: new Date(session.checkIn), end: new Date(session.checkOut) });
-        }
-      }
-    }
-  });
-
-  const totalWorkHours = totalMilliseconds / (1000 * 60 * 60);
-  const totalBreakHours = totalBreakMilliseconds / (1000 * 60 * 60);
-  
-  // Detect overlapping breaks (same logic as clockOut)
-  let overlappingBreakMilliseconds = 0;
-  
-  breakSessions.forEach(breakSession => {
-    workSessions.forEach(workSession => {
-      const breakStart = breakSession.start.getTime();
-      const breakEnd = breakSession.end.getTime();
-      const workStart = workSession.start.getTime();
-      const workEnd = workSession.end.getTime();
+    // Calculate minutes for today by filtering sessions from recent records
+    let minutesToday = 0;
+    recentRecords.forEach(record => {
+      if (!record.sessions) return;
       
-      if (breakStart < workEnd && breakEnd > workStart) {
-        const overlapStart = Math.max(breakStart, workStart);
-        const overlapEnd = Math.min(breakEnd, workEnd);
-        const overlap = overlapEnd - overlapStart;
+      record.sessions.forEach(session => {
+        if (!session.checkInTime) return;
         
-        if (overlap > 0) {
-          overlappingBreakMilliseconds += overlap;
+        const checkInTime = new Date(session.checkInTime);
+        // Check if session belongs to Today
+        if (checkInTime >= todayStart && checkInTime <= todayEnd) {
+           // Calculate duration for this session
+           const sessionEndTime = session.checkOutTime ? new Date(session.checkOutTime) : now;
+           const grossDuration = dateUtil.calculateDurationMinutes(checkInTime, sessionEndTime);
+           
+           let totalBreakMinutes = 0;
+           if (session.breaks && session.breaks.length > 0) {
+             session.breaks.forEach(breakItem => {
+               if (!breakItem.startTime) return;
+               const breakStartTime = new Date(breakItem.startTime);
+               let breakEndTime = breakItem.endTime ? new Date(breakItem.endTime) : now;
+               if (breakEndTime > sessionEndTime) breakEndTime = sessionEndTime;
+               totalBreakMinutes += dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime);
+             });
+           }
+           
+           minutesToday += Math.max(0, grossDuration - totalBreakMinutes);
         }
-      }
+      });
     });
-  });
-  
-  const overlappingBreakHours = overlappingBreakMilliseconds / (1000 * 60 * 60);
-  const netWorkHours = totalWorkHours - overlappingBreakHours;
+    
+    // Helper to calculate minutes for a specific range
+    const calculateMinutesInRange = (records, startDate) => {
+      let totalMinutes = 0;
+      records.forEach(record => {
+        if (!record.sessions) return;
+        
+        record.sessions.forEach(session => {
+          if (!session.checkInTime) return;
+          
+          const checkInTime = new Date(session.checkInTime);
+          
+          // Only include sessions that actually started on or after the start date
+          if (checkInTime >= startDate) {
+             const sessionEndTime = session.checkOutTime ? new Date(session.checkOutTime) : now;
+             const grossDuration = dateUtil.calculateDurationMinutes(checkInTime, sessionEndTime);
+             
+             let totalBreakMinutes = 0;
+             if (session.breaks && session.breaks.length > 0) {
+               session.breaks.forEach(breakItem => {
+                 if (!breakItem.startTime) return;
+                 const breakStartTime = new Date(breakItem.startTime);
+                 let breakEndTime = breakItem.endTime ? new Date(breakItem.endTime) : now;
+                 if (breakEndTime > sessionEndTime) breakEndTime = sessionEndTime;
+                 totalBreakMinutes += dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime);
+               });
+             }
+             
+             totalMinutes += Math.max(0, grossDuration - totalBreakMinutes);
+          }
+        });
+      });
+      return Math.floor(totalMinutes);
+    };
 
-  return await attendanceRepository.updateAttendanceRecord(record.id, {
-    totalHours: netWorkHours,
-    breakHours: totalBreakHours > 0 ? totalBreakHours : null,
-    breakStart: null,
-    breakEnd: null,
-  });
+    const minutesThisWeek = calculateMinutesInRange(weekRecords, startOfWeek);
+    const minutesThisMonth = calculateMinutesInRange(monthRecords, startOfMonth);
+
+    return {
+      minutesToday,
+      minutesThisWeek,
+      minutesThisMonth,
+      // Also provide formatted versions
+      hoursToday: dateUtil.formatDuration(minutesToday),
+      hoursThisWeek: dateUtil.formatDuration(minutesThisWeek),
+      hoursThisMonth: dateUtil.formatDuration(minutesThisMonth),
+    };
+  } catch (error) {
+    throw new Error(`Error fetching attendance stats: ${error.message}`);
+  }
 };
 
 /**
  * Get Today's Attendance Record
  * @param {string} employeeId
+ * @param {string} date - Optional date string
  * @returns {Promise<Object|null>}
  */
 const getTodayAttendance = async (employeeId, date = null) => {
-  const userId = await getUserId(employeeId);
-  
-  let queryDate;
-  if (date) {
-    queryDate = new Date(date);
-  } else {
-    queryDate = dateUtil.getStartOfDay();
-  }
+  try {
+    const { employeeId: empId, timezone } = await getEmployeeInfo(employeeId);
+    
+    let queryDate;
+    if (date) {
+      queryDate = dateUtil.getStartOfDay(new Date(date), timezone);
+    } else {
+      queryDate = dateUtil.getStartOfDay(dateUtil.getNow(), timezone);
+    }
 
-  return await attendanceRepository.findAttendanceRecord(userId, queryDate);
+    return await attendanceRepository.findAttendanceRecord(empId, queryDate);
+  } catch (error) {
+    throw new Error(`Error fetching today's attendance: ${error.message}`);
+  }
 };
 
 /**
@@ -507,11 +552,86 @@ const getTodayAttendance = async (employeeId, date = null) => {
  * @returns {Promise<Object>}
  */
 const getAttendanceById = async (id) => {
-  const record = await attendanceRepository.findAttendanceRecordById(id);
-  if (!record) {
-    throw new Error("Attendance record not found");
+  try {
+    const record = await attendanceRepository.findAttendanceRecordById(id);
+    if (!record) {
+      throw new Error("Attendance record not found");
+    }
+    return record;
+  } catch (error) {
+    throw new Error(`Error fetching attendance by ID: ${error.message}`);
   }
-  return record;
+};
+
+/**
+ * Fix Missing Clock Out (Admin/HR function)
+ * @param {string} recordId
+ * @param {string} clockOutTime - ISO string
+ * @returns {Promise<Object>}
+ */
+const fixMissingClockOut = async (recordId, clockOutTime, breakStartTime, breakEndTime) => {
+  try {
+    const record = await attendanceRepository.findAttendanceRecordById(recordId);
+
+    if (!record) {
+      throw new Error("Attendance record not found");
+    }
+
+    const openSessions = record.sessions.filter(s => !s.checkOutTime);
+    if (openSessions.length === 0) {
+      throw new Error("No open session found for this record");
+    }
+
+    const checkOutDate = new Date(clockOutTime);
+
+    // Update all open sessions
+    for (const session of openSessions) {
+      // Handle break creation if times provided
+      if (breakStartTime && breakEndTime) {
+         const bStart = new Date(breakStartTime);
+         const bEnd = new Date(breakEndTime);
+         
+         // Validations
+         if (bStart <= new Date(session.checkInTime)) throw new Error("Break start must be after check in");
+         if (bEnd <= bStart) throw new Error("Break end must be after break start");
+         if (checkOutDate <= bEnd) throw new Error("Check out must be after break end");
+
+         await attendanceRepository.createBreak({
+            sessionId: session.id,
+            startTime: bStart,
+            endTime: bEnd,
+            durationMinutes: dateUtil.calculateDurationMinutes(bStart, bEnd)
+         });
+         
+         // Add to session breaks for duration calculation
+         if (!session.breaks) session.breaks = [];
+         session.breaks.push({ 
+             startTime: bStart, 
+             endTime: bEnd, 
+             durationMinutes: dateUtil.calculateDurationMinutes(bStart, bEnd) 
+         });
+      }
+
+      const durationMinutes = calculateSessionDuration(
+        session.checkInTime,
+        checkOutDate,
+        session.breaks || []
+      );
+
+      await attendanceRepository.updateSession(session.id, {
+        checkOutTime: checkOutDate,
+        durationMinutes,
+        status: 'COMPLETED'
+      });
+    }
+
+    // Update attendance record totals
+    const updatedRecord = await updateRecordTotals(record.id);
+
+    return updatedRecord;
+  } catch (error) {
+    throw new Error(`Fix missing clock out failed: ${error.message}`);
+  }
 };
 
 module.exports = {
@@ -519,10 +639,10 @@ module.exports = {
   getAttendanceForEmployee,
   clockIn,
   clockOut,
-  getAttendanceStats,
-  getTodayAttendance,
   startBreak,
   endBreak,
-  fixMissingClockOut,
+  getAttendanceStats,
+  getTodayAttendance,
   getAttendanceById,
+  fixMissingClockOut,
 };

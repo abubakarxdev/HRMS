@@ -66,9 +66,9 @@ const authorize = (...roles) => {
 };
 
 // ✔ Add employee middleware
-const allowViewEmployees = authorize("ADMIN_HR", "MANAGER", "EMPLOYEE");
-const allowManageEmployees = authorize("ADMIN_HR");
-const allowManagerAndAdmin = authorize("ADMIN_HR", "MANAGER");
+const allowViewEmployees = authorize("ADMIN", "HR", "FINANCE", "EMPLOYEE");
+const allowManageEmployees = authorize("ADMIN", "HR");
+const allowManagerAndAdmin = authorize("ADMIN", "HR");
 
 module.exports = {
   protect,

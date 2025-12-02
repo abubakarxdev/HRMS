@@ -1,17 +1,52 @@
-
 import React from 'react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
-import { useAppContext } from '../../contexts/AppContext';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useAttendanceRecords } from '../../hooks/useAttendance';
 
 const AttendanceReport: React.FC = () => {
-    const { attendance, employees, loading } = useAppContext();
+    const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
+    const { data: attendance = [], isLoading: loadingAttendance } = useAttendanceRecords();
     
+    const loading = loadingEmployees || loadingAttendance;
+
+    const getEmployeeName = (id: string) => {
+        const emp = employees.find(e => e.id === id);
+        return emp ? `${emp.firstName} ${emp.lastName}` : 'Unknown';
+    };
+
+    const formatTime = (isoString?: string | null) => {
+        if (!isoString) return '--:--';
+        return new Date(isoString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    };
+
+    const getClockIn = (rec: any) => {
+        if (rec.sessions && rec.sessions.length > 0) {
+            // Sort sessions by checkInTime just in case
+            const sorted = [...rec.sessions].sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
+            return sorted[0].checkInTime;
+        }
+        return null;
+    };
+
+    const getClockOut = (rec: any) => {
+        if (rec.sessions && rec.sessions.length > 0) {
+            const sorted = [...rec.sessions].sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
+            const lastSession = sorted[sorted.length - 1];
+            return lastSession.checkOutTime;
+        }
+        return null;
+    };
+
     const exportToCSV = () => {
         const headers = "Employee Name,Date,Clock In,Clock Out,Break Hours,Status\n";
         const rows = attendance.map(rec => {
-            const employeeName = employees.find(e => e.id === rec.employeeId)?.name || 'Unknown';
-            return `"${employeeName}",${rec.date},${rec.clockIn || ''},${rec.clockOut || ''},${rec.breakHours || 0},${rec.status}`;
+            const employeeName = getEmployeeName(rec.employeeId);
+            const clockIn = formatTime(getClockIn(rec));
+            const clockOut = formatTime(getClockOut(rec));
+            const breakHours = ((rec.totalBreakMinutes || 0) / 60).toFixed(2);
+            
+            return `"${employeeName}",${rec.date},${clockIn},${clockOut},${breakHours},${rec.status}`;
         }).join('\n');
 
         const csvContent = headers + rows;
@@ -47,16 +82,25 @@ const AttendanceReport: React.FC = () => {
                             attendance.map(rec => (
                                 <tr key={rec.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                                        {employees.find(e => e.id === rec.employeeId)?.name || 'Unknown'}
+                                        {getEmployeeName(rec.employeeId)}
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">{rec.date}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">{rec.clockIn || '--:--'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">{rec.clockOut || '--:--'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">{rec.breakHours || 0}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">
+                                        {new Date(rec.date).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">
+                                        {formatTime(getClockIn(rec))}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">
+                                        {formatTime(getClockOut(rec))}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">
+                                        {((rec.totalBreakMinutes || 0) / 60).toFixed(2)}
+                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                            rec.status === 'Present' ? 'bg-green-100 text-green-800' :
-                                            rec.status === 'On Leave' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                                            rec.status === 'PRESENT' ? 'bg-green-100 text-green-800' :
+                                            rec.status === 'ON_LEAVE' ? 'bg-yellow-100 text-yellow-800' : 
+                                            rec.status === 'ABSENT' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
                                         }`}>
                                             {rec.status}
                                         </span>

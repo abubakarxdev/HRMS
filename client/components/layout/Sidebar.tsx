@@ -1,8 +1,7 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAppContext } from "../../contexts/AppContext";
+import { useAuth } from "../../contexts/AuthContext";
 import { NAVIGATION_ITEMS, NAVIGATION_PATHS } from "../../constants";
-import { Role } from "../../types";
 
 const LogoIcon = () => (
   <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -40,7 +39,7 @@ const NavItem: React.FC<{
 };
 
 const Sidebar: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const location = useLocation(); // Hook to get current path
 
   if (!user) {

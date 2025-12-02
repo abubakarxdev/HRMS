@@ -1,0 +1,46 @@
+model LegalEntity {
+  id              String  @id @default(uuid())
+  name            String
+  countryCode     String // "US", "PK"
+  defaultCurrency String // "USD", "PKR"
+  logoUrl         String?
+
+  offices       Office[]
+  employees     Employee[]
+  taxBrackets   TaxBracket[]
+  leaveSettings LeaveSetting[]
+
+  createdAt DateTime @default(now())
+
+  @@map("legal_entities")
+}
+
+model Office {
+  id            String  @id @default(uuid())
+  legalEntityId String
+  name          String
+  address       String?
+
+  // Default Timezone for everyone in this office (e.g., 'Asia/Karachi')
+  timezone String
+
+  employees   Employee[]
+  holidays    PublicHoliday[]
+  legalEntity LegalEntity     @relation(fields: [legalEntityId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("offices")
+}
+
+model PublicHoliday {
+  id       String   @id @default(uuid())
+  officeId String
+  date     DateTime @db.Date
+  name     String
+
+  office Office @relation(fields: [officeId], references: [id])
+
+  @@unique([officeId, date])
+  @@map("public_holidays")
+}

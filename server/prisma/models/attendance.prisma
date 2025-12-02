@@ -1,0 +1,74 @@
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  ON_LEAVE
+  HALF_DAY
+}
+
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+}
+
+// The "Parent" Record: Represents one calendar day
+model AttendanceRecord {
+  id         String @id @default(uuid())
+  employeeId String
+
+  // The logical date based on Employee Timezone or Office Timezone
+  date DateTime @db.Date
+
+  status AttendanceStatus @default(ABSENT)
+
+  // -- Totals (Cached for Reporting) --
+  totalWorkMinutes  Int @default(0)
+  totalBreakMinutes Int @default(0)
+
+  sessions Session[]
+  employee Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([employeeId, date])
+  @@map("attendance_records")
+}
+
+// The "Child" Record: Represents one check-in/out cycle
+model Session {
+  id                 String @id @default(uuid())
+  attendanceRecordId String
+
+  checkInTime  DateTime  @db.Timestamptz()
+  checkOutTime DateTime? @db.Timestamptz()
+
+  status SessionStatus @default(ACTIVE)
+
+  // Duration excluding breaks
+  durationMinutes Int @default(0)
+
+  location String?
+  deviceIp String?
+
+  breaks           Break[]
+  attendanceRecord AttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
+
+  // Index for "Pending Checkouts"
+  @@index([attendanceRecordId, status])
+  @@map("attendance_sessions")
+}
+
+model Break {
+  id        String @id @default(uuid())
+  sessionId String
+
+  startTime DateTime @db.Timestamptz()
+  endTime   DateTime @db.Timestamptz()
+
+  durationMinutes Int
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("attendance_breaks")
+}

@@ -1,15 +1,16 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useAppContext } from '../../contexts/AppContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useEmployees } from '../../hooks/useEmployees';
+import { useAttendanceRecords } from '../../hooks/useAttendance';
 import EmployeeAttendanceCard from './EmployeeAttendanceCard';
-import Button from '../ui/Button';
-import { Role, AttendanceRecord } from '../../types';
-import { api } from '../../services/apiService';
+import { Role } from '../../types';
 
 const TeamSnapshot: React.FC = () => {
-    const { employees, user } = useAppContext();
+    const { user } = useAuth();
+    const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
+    const { data: allRecords = [], isLoading: loadingAttendance } = useAttendanceRecords();
+    
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([]);
-    const [loadingData, setLoadingData] = useState(true);
     const [statusFilter, setStatusFilter] = useState<string>('all');
 
     useEffect(() => {
@@ -17,71 +18,43 @@ const TeamSnapshot: React.FC = () => {
         return () => clearInterval(timer);
     }, []);
 
-    useEffect(() => {
-        const fetchTodayAttendance = async () => {
-            try {
-                const allRecords = await api.getAllAttendance();
-                // Get today's date in Asia/Karachi time YYYY-MM-DD
-                const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
-                
-                const todaysRecords = allRecords.filter(r => {
-                    // Check if record date is today (Asia/Karachi)
-                    if (new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal) return true;
-                    
-                    // Check if any session is today (Asia/Karachi)
-                    if (r.sessions?.some(s => new Date(s.checkIn).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }) === todayLocal)) return true;
-                    
-                    return false;
-                });
-                setTodayAttendance(todaysRecords);
-            } catch (error) {
-                console.error("Failed to fetch team attendance", error);
-            } finally {
-                setLoadingData(false);
-            }
-        };
-
-        fetchTodayAttendance();
-
-        // Refresh every 30 seconds
-        const interval = setInterval(fetchTodayAttendance, 30000);
-        return () => clearInterval(interval);
-    }, []);
-
     const attendanceByEmployee = useMemo(() => {
         const map = new Map();
-        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+        const userTimezone = user?.timezone || 'Asia/Karachi';
+        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone });
         
-        todayAttendance.forEach(a => {
+        allRecords.forEach(a => {
             // Only include if the record date itself is today
-            const recordDatePKT = new Date(a.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+            const recordDatePKT = new Date(a.date).toLocaleDateString('en-CA', { timeZone: userTimezone });
             if (recordDatePKT === todayLocal) {
                 map.set(String(a.employeeId), a);
             }
         });
         return map;
-    }, [todayAttendance]);
+    }, [allRecords, user?.timezone]);
 
     const getEmployeeStatus = (employeeId: string): string => {
         const record = attendanceByEmployee.get(String(employeeId));
         
         if (!record) return 'absent';
-        if (record.status === 'On Leave') return 'on-leave';
+        if (record.status === 'ON_LEAVE') return 'on-leave';
         
-        const openSession = record.sessions?.find(s => !s.checkOut);
+        const openSession = record.sessions?.find(s => !s.checkOutTime);
         if (openSession) {
-            if (openSession.type === 'BREAK') return 'on-break';
+            // Check if on break
+            const onBreak = openSession.breaks?.some(b => !b.endTime);
+            if (onBreak) return 'on-break';
             return 'present';
         }
         
-        if (record.sessions?.length > 0 && record.sessions.every(s => s.checkOut)) {
+        if (record.sessions?.length > 0 && record.sessions.every(s => s.checkOutTime)) {
             return 'checked-out';
         }
         
         return 'absent';
     };
 
-    const isPrivilegedUser = user.role === Role.ADMIN_HR || user.role === Role.MANAGER;
+    const isPrivilegedUser = user?.role === 'ADMIN' || user?.role === 'HR';
     const subtitle = isPrivilegedUser 
         ? "View and manage team attendance for the current day." 
         : "View your team's attendance status for today.";
@@ -94,6 +67,8 @@ const TeamSnapshot: React.FC = () => {
             return status === statusFilter;
         });
     }, [employees, statusFilter, attendanceByEmployee]);
+
+    const loading = loadingEmployees || loadingAttendance;
 
     return (
         <div className="space-y-6">
@@ -137,7 +112,7 @@ const TeamSnapshot: React.FC = () => {
                 </div>
             </header>
 
-            {(loadingData && employees.length === 0) ? (
+            {(loading && employees.length === 0) ? (
                 <div className="text-center p-8 text-slate-500">Loading team data...</div>
             ) : (
                 <>

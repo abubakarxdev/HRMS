@@ -1,0 +1,15 @@
+model AuditLog {
+  id     String @id @default(uuid())
+  userId String
+
+  action     String // "MANUAL_CHECKOUT", "APPROVE_LEAVE"
+  targetType String // "AttendanceRecord", "LeaveRequest"
+  targetId   String
+  details    String? // JSON
+
+  timestamp DateTime @default(now()) @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
