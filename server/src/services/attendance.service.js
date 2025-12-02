@@ -211,41 +211,31 @@ const clockOut = async (employeeId, customTime = null, breakStart = null, breakE
 
     // Handle Break Creation if times are provided
     if (breakStart && breakEnd) {
-      // Parse HH:mm to Date objects relative to the session date
+      // Parse HH:mm to Date objects relative to the session date in the user's timezone
       // We assume the break happened on the same day as the session check-in
-      // or the check-out day. A safer bet for "default" breaks is usually relative to the day.
-      // However, since we receive HH:mm, we need to construct the full date.
+      // or the check-out day.
       
-      // Strategy: Use the date part of checkOutTime (or checkInTime) and combine with HH:mm
-      // If check-in and check-out are on different days, this gets tricky.
-      // For simplicity, we'll assume the break happened on the day of check-out 
-      // (most common for "I took a break today") OR we can try to be smart.
-      
-      // Let's use the date of the check-out time as the base.
-      const baseDate = new Date(checkOutTime);
+      // Use the check-out time as the base date, but ensure we respect the timezone
+      const baseDate = dateUtil.dayjs(checkOutTime).tz(timezone);
       const [startHour, startMin] = breakStart.split(':').map(Number);
       const [endHour, endMin] = breakEnd.split(':').map(Number);
       
-      const breakStartTime = new Date(baseDate);
-      breakStartTime.setHours(startHour, startMin, 0, 0);
+      const breakStartTime = baseDate.hour(startHour).minute(startMin).second(0).millisecond(0);
+      const breakEndTime = baseDate.hour(endHour).minute(endMin).second(0).millisecond(0);
       
-      const breakEndTime = new Date(baseDate);
-      breakEndTime.setHours(endHour, endMin, 0, 0);
-      
+      const checkInTimeDate = dateUtil.dayjs(openSession.checkInTime).tz(timezone);
+      const checkOutTimeDate = dateUtil.dayjs(checkOutTime).tz(timezone);
+
       // Validations
-      if (breakStartTime <= new Date(openSession.checkInTime)) {
-         // If break start is before check-in, maybe it was on the check-in day (if overnight)?
-         // But for now, let's enforce standard validation and throw error if invalid.
-         // Actually, let's try to fix the date if it looks wrong (e.g. overnight shift),
-         // but simpler to just validate for now.
+      if (breakStartTime.isBefore(checkInTimeDate)) {
          throw new Error("Break start time must be after clock in time.");
       }
       
-      if (breakEndTime <= breakStartTime) {
+      if (breakEndTime.isBefore(breakStartTime) || breakEndTime.isSame(breakStartTime)) {
         throw new Error("Break end time must be after break start time.");
       }
       
-      if (checkOutTime <= breakEndTime) {
+      if (checkOutTimeDate.isBefore(breakEndTime) || checkOutTimeDate.isSame(breakEndTime)) {
         throw new Error("Clock out time must be after break end time.");
       }
 
@@ -482,13 +472,42 @@ const getAttendanceStats = async (employeeId) => {
       });
     });
     
-    const minutesThisWeek = weekRecords.reduce((acc, curr) => 
-      acc + calculateRecordMinutes(curr, now), 0
-    );
+    // Helper to calculate minutes for a specific range
+    const calculateMinutesInRange = (records, startDate) => {
+      let totalMinutes = 0;
+      records.forEach(record => {
+        if (!record.sessions) return;
+        
+        record.sessions.forEach(session => {
+          if (!session.checkInTime) return;
+          
+          const checkInTime = new Date(session.checkInTime);
+          
+          // Only include sessions that actually started on or after the start date
+          if (checkInTime >= startDate) {
+             const sessionEndTime = session.checkOutTime ? new Date(session.checkOutTime) : now;
+             const grossDuration = dateUtil.calculateDurationMinutes(checkInTime, sessionEndTime);
+             
+             let totalBreakMinutes = 0;
+             if (session.breaks && session.breaks.length > 0) {
+               session.breaks.forEach(breakItem => {
+                 if (!breakItem.startTime) return;
+                 const breakStartTime = new Date(breakItem.startTime);
+                 let breakEndTime = breakItem.endTime ? new Date(breakItem.endTime) : now;
+                 if (breakEndTime > sessionEndTime) breakEndTime = sessionEndTime;
+                 totalBreakMinutes += dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime);
+               });
+             }
+             
+             totalMinutes += Math.max(0, grossDuration - totalBreakMinutes);
+          }
+        });
+      });
+      return Math.floor(totalMinutes);
+    };
 
-    const minutesThisMonth = monthRecords.reduce((acc, curr) => 
-      acc + calculateRecordMinutes(curr, now), 0
-    );
+    const minutesThisWeek = calculateMinutesInRange(weekRecords, startOfWeek);
+    const minutesThisMonth = calculateMinutesInRange(monthRecords, startOfMonth);
 
     return {
       minutesToday,

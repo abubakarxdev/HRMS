@@ -6,7 +6,10 @@ import { AttendanceRecord } from '../../types';
 import Button from '../ui/Button';
 import FourSquare from '../ui/FourSquare';
 
+import { useAuth } from '../../contexts/AuthContext';
+
 const SessionDetailsPage: React.FC = () => {
+    const { user } = useAuth();
     const { sessionId } = useParams<{ sessionId: string }>();
     const navigate = useNavigate();
     const [record, setRecord] = useState<AttendanceRecord | null>(null);
@@ -48,7 +51,7 @@ const SessionDetailsPage: React.FC = () => {
         return new Date(dateString).toLocaleTimeString('en-US', { 
             hour: '2-digit', 
             minute: '2-digit',
-            timeZone: 'Asia/Karachi'
+            timeZone: user?.timezone || 'Asia/Karachi'
         });
     };
 
@@ -123,7 +126,7 @@ const SessionDetailsPage: React.FC = () => {
                                             month: 'long', 
                                             day: 'numeric',
                                             year: 'numeric',
-                                            timeZone: 'Asia/Karachi'
+                                            timeZone: user?.timezone || 'Asia/Karachi'
                                         })}
                                     </h2>
                                     {record.employee && (

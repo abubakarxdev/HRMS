@@ -16,6 +16,7 @@ const ClockIcon = () => (
 
 const AttendanceWidget: React.FC = () => {
     const { user } = useAuth();
+    console.log('AttendanceWidget user:', user, 'Timezone:', user?.timezone);
     const { data: employees = [] } = useEmployees();
     const { data: todayRecord, isLoading: loadingToday } = useTodayAttendance(user?.employeeId || '');
     const { data: allAttendance = [] } = useAttendanceRecords();
@@ -25,7 +26,13 @@ const AttendanceWidget: React.FC = () => {
     const [modalAction, setModalAction] = useState<'in' | 'out'>('in');
     const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
 
-    const currentUserEmployee = employees.find(e => e.employeeId === user?.employeeId);
+    const currentUserEmployee = employees.find(e => e.id === user?.employeeId);
+    
+    // Use timezone from auth user (token) as it's the source of truth for the current session
+    // This matches TeamSnapshot logic which is working correctly
+    const userTimezone = user?.timezone || 'Asia/Karachi';
+
+    console.log("AttendanceWidget userTimezone:", userTimezone);
 
     const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -81,13 +88,37 @@ const AttendanceWidget: React.FC = () => {
             <Card title="My Attendance Today">
                 <div className="flex flex-col items-center space-y-4">
                     <ClockIcon />
-                    <p className="text-4xl font-mono font-bold text-slate-800">
-                        {currentTime.toLocaleTimeString('en-US')}
-                    </p>
+                    <div className="text-center">
+                        <div className="flex flex-col items-center gap-1">
+                            <span className="text-4xl font-mono font-bold text-slate-800">
+                                {currentTime.toLocaleTimeString('en-US', { timeZone: userTimezone })}
+                            </span>
+                            <span className="text-xs text-slate-500 font-mono font-medium bg-slate-100 px-2 py-0.5 rounded-full">
+                                {userTimezone}
+                            </span>
+                        </div>
+                        <p className="text-sm text-slate-500 font-medium mt-2">
+                            {currentTime.toLocaleDateString('en-US', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric',
+                                timeZone: userTimezone
+                            })}
+                        </p>
+                    </div>
                     <div className="text-center text-slate-600 h-10">
                         {loadingToday && <p>Updating...</p>}
-                        {!loadingToday && isClockedIn && <p>Clocked In: {new Date(activeSession!.checkInTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>}
-                        {!loadingToday && !isClockedIn && todayRecord?.sessions?.length && <p>Clocked Out: {new Date(todayRecord.sessions[todayRecord.sessions.length - 1].checkOutTime!).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>}
+                        {!loadingToday && isClockedIn && <p>Clocked In: {new Date(activeSession!.checkInTime).toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit',
+                            timeZone: userTimezone
+                        })}</p>}
+                        {!loadingToday && !isClockedIn && todayRecord?.sessions?.length && <p>Last Clock Out: {new Date(todayRecord.sessions[todayRecord.sessions.length - 1].checkOutTime!).toLocaleTimeString('en-US', { 
+                            hour: 'numeric', 
+                            minute: '2-digit',
+                            timeZone: userTimezone
+                        })}</p>}
                         {!loadingToday && !todayRecord && <p>Not clocked in yet.</p>}
                     </div>
                     <div className="flex space-x-4">
@@ -107,6 +138,7 @@ const AttendanceWidget: React.FC = () => {
                     employee={currentUserEmployee}
                     action={modalAction}
                     todayRecord={todayRecord || undefined}
+                    timezone={userTimezone}
                     onSuccess={() => {
                         // toast handled in hook
                         closeModal();

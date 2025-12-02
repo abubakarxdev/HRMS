@@ -7,6 +7,8 @@ import dayjs, { Dayjs } from 'dayjs';
 import { toast } from 'sonner';
 import { formatTime } from '../../utils/attendanceUtils';
 
+import { useAuth } from '../../contexts/AuthContext';
+
 interface ResolveMissingClockOutModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -15,6 +17,7 @@ interface ResolveMissingClockOutModalProps {
 }
 
 const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = ({ isOpen, onClose, record, onSuccess }) => {
+  const { user } = useAuth();
   const { mutateAsync: fixMissingClockOut, isPending: loading } = useFixMissingClockOut();
   
   // Time selection
@@ -154,8 +157,8 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
           {/* Warning Banner */}
           <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm">
             <p className="font-medium text-yellow-800 mb-1">⚠️ Missing Clock-Out Detected</p>
-            <p><strong>Date:</strong> {recordDate.toLocaleDateString()}</p>
-            <p><strong>Clocked In at:</strong> {openSession?.checkInTime ? new Date(openSession.checkInTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Unknown'}</p>
+            <p><strong>Date:</strong> {recordDate.toLocaleDateString('en-US', { timeZone: user?.timezone || 'Asia/Karachi' })}</p>
+            <p><strong>Clocked In at:</strong> {openSession?.checkInTime ? new Date(openSession.checkInTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: user?.timezone || 'Asia/Karachi' }) : 'Unknown'}</p>
             <p className="text-yellow-700 mt-2">Please complete your clock-out for this day.</p>
           </div>
 
@@ -163,7 +166,7 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
             <div className="mb-3">
               <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
               <div className="p-2 bg-slate-100 border border-slate-200 rounded text-slate-600">
-                {recordDate.toLocaleDateString()}
+                {recordDate.toLocaleDateString('en-US', { timeZone: user?.timezone || 'Asia/Karachi' })}
               </div>
             </div>
             <div className="mb-3">
@@ -174,6 +177,7 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
                     setClockOutTime(newValue);
                   }}
                   slotProps={{ textField: { fullWidth: true } }}
+                  timezone={user?.timezone || 'Asia/Karachi'}
                 />
             </div>
             
@@ -186,6 +190,7 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
                         setBreakStartTime(newValue);
                       }}
                       slotProps={{ textField: { fullWidth: true } }}
+                      timezone={user?.timezone || 'Asia/Karachi'}
                     />
                 </div>
                 <div>
@@ -196,6 +201,7 @@ const ResolveMissingClockOutModal: React.FC<ResolveMissingClockOutModalProps> = 
                         setBreakEndTime(newValue);
                       }}
                       slotProps={{ textField: { fullWidth: true } }}
+                      timezone={user?.timezone || 'Asia/Karachi'}
                     />
                 </div>
             </div>

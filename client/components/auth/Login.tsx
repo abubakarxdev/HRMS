@@ -4,6 +4,7 @@ import Button from '../ui/Button';
 import loginBg from '../../assets/login-bg.avif';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import FormField from '../ui/FormField';
 
 const LogoIcon = () => (
     <svg className="h-10 w-10 text-indigo-600" viewBox="0 0 24 24" fill="currentColor">
@@ -96,34 +97,28 @@ const Login: React.FC = () => {
 
                     <form className="space-y-6" onSubmit={handleSubmit}>
                         <div className="space-y-5">
-                            <div className="relative group">
-                                <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5 ml-1">Email address</label>
-                                <input 
-                                    id="email"
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    className="block w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all duration-200 outline-none"
-                                    placeholder="Enter your email"
-                                />
-                            </div>
-                            <div className="relative group">
-                                <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5 ml-1">Password</label>
-                                <input 
-                                    id="password"
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    className="block w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white transition-all duration-200 outline-none"
-                                    placeholder="Enter your password"
-                                />
-                            </div>
+                            <FormField
+                                id="email"
+                                label="Email address"
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                placeholder="Enter your email"
+                                className="w-full"
+                            />
+                            <FormField
+                                id="password"
+                                label="Password"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                placeholder="Enter your password"
+                                className="w-full"
+                            />
                         </div>
                         
-
-
                         <Button 
                             type="submit" 
                             className="w-full py-4 text-lg font-semibold rounded-xl shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5 transition-all duration-300 bg-indigo-600 hover:bg-indigo-700" 

@@ -25,8 +25,9 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
   useEffect(() => {
     const calculateAllHours = () => {
         const now = new Date();
-        // Enforce Asia/Karachi timezone
-        const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+        const userTimezone = user?.timezone || 'Asia/Karachi';
+        // Use user's timezone for "today" check
+        const todayStr = now.toLocaleDateString('en-CA', { timeZone: userTimezone });
 
         let liveHoursToday = 0;
         if (todayRecord) {
@@ -65,18 +66,27 @@ const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employe
             }
         }
 
-        const startOfWeek = new Date(now);
-        startOfWeek.setHours(0,0,0,0);
-        startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        // Calculate start of week/month in User's Timezone
+        // This is tricky in JS without a library like date-fns-tz, but we can approximate
+        // or rely on the backend stats. 
+        // Ideally, this component should just receive stats from the parent or a hook, 
+        // rather than calculating them itself, to avoid logic duplication and timezone bugs.
+        // But for now, let's fix the filtering.
 
         const pastRecords = attendance.filter(r => {
             if (String(r.employeeId) !== String(employee.id)) return false;
             
-            // Convert record date to Asia/Karachi to check if it's "today"
-            const recordDatePKT = new Date(r.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
-            return recordDatePKT !== todayStr;
+            // Convert record date to User's Timezone to check if it's "today"
+            const recordDateUser = new Date(r.date).toLocaleDateString('en-CA', { timeZone: userTimezone });
+            return recordDateUser !== todayStr;
         });
+
+        // Simple approximation for week/month start (local time) - this might still be slightly off
+        // if the browser timezone differs from user timezone, but it's better than hardcoded Karachi.
+        const startOfWeek = new Date(now);
+        startOfWeek.setHours(0,0,0,0);
+        startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
         const completedHoursWeek = pastRecords
             .filter(r => {

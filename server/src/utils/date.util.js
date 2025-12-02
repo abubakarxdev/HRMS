@@ -97,6 +97,13 @@ const calculateDurationMinutes = (startTime, endTime) => {
   return Math.floor(diff / (1000 * 60));
 };
 
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 module.exports = {
   getNow,
   getStartOfDay,
@@ -105,4 +112,5 @@ module.exports = {
   formatDuration,
   calculateDurationMinutes,
   DEFAULT_TIMEZONE,
+  dayjs,
 };

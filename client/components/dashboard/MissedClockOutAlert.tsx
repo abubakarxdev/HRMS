@@ -1,6 +1,7 @@
 import React from 'react';
 import { AttendanceRecord } from '../../types';
 import Button from '../ui/Button';
+import dayjs from 'dayjs';
 
 interface MissedClockOutAlertProps {
   record: AttendanceRecord;
@@ -15,7 +16,7 @@ const MissedClockOutAlert: React.FC<MissedClockOutAlertProps> = ({ record, onRes
           <p className="font-bold">Action Required</p>
           <p>
             You have a missing clock-out for{' '}
-            <strong>{new Date(record.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong>. 
+            <strong>{dayjs(record.date).format('dddd, MMMM D, YYYY')}</strong>. 
             Please resolve this to ensure your records are accurate.
           </p>
         </div>

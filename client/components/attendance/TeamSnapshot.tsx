@@ -20,17 +20,18 @@ const TeamSnapshot: React.FC = () => {
 
     const attendanceByEmployee = useMemo(() => {
         const map = new Map();
-        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+        const userTimezone = user?.timezone || 'Asia/Karachi';
+        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone });
         
         allRecords.forEach(a => {
             // Only include if the record date itself is today
-            const recordDatePKT = new Date(a.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+            const recordDatePKT = new Date(a.date).toLocaleDateString('en-CA', { timeZone: userTimezone });
             if (recordDatePKT === todayLocal) {
                 map.set(String(a.employeeId), a);
             }
         });
         return map;
-    }, [allRecords]);
+    }, [allRecords, user?.timezone]);
 
     const getEmployeeStatus = (employeeId: string): string => {
         const record = attendanceByEmployee.get(String(employeeId));
