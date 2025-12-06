@@ -13,21 +13,26 @@ import { toast } from 'sonner';
 /**
  * Hook to get all attendance records
  */
-export const useAttendanceRecords = () => {
+/**
+ * Hook to get all attendance records
+ */
+export const useAttendanceRecords = (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string) => {
   return useQuery({
-    queryKey: queryKeys.attendance.all,
-    queryFn: () => attendanceService.getAll(),
+    queryKey: queryKeys.attendance.list({ page, limit, startDate, endDate, status }),
+    queryFn: () => attendanceService.getAll(page, limit, startDate, endDate, status),
+    placeholderData: (previousData) => previousData,
   });
 };
 
 /**
  * Hook to get attendance by employee ID
  */
-export const useEmployeeAttendance = (employeeId: string, startDate?: string, endDate?: string) => {
+export const useEmployeeAttendance = (employeeId: string, startDate?: string, endDate?: string, status?: string, page = 1, limit = 10) => {
   return useQuery({
-    queryKey: queryKeys.attendance.byEmployee(employeeId, startDate, endDate),
-    queryFn: () => attendanceService.getByEmployeeId(employeeId, startDate, endDate),
+    queryKey: queryKeys.attendance.byEmployee(employeeId, startDate, endDate, status, page, limit),
+    queryFn: () => attendanceService.getByEmployeeId(employeeId, startDate, endDate, status, page, limit),
     enabled: !!employeeId,
+    placeholderData: (previousData) => previousData,
   });
 };
 
