@@ -70,7 +70,8 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
   
   const { data: employee, isLoading: loadingEmployee } = useEmployee(employeeId);
   const { data: employees = [] } = useEmployees(); // For manager lookup
-  const { data: attendance = [], isLoading: loadingAttendance } = useEmployeeAttendance(employeeId);
+  const { data: response, isLoading: loadingAttendance } = useEmployeeAttendance(employeeId);
+  const attendance = response?.data || [];
   const { data: auditLogs = [], isLoading: loadingLogs } = useEmployeeAuditLogs(employeeId);
 
   const loading = loadingEmployee || loadingAttendance || loadingLogs;
