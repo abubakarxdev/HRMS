@@ -98,13 +98,87 @@ const getAllAttendance = async () => {
 };
 
 /**
+ * Ensure attendance records exist for a date range
+ */
+const ensureAttendanceRecords = async (employeeId, startDate, endDate) => {
+  try {
+    const { employeeId: empId, timezone } = await getEmployeeInfo(employeeId);
+    
+    const now = dateUtil.getNow();
+    const todayStart = dateUtil.getStartOfDay(now, timezone);
+    
+    // Determine end date for backfill (max yesterday)
+    let end;
+    if (endDate) {
+      end = dateUtil.getStartOfDay(new Date(endDate), timezone);
+      if (end >= todayStart) {
+        end = new Date(todayStart);
+        end.setDate(end.getDate() - 1);
+      }
+    } else {
+      end = new Date(todayStart);
+      end.setDate(end.getDate() - 1);
+    }
+    
+    // Determine start date
+    let start;
+    if (startDate) {
+      start = dateUtil.getStartOfDay(new Date(startDate), timezone);
+    } else {
+      start = new Date(end);
+      start.setDate(start.getDate() - 30);
+    }
+
+    // Iterate and create missing records
+    let currentDate = new Date(start);
+    while (currentDate <= end) {
+        const recordDate = new Date(currentDate);
+        
+        // Check if record exists
+        const existingRecord = await attendanceRepository.findAttendanceRecord(empId, recordDate);
+        
+        if (!existingRecord) {
+            // Determine status using dayjs and timezone
+            const dayOfWeek = dateUtil.dayjs(recordDate).tz(timezone).day(); // 0=Sun, 6=Sat
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            const status = isWeekend ? 'OFF' : 'ABSENT';
+            
+            await attendanceRepository.createAttendanceRecord({
+                employeeId: empId,
+                date: recordDate,
+                status: status,
+                totalWorkMinutes: 0,
+                totalBreakMinutes: 0
+            });
+        }
+        
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+  } catch (error) {
+    console.error(`Error ensuring attendance records: ${error.message}`);
+  }
+};
+
+/**
  * Get attendance records for a specific employee
  * @param {string} employeeId
+ * @param {string} startDate - Optional start date
+ * @param {string} endDate - Optional end date
  * @returns {Promise<Array>}
  */
-const getAttendanceForEmployee = async (employeeId) => {
+const getAttendanceForEmployee = async (employeeId, startDate = null, endDate = null) => {
   try {
-    const { employeeId: empId } = await getEmployeeInfo(employeeId);
+    const { employeeId: empId, timezone } = await getEmployeeInfo(employeeId);
+    
+    // Ensure records exist for the requested range (or default range)
+    await ensureAttendanceRecords(employeeId, startDate, endDate);
+    
+    if (startDate || endDate) {
+        const start = startDate ? dateUtil.getStartOfDay(new Date(startDate), timezone) : undefined;
+        const end = endDate ? dateUtil.getStartOfDay(new Date(endDate), timezone) : undefined;
+        return await attendanceRepository.findAttendanceRecordsByDateRange(empId, start, end);
+    }
+    
     return await attendanceRepository.findAttendanceByEmployeeId(empId);
   } catch (error) {
     throw new Error(`Error fetching employee attendance: ${error.message}`);
