@@ -4,6 +4,7 @@ import dayjs from 'dayjs';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useAttendanceRecords, useEmployeeAttendance } from '../../hooks/useAttendance';
+import { useAllLeaveRequests } from '../../hooks/useLeaves';
 import StatCard from './StatCard';
 import ApprovalsPanel from './ApprovalsPanel';
 import AttendanceCard from '../attendance/AttendanceCard';
@@ -42,6 +43,10 @@ const ManagerDashboard: React.FC = () => {
     const { data: userHistoryResponse } = useEmployeeAttendance(user?.employeeId || '', undefined, undefined, undefined, 1, 50);
     const userHistory = userHistoryResponse?.data || [];
     
+    // 3. Fetch pending approvals count
+    const { data: pendingLeavesResponse } = useAllLeaveRequests(1, 1, 'Pending');
+    const pendingApprovalsCount = pendingLeavesResponse?.meta?.total || 0;
+
     const [isHolidaysModalOpen, setIsHolidaysModalOpen] = useState(false);
     const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
 
@@ -89,6 +94,7 @@ const ManagerDashboard: React.FC = () => {
 
     return (
         <div className="space-y-8">
+            {/* ... (keep existing alerts and header) */}
             {recordToFix && (
                 <MissedClockOutAlert 
                     record={recordToFix}
@@ -106,7 +112,7 @@ const ManagerDashboard: React.FC = () => {
                 <StatCard title="Total Employees" value={employees.length} />
                 <StatCard title="Checked In Today" value={todayAttendanceStats.checkedIn} />
                 <StatCard title="On Leave Today" value={todayAttendanceStats.onLeave} />
-                <StatCard title="Pending Approvals" value={0} />
+                <StatCard title="Pending Approvals" value={pendingApprovalsCount} />
             </div>
 
             {/* Attendance Section - Side by Side */}

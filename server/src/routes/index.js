@@ -15,6 +15,9 @@ router.use("/audit-logs", auditRoutes);
 // Mount attendance routes
 router.use("/attendance", attendanceRoutes);
 
+// Mount leaves routes
+router.use("/leaves", require("./leaves.routes"));
+
 // Mount employee routes
 router.use("/", employeeRoutes);
 

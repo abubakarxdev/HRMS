@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployeeAttendance } from '../../hooks/useAttendance';
+import { useMyLeaveRequests } from '../../hooks/useLeaves';
 import Card from '../ui/Card';
 import AttendanceCard from '../attendance/AttendanceCard';
 import AttendanceSummaryCard from '../attendance/AttendanceSummaryCard';
@@ -31,8 +32,9 @@ ChartJS.register(
 
 const EmployeeDashboard: React.FC = () => {
   const { user } = useAuth();
-  const { data: response, isLoading } = useEmployeeAttendance(user?.employeeId || '');
-  const attendanceHistory = response?.data || [];
+  const { data: attendanceResponse, isLoading: attendanceLoading } = useEmployeeAttendance(user?.employeeId || '');
+  const { data: response, isLoading: leavesLoading } = useMyLeaveRequests(1, 5, 'Pending'); // Fetch recent 5 pending requests
+  const attendanceHistory = attendanceResponse?.data || [];
 
   // Prepare chart data - last 7 days
   const chartData = useMemo(() => {
@@ -145,7 +147,7 @@ const EmployeeDashboard: React.FC = () => {
     },
   };
 
-  if (isLoading) {
+  if (attendanceLoading || leavesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <FourSquare />
@@ -179,11 +181,46 @@ const EmployeeDashboard: React.FC = () => {
       </Card>
 
       {/* Leave Request Status - Placeholder for now */}
-      <Card title="Leave Requests">
-        <div className="text-center py-8 text-slate-500">
-          <p>No leave requests to display</p>
-          <p className="text-sm mt-2">Leave management feature coming soon</p>
-        </div>
+      {/* Leave Request Status */}
+      <Card title="Pending Leave Requests">
+        {response?.data && response.data.length > 0 ? (
+          <div className="space-y-4">
+            {response.data.map((request: any) => (
+              <div key={request.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100 hover:shadow-sm transition-shadow">
+                <div className="flex items-center space-x-4">
+                  <div className={`p-2 rounded-full ${
+                    request.leaveType === 'Sick' ? 'bg-red-100 text-red-600' :
+                    request.leaveType === 'Annual' ? 'bg-blue-100 text-blue-600' :
+                    'bg-yellow-100 text-yellow-600'
+                  }`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-800">{request.leaveType} Leave</p>
+                    <p className="text-sm text-slate-500">
+                      {new Date(request.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(request.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                    Pending
+                  </span>
+                </div>
+              </div>
+            ))}
+            <div className="text-center pt-2">
+              <a href="/leaves" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">View All History &rarr;</a>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-slate-500">
+            <p>No pending leave requests</p>
+            <a href="/leaves" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium mt-2 inline-block">View History &rarr;</a>
+          </div>
+        )}
       </Card>
     </div>
   );

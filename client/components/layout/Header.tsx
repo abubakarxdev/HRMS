@@ -17,6 +17,8 @@ const getPageTitle = (pathname: string): string => {
     if (pathname === '/') return 'Dashboard';
     if (pathname.startsWith('/employees')) return 'Employees';
     if (pathname.startsWith('/attendance')) return 'Attendance';
+    if (pathname.startsWith('/admin/leaves')) return 'Leave Requests';
+    if (pathname.startsWith('/leaves')) return 'Leaves';
     return 'Dashboard';
 };
 

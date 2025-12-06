@@ -7,6 +7,8 @@ export const NAVIGATION_PATHS = {
     ATTENDANCE: '/attendance',
     ATTENDANCE_LOG: '/attendance/log',
     TEAM_ATTENDANCE: '/attendance/team',
+    LEAVES: '/leaves',
+    LEAVE_REQUESTS: '/admin/leaves',
 };
 
 
@@ -36,5 +38,15 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
         path: NAVIGATION_PATHS.TEAM_ATTENDANCE,
         label: 'Team Attendance',
         roles: [Role.MANAGER, Role.ADMIN, Role.HR, Role.EMPLOYEE],
+    },
+    {
+        path: NAVIGATION_PATHS.LEAVES,
+        label: 'Leaves',
+        roles: [Role.ADMIN, Role.HR, Role.MANAGER, Role.EMPLOYEE],
+    },
+    {
+        path: NAVIGATION_PATHS.LEAVE_REQUESTS,
+        label: 'Leave Requests',
+        roles: [Role.ADMIN, Role.HR],
     },
 ];
