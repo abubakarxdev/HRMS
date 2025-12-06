@@ -10,6 +10,7 @@ import type {
   EndBreakRequest,
   EndBreakResponse,
   FixMissingClockOutRequest,
+  PaginatedResponse,
 } from '../types/attendance.types';
 
 /**
@@ -20,20 +21,26 @@ export const attendanceService = {
   /**
    * Get all attendance records
    */
-  getAll: async (): Promise<AttendanceRecord[]> => {
-    const response = await apiClient.get<AttendanceRecord[]>('/attendance');
+  getAll: async (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string): Promise<PaginatedResponse<AttendanceRecord>> => {
+    let url = `/attendance?page=${page}&limit=${limit}`;
+    if (startDate) url += `&startDate=${startDate}`;
+    if (endDate) url += `&endDate=${endDate}`;
+    if (status) url += `&status=${status}`;
+
+    const response = await apiClient.get<PaginatedResponse<AttendanceRecord>>(url);
     return response.data;
   },
 
   /**
    * Get attendance records for specific employee
    */
-  getByEmployeeId: async (employeeId: string, startDate?: string, endDate?: string): Promise<AttendanceRecord[]> => {
-    let url = `/attendance/employee/${employeeId}`;
-    if (startDate && endDate) {
-      url += `?startDate=${startDate}&endDate=${endDate}`;
-    }
-    const response = await apiClient.get<AttendanceRecord[]>(url);
+  getByEmployeeId: async (employeeId: string, startDate?: string, endDate?: string, status?: string, page = 1, limit = 10): Promise<PaginatedResponse<AttendanceRecord>> => {
+    let url = `/attendance/employee/${employeeId}?page=${page}&limit=${limit}`;
+    if (startDate) url += `&startDate=${startDate}`;
+    if (endDate) url += `&endDate=${endDate}`;
+    if (status) url += `&status=${status}`;
+
+    const response = await apiClient.get<PaginatedResponse<AttendanceRecord>>(url);
     return response.data;
   },
 
