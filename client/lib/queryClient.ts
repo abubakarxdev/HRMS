@@ -31,8 +31,9 @@ export const queryKeys = {
   // Attendance
   attendance: {
     all: ['attendance'] as const,
-    byEmployee: (employeeId: string, startDate?: string, endDate?: string) =>
-      ['attendance', 'employee', employeeId, startDate, endDate] as const,
+    list: (params: any) => ['attendance', 'list', params] as const,
+    byEmployee: (employeeId: string, startDate?: string, endDate?: string, status?: string, page?: number, limit?: number) =>
+      ['attendance', 'employee', employeeId, startDate, endDate, status, page, limit] as const,
     detail: (id: string) => ['attendance', id] as const,
     today: (employeeId: string, date?: string) =>
       ['attendance', 'today', employeeId, date] as const,
