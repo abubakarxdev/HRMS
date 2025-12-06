@@ -23,10 +23,10 @@ export const useAttendanceRecords = () => {
 /**
  * Hook to get attendance by employee ID
  */
-export const useEmployeeAttendance = (employeeId: string) => {
+export const useEmployeeAttendance = (employeeId: string, startDate?: string, endDate?: string) => {
   return useQuery({
-    queryKey: queryKeys.attendance.byEmployee(employeeId),
-    queryFn: () => attendanceService.getByEmployeeId(employeeId),
+    queryKey: queryKeys.attendance.byEmployee(employeeId, startDate, endDate),
+    queryFn: () => attendanceService.getByEmployeeId(employeeId, startDate, endDate),
     enabled: !!employeeId,
   });
 };
