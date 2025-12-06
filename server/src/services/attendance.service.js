@@ -86,12 +86,35 @@ const updateRecordTotals = async (recordId) => {
 };
 
 /**
- * Get all attendance records
- * @returns {Promise<Array>}
+ * Get all attendance records with pagination and filtering
+ * @returns {Promise<Object>}
  */
-const getAllAttendance = async () => {
+const getAllAttendance = async (page = 1, limit = 10, startDate = null, endDate = null, status = 'all') => {
   try {
-    return await attendanceRepository.findAllAttendance();
+    const skip = (page - 1) * limit;
+    const take = parseInt(limit);
+
+    // Convert dates if provided
+    // Note: We don't have a specific timezone here as it's "all employees", 
+    // so we might need to rely on UTC or server time, or expect ISO strings.
+    // Assuming ISO strings or YYYY-MM-DD from frontend.
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+
+    const [data, total] = await Promise.all([
+      attendanceRepository.findAllAttendance({ startDate: start, endDate: end, status, skip, take }),
+      attendanceRepository.countAllAttendance({ startDate: start, endDate: end, status })
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   } catch (error) {
     throw new Error(`Error fetching all attendance: ${error.message}`);
   }
@@ -160,26 +183,42 @@ const ensureAttendanceRecords = async (employeeId, startDate, endDate) => {
 };
 
 /**
- * Get attendance records for a specific employee
+ * Get attendance records for a specific employee with pagination
  * @param {string} employeeId
  * @param {string} startDate - Optional start date
  * @param {string} endDate - Optional end date
- * @returns {Promise<Array>}
+ * @param {string} status - Optional status filter
+ * @param {number} page
+ * @param {number} limit
+ * @returns {Promise<Object>}
  */
-const getAttendanceForEmployee = async (employeeId, startDate = null, endDate = null) => {
+const getAttendanceForEmployee = async (employeeId, startDate = null, endDate = null, status = 'all', page = 1, limit = 10) => {
   try {
     const { employeeId: empId, timezone } = await getEmployeeInfo(employeeId);
     
     // Ensure records exist for the requested range (or default range)
     await ensureAttendanceRecords(employeeId, startDate, endDate);
     
-    if (startDate || endDate) {
-        const start = startDate ? dateUtil.getStartOfDay(new Date(startDate), timezone) : undefined;
-        const end = endDate ? dateUtil.getStartOfDay(new Date(endDate), timezone) : undefined;
-        return await attendanceRepository.findAttendanceRecordsByDateRange(empId, start, end);
-    }
+    const start = startDate ? dateUtil.getStartOfDay(new Date(startDate), timezone) : undefined;
+    const end = endDate ? dateUtil.getStartOfDay(new Date(endDate), timezone) : undefined;
     
-    return await attendanceRepository.findAttendanceByEmployeeId(empId);
+    const skip = (page - 1) * limit;
+    const take = parseInt(limit);
+
+    const [data, total] = await Promise.all([
+      attendanceRepository.findAttendanceRecordsByDateRange(empId, start, end, status, skip, take),
+      attendanceRepository.countAttendanceRecordsByDateRange(empId, start, end, status)
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   } catch (error) {
     throw new Error(`Error fetching employee attendance: ${error.message}`);
   }
