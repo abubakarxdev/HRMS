@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import dayjs from 'dayjs';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useAttendanceRecords } from '../../hooks/useAttendance';
@@ -38,14 +39,14 @@ const ManagerDashboard: React.FC = () => {
     if (!user) return null;
 
     const recordToFix = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = dayjs().format('YYYY-MM-DD');
         const userAttendance = attendance
             .filter(a => a.employeeId === user.employeeId)
-            .sort((a, b) => b.date.localeCompare(a.date));
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
         // Find records with active sessions (no checkOut) that are not from today
         return userAttendance.find(a => 
-            a.sessions?.some(s => !s.checkOutTime) && a.date !== today
+            a.sessions?.some(s => !s.checkOutTime) && dayjs(a.date).format('YYYY-MM-DD') !== today
         );
     }, [attendance, user.employeeId]);
 
