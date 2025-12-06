@@ -18,6 +18,8 @@ import AddEmployeeForm from "./components/employees/AddEmployeeForm";
 import AttendanceLog from "./components/attendance/AttendanceLog";
 import SessionDetailsPage from "./components/attendance/SessionDetailsPage";
 import TeamSnapshot from "./components/attendance/TeamSnapshot";
+import LeavesPage from "./pages/LeavesPage";
+import LeaveRequestsPage from "./pages/admin/LeaveRequestsPage";
 import { NAVIGATION_PATHS } from "./constants";
 import Login from "./components/auth/Login";
 import Toaster from "./components/ui/Toaster";
@@ -100,6 +102,14 @@ const Main: React.FC = () => {
         <Route
           path="/attendance/session/:sessionId"
           element={<SessionDetailsPage />}
+        />
+        <Route
+          path={NAVIGATION_PATHS.LEAVES}
+          element={<LeavesPage />}
+        />
+        <Route
+          path={NAVIGATION_PATHS.LEAVE_REQUESTS}
+          element={<LeaveRequestsPage />}
         />
         <Route
           path="*"
