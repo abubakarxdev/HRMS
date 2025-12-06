@@ -8,7 +8,12 @@ import { Role } from '../../types';
 const TeamSnapshot: React.FC = () => {
     const { user } = useAuth();
     const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
-    const { data: allRecords = [], isLoading: loadingAttendance } = useAttendanceRecords();
+    const userTimezone = user?.timezone || 'Asia/Karachi';
+    const todayLocal = useMemo(() => new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }), [userTimezone]);
+
+    // Fetch today's records, limit 200 to cover all employees
+    const { data: response, isLoading: loadingAttendance } = useAttendanceRecords(1, 200, todayLocal, todayLocal);
+    const allRecords = response?.data || [];
     
     const [currentTime, setCurrentTime] = useState(new Date());
     const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -20,18 +25,13 @@ const TeamSnapshot: React.FC = () => {
 
     const attendanceByEmployee = useMemo(() => {
         const map = new Map();
-        const userTimezone = user?.timezone || 'Asia/Karachi';
-        const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone });
         
         allRecords.forEach(a => {
-            // Only include if the record date itself is today
-            const recordDatePKT = new Date(a.date).toLocaleDateString('en-CA', { timeZone: userTimezone });
-            if (recordDatePKT === todayLocal) {
-                map.set(String(a.employeeId), a);
-            }
+            // Backend already filtered by date, but double check or just map
+            map.set(String(a.employeeId), a);
         });
         return map;
-    }, [allRecords, user?.timezone]);
+    }, [allRecords]);
 
     const getEmployeeStatus = (employeeId: string): string => {
         const record = attendanceByEmployee.get(String(employeeId));
