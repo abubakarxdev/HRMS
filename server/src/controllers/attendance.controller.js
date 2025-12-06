@@ -20,7 +20,8 @@ const getAllAttendance = asyncHandler(async (req, res) => {
  */
 const getAttendanceForEmployee = asyncHandler(async (req, res) => {
   const { employeeId } = req.params;
-  const attendance = await attendanceService.getAttendanceForEmployee(employeeId);
+  const { startDate, endDate } = req.query;
+  const attendance = await attendanceService.getAttendanceForEmployee(employeeId, startDate, endDate);
   res.status(200).json(attendance);
 });
 
