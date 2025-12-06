@@ -3,6 +3,7 @@ enum AttendanceStatus {
   ABSENT
   ON_LEAVE
   HALF_DAY
+  OFF
 }
 
 enum SessionStatus {
