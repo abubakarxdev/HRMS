@@ -28,8 +28,12 @@ export const attendanceService = {
   /**
    * Get attendance records for specific employee
    */
-  getByEmployeeId: async (employeeId: string): Promise<AttendanceRecord[]> => {
-    const response = await apiClient.get<AttendanceRecord[]>(`/attendance/employee/${employeeId}`);
+  getByEmployeeId: async (employeeId: string, startDate?: string, endDate?: string): Promise<AttendanceRecord[]> => {
+    let url = `/attendance/employee/${employeeId}`;
+    if (startDate && endDate) {
+      url += `?startDate=${startDate}&endDate=${endDate}`;
+    }
+    const response = await apiClient.get<AttendanceRecord[]>(url);
     return response.data;
   },
 
