@@ -6,7 +6,8 @@ import { useAttendanceRecords } from '../../hooks/useAttendance';
 
 const AttendanceReport: React.FC = () => {
     const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
-    const { data: attendance = [], isLoading: loadingAttendance } = useAttendanceRecords();
+    const { data: response, isLoading: loadingAttendance } = useAttendanceRecords(1, 1000);
+    const attendance = response?.data || [];
     
     const loading = loadingEmployees || loadingAttendance;
 

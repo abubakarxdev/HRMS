@@ -9,7 +9,10 @@ ChartJS.register(ArcElement, Tooltip, Legend);
 
 const AttendanceStatsCard: React.FC = () => {
     const { data: employees = [] } = useEmployees();
-    const { data: allRecords = [], isLoading: loading } = useAttendanceRecords();
+    // Get today's date in Asia/Karachi time YYYY-MM-DD
+    const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+    const { data: response, isLoading: loading } = useAttendanceRecords(1, 1000, todayLocal, todayLocal);
+    const allRecords = response?.data || [];
     const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([]);
 
     useEffect(() => {

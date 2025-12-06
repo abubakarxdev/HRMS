@@ -3,7 +3,7 @@ import Card from '../ui/Card';
 import Button from '../ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployees } from '../../hooks/useEmployees';
-import { useTodayAttendance, useAttendanceRecords } from '../../hooks/useAttendance';
+import { useTodayAttendance, useAttendanceRecords, useEmployeeAttendance } from '../../hooks/useAttendance';
 import ClockActionModal from '../attendance/ClockActionModal';
 import ResolveMissingClockOutModal from '../attendance/ResolveMissingClockOutModal';
 import { toast } from 'sonner';
@@ -19,7 +19,8 @@ const AttendanceWidget: React.FC = () => {
     console.log('AttendanceWidget user:', user, 'Timezone:', user?.timezone);
     const { data: employees = [] } = useEmployees();
     const { data: todayRecord, isLoading: loadingToday } = useTodayAttendance(user?.employeeId || '');
-    const { data: allAttendance = [] } = useAttendanceRecords();
+    const { data: historyResponse } = useEmployeeAttendance(user?.employeeId || '', undefined, undefined, undefined, 1, 50);
+    const allAttendance = historyResponse?.data || [];
     
     const [currentTime, setCurrentTime] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);

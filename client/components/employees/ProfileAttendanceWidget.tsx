@@ -18,7 +18,8 @@ interface ProfileAttendanceWidgetProps {
 
 const ProfileAttendanceWidget: React.FC<ProfileAttendanceWidgetProps> = ({ employee }) => {
     const { data: todayRecord, isLoading: loadingToday } = useTodayAttendance(employee.id);
-    const { data: allAttendance = [] } = useAttendanceRecords();
+    const { data: response } = useAttendanceRecords();
+    const allAttendance = response?.data || [];
     
     const [currentTime, setCurrentTime] = useState(new Date());
     const [isModalOpen, setIsModalOpen] = useState(false);

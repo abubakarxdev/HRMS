@@ -22,7 +22,8 @@ const AttendanceCard: React.FC = () => {
   const navigate = useNavigate();
   const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
   const { data: todayRecord, refetch } = useTodayAttendance(user?.employeeId || '', today);
-  const { data: attendanceHistory = [] } = useEmployeeAttendance(user?.employeeId || '');
+  const { data: response } = useEmployeeAttendance(user?.employeeId || '');
+  const attendanceHistory = response?.data || [];
   
   // Check for pending checkout from previous days
   const pendingRecord = useMemo(() => {

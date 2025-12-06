@@ -17,7 +17,8 @@ const formatHoursMinutes = (decimalHours: number): string => {
 
 const EmployeeAttendanceCard: React.FC<EmployeeAttendanceCardProps> = ({ employee, todayRecord }) => {
   const { user } = useAuth();
-  const { data: attendance = [] } = useAttendanceRecords();
+  const { data: response } = useAttendanceRecords();
+  const attendance = response?.data || [];
   const [workedHours, setWorkedHours] = useState({ today: 0, week: 0, month: 0 });
 
   const today = useMemo(() => new Date().toLocaleDateString('en-CA'), []);

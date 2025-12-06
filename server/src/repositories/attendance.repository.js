@@ -41,14 +41,26 @@ const findUserById = async (id) => {
 };
 
 /**
- * Find all attendance records with sessions and breaks
+ * Find all attendance records with sessions and breaks, supporting filtering and pagination
  */
-const findAllAttendance = async () => {
+const findAllAttendance = async ({ startDate, endDate, status, skip, take } = {}) => {
   try {
+    const where = {};
+    if (status && status !== 'all') where.status = status;
+    
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = startDate;
+      if (endDate) where.date.lte = endDate;
+    }
+
     return await prisma.attendanceRecord.findMany({
+      where,
       orderBy: {
         date: "desc",
       },
+      skip,
+      take,
       include: {
         sessions: {
           include: {
@@ -67,6 +79,118 @@ const findAllAttendance = async () => {
     });
   } catch (error) {
     throw new Error(`Error finding all attendance: ${error.message}`);
+  }
+};
+
+/**
+ * Count all attendance records matching filters
+ */
+const countAllAttendance = async ({ startDate, endDate, status } = {}) => {
+  try {
+    const where = {};
+    if (status && status !== 'all') where.status = status;
+    
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = startDate;
+      if (endDate) where.date.lte = endDate;
+    }
+
+    return await prisma.attendanceRecord.count({ where });
+  } catch (error) {
+    throw new Error(`Error counting all attendance: ${error.message}`);
+  }
+};
+
+/**
+ * Find attendance records by date range with pagination and status filter
+ */
+const findAttendanceRecordsByDateRange = async (employeeId, startDate, endDate, status, skip, take) => {
+  try {
+    const whereClause = {
+      employeeId: employeeId,
+    };
+
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+
+    if (startDate && endDate) {
+      whereClause.date = {
+        gte: startDate,
+        lte: endDate,
+      };
+    } else if (startDate) {
+      whereClause.date = {
+        gte: startDate,
+      };
+    } else if (endDate) {
+      whereClause.date = {
+        lte: endDate,
+      };
+    }
+
+    return await prisma.attendanceRecord.findMany({
+      where: whereClause,
+      orderBy: {
+        date: "desc",
+      },
+      skip,
+      take,
+      include: {
+        sessions: {
+          include: {
+            breaks: true
+          }
+        },
+        employee: {
+          select: {
+            id: true,
+            employeeIdNumber: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      }
+    });
+  } catch (error) {
+    throw new Error(`Error finding attendance records by date range: ${error.message}`);
+  }
+};
+
+/**
+ * Count attendance records by date range and status
+ */
+const countAttendanceRecordsByDateRange = async (employeeId, startDate, endDate, status) => {
+  try {
+    const whereClause = {
+      employeeId: employeeId,
+    };
+
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+
+    if (startDate && endDate) {
+      whereClause.date = {
+        gte: startDate,
+        lte: endDate,
+      };
+    } else if (startDate) {
+      whereClause.date = {
+        gte: startDate,
+      };
+    } else if (endDate) {
+      whereClause.date = {
+        lte: endDate,
+      };
+    }
+
+    return await prisma.attendanceRecord.count({
+      where: whereClause,
+    });
+  } catch (error) {
+    throw new Error(`Error counting attendance records: ${error.message}`);
   }
 };
 
@@ -294,40 +418,7 @@ const updateAttendanceRecord = async (id, data) => {
   }
 };
 
-/**
- * Find attendance records by date range
- */
-const findAttendanceRecordsByDateRange = async (employeeId, startDate, endDate) => {
-  try {
-    const whereClause = {
-      employeeId: employeeId,
-    };
 
-    if (startDate && endDate) {
-      whereClause.date = {
-        gte: startDate,
-        lte: endDate,
-      };
-    } else if (startDate) {
-      whereClause.date = {
-        gte: startDate,
-      };
-    }
-
-    return await prisma.attendanceRecord.findMany({
-      where: whereClause,
-      include: {
-        sessions: {
-          include: {
-            breaks: true
-          }
-        }
-      }
-    });
-  } catch (error) {
-    throw new Error(`Error finding attendance records by date range: ${error.message}`);
-  }
-};
 
 /**
  * Find active break in a session
@@ -364,4 +455,6 @@ module.exports = {
   updateAttendanceRecord,
   findAttendanceRecordsByDateRange,
   findActiveBreak,
+  countAllAttendance,
+  countAttendanceRecordsByDateRange,
 };
