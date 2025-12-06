@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import dayjs from 'dayjs';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployees } from '../../hooks/useEmployees';
-import { useAttendanceRecords } from '../../hooks/useAttendance';
+import { useAttendanceRecords, useEmployeeAttendance } from '../../hooks/useAttendance';
 import StatCard from './StatCard';
 import ApprovalsPanel from './ApprovalsPanel';
 import AttendanceCard from '../attendance/AttendanceCard';
@@ -32,7 +32,16 @@ const Dashboard: React.FC = () => {
 const ManagerDashboard: React.FC = () => {
     const { user } = useAuth();
     const { data: employees = [], isLoading: employeesLoading } = useEmployees();
-    const { data: attendance = [], isLoading: attendanceLoading } = useAttendanceRecords();
+    
+    // 1. Fetch today's records for stats (all employees)
+    const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: user.timezone || 'Asia/Karachi' });
+    const { data: todayResponse, isLoading: attendanceLoading } = useAttendanceRecords(1, 1000, todayLocal, todayLocal);
+    const attendance = todayResponse?.data || [];
+
+    // 2. Fetch user's recent history for missing checkout check
+    const { data: userHistoryResponse } = useEmployeeAttendance(user?.employeeId || '', undefined, undefined, undefined, 1, 50);
+    const userHistory = userHistoryResponse?.data || [];
+    
     const [isHolidaysModalOpen, setIsHolidaysModalOpen] = useState(false);
     const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
 
@@ -40,15 +49,15 @@ const ManagerDashboard: React.FC = () => {
 
     const recordToFix = useMemo(() => {
         const today = dayjs().format('YYYY-MM-DD');
-        const userAttendance = attendance
-            .filter(a => a.employeeId === user.employeeId)
+        // Use userHistory for finding missing checkouts
+        const userAttendance = userHistory
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
         // Find records with active sessions (no checkOut) that are not from today
         return userAttendance.find(a => 
             a.sessions?.some(s => !s.checkOutTime) && dayjs(a.date).format('YYYY-MM-DD') !== today
         );
-    }, [attendance, user.employeeId]);
+    }, [userHistory, user.employeeId]);
 
     const todayAttendanceStats = useMemo(() => {
         const todayLocal = new Date().toLocaleDateString('en-CA', { timeZone: user.timezone || 'Asia/Karachi' });
