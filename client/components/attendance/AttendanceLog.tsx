@@ -25,8 +25,10 @@ const AttendanceLog: React.FC = () => {
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('myself');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [quickRange, setQuickRange] = useState<string>('last30');
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(10);
 
-    // Date Filters
     // Date Filters - Draft State (for UI inputs)
     const [startDate, setStartDate] = useState<Dayjs | null>(() => {
         const d = new Date();
@@ -39,6 +41,11 @@ const AttendanceLog: React.FC = () => {
     const [appliedStartDate, setAppliedStartDate] = useState<Dayjs | null>(startDate);
     const [appliedEndDate, setAppliedEndDate] = useState<Dayjs | null>(endDate);
 
+    // Reset page when filters change
+    useEffect(() => {
+        setPage(1);
+    }, [selectedEmployeeId, statusFilter, appliedStartDate, appliedEndDate]);
+
     const isHR = user?.role === "ADMIN" || user?.role === "HR";
 
     // Determine which employee ID to fetch
@@ -49,32 +56,27 @@ const AttendanceLog: React.FC = () => {
     const shouldFetchAll = selectedEmployeeId === 'all' && isHR;
     
     // Use APPLIED dates for fetching
-    const { data: employeeAttendance = [], isLoading: attendanceLoading } = useEmployeeAttendance(
+    const { data: employeeAttendanceData, isLoading: attendanceLoading } = useEmployeeAttendance(
         shouldFetchEmployee ? targetEmployeeId : '',
         shouldFetchEmployee && appliedStartDate ? appliedStartDate.format('YYYY-MM-DD') : undefined,
-        shouldFetchEmployee && appliedEndDate ? appliedEndDate.format('YYYY-MM-DD') : undefined
+        shouldFetchEmployee && appliedEndDate ? appliedEndDate.format('YYYY-MM-DD') : undefined,
+        statusFilter,
+        page,
+        limit
     );
     
-    const { data: allAttendance = [], isLoading: allAttendanceLoading } = useAttendanceRecords();
+    const { data: allAttendanceData, isLoading: allAttendanceLoading } = useAttendanceRecords(
+        page,
+        limit,
+        appliedStartDate ? appliedStartDate.format('YYYY-MM-DD') : undefined,
+        appliedEndDate ? appliedEndDate.format('YYYY-MM-DD') : undefined,
+        statusFilter
+    );
 
     const loading = selectedEmployeeId === 'all' ? allAttendanceLoading : attendanceLoading;
-    const rawLogs = selectedEmployeeId === 'all' ? allAttendance : employeeAttendance;
-
-    // Filter by date range using APPLIED dates
-    const logs = useMemo(() => {
-        const filtered = rawLogs.filter(record => {
-            // Status Filter
-            if (statusFilter !== 'all' && record.status !== statusFilter) return false;
-
-            // Date Filter
-            if (!appliedStartDate || !appliedEndDate) return true;
-            const recordDate = dayjs(record.date);
-            return recordDate.isAfter(appliedStartDate.startOf('day')) && recordDate.isBefore(appliedEndDate.endOf('day'));
-        });
-        
-        // Sort by date desc
-        return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [rawLogs, appliedStartDate, appliedEndDate, statusFilter]);
+    const response = selectedEmployeeId === 'all' ? allAttendanceData : employeeAttendanceData;
+    const logs = response?.data || [];
+    const meta = response?.meta;
 
     const handleApplyFilters = () => {
         setAppliedStartDate(startDate);
@@ -152,6 +154,15 @@ const AttendanceLog: React.FC = () => {
         return `${h}h ${m}m`;
     };
     
+    // Note: Total stats might be inaccurate with pagination if we only sum current page.
+    // Ideally backend should return aggregate stats. For now, we show stats for visible records or hide them?
+    // The previous implementation calculated stats from 'logs'.
+    // If we want accurate stats, we should use the `useAttendanceStats` hook or similar.
+    // For now, let's calculate from visible logs but be aware it's only for the page.
+    // Or better, hide them or fetch stats separately.
+    // Given the UI has stats cards, let's keep them but maybe label them "Page Stats" or fetch global stats.
+    // The prompt didn't ask to fix stats, but "pro UI/UX" implies correctness.
+    // Let's use the visible logs for now as a "Page Summary".
     const totalFilteredMinutes = logs.reduce((acc, record) => acc + (record.totalWorkMinutes || 0), 0);
     const averageMinutes = logs.length > 0 ? totalFilteredMinutes / logs.length : 0;
     const presentDays = logs.filter(r => r.status === 'PRESENT').length;
@@ -222,7 +233,7 @@ const AttendanceLog: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">
-                        {logs.length} Records Found
+                        {meta?.total || 0} Records Found
                     </span>
                 </div>
             </div>
@@ -234,7 +245,7 @@ const AttendanceLog: React.FC = () => {
                         <FiClock size={24} />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500">Total Hours</p>
+                        <p className="text-sm font-medium text-slate-500">Total Hours (Page)</p>
                         <p className="text-2xl font-bold text-slate-900">{formatDuration(totalFilteredMinutes)}</p>
                     </div>
                 </div>
@@ -243,7 +254,7 @@ const AttendanceLog: React.FC = () => {
                         <FiCalendar size={24} />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500">Days Present</p>
+                        <p className="text-sm font-medium text-slate-500">Days Present (Page)</p>
                         <p className="text-2xl font-bold text-slate-900">{presentDays}</p>
                     </div>
                 </div>
@@ -532,6 +543,60 @@ const AttendanceLog: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {meta && meta.totalPages > 1 && (
+                    <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                        <div className="text-sm text-slate-500">
+                            Showing <span className="font-medium">{(meta.page - 1) * meta.limit + 1}</span> to <span className="font-medium">{Math.min(meta.page * meta.limit, meta.total)}</span> of <span className="font-medium">{meta.total}</span> results
+                        </div>
+                        <div className="flex gap-2">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                className="bg-white"
+                            >
+                                Previous
+                            </Button>
+                            <div className="flex items-center gap-1">
+                                {Array.from({ length: Math.min(5, meta.totalPages) }, (_, i) => {
+                                    // Logic to show window of pages around current page could go here
+                                    // For simplicity, showing first 5 or simple logic
+                                    let p = i + 1;
+                                    if (meta.totalPages > 5) {
+                                        if (page > 3) p = page - 2 + i;
+                                        if (p > meta.totalPages) p = meta.totalPages - (4 - i);
+                                    }
+                                    
+                                    return (
+                                        <button
+                                            key={p}
+                                            onClick={() => setPage(p)}
+                                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                                                page === p 
+                                                    ? 'bg-indigo-600 text-white shadow-sm' 
+                                                    : 'text-slate-600 hover:bg-slate-200'
+                                            }`}
+                                        >
+                                            {p}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+                                disabled={page === meta.totalPages}
+                                className="bg-white"
+                            >
+                                Next
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
