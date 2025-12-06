@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAttendanceStats, useTodayAttendance, useAttendanceRecords } from '../../hooks/useAttendance';
+import { useAttendanceStats, useTodayAttendance, useAttendanceRecords, useEmployeeAttendance } from '../../hooks/useAttendance';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
 import ClockActionModal from './ClockActionModal';
@@ -11,7 +11,8 @@ const AttendanceDashboard: React.FC = () => {
   
   const { data: stats, isLoading: loadingStats } = useAttendanceStats(user?.employeeId || '');
   const { data: todayRecord, isLoading: loadingToday } = useTodayAttendance(user?.employeeId || '');
-  const { data: allAttendance = [] } = useAttendanceRecords();
+  const { data: historyResponse } = useEmployeeAttendance(user?.employeeId || '', undefined, undefined, undefined, 1, 50);
+  const allAttendance = historyResponse?.data || [];
   
   const loading = loadingStats || loadingToday;
   const [currentTime, setCurrentTime] = useState(new Date());
