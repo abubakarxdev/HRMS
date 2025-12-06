@@ -31,7 +31,8 @@ ChartJS.register(
 
 const EmployeeDashboard: React.FC = () => {
   const { user } = useAuth();
-  const { data: attendanceHistory = [], isLoading } = useEmployeeAttendance(user?.employeeId || '');
+  const { data: response, isLoading } = useEmployeeAttendance(user?.employeeId || '');
+  const attendanceHistory = response?.data || [];
 
   // Prepare chart data - last 7 days
   const chartData = useMemo(() => {
