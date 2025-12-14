@@ -112,7 +112,7 @@ const AdminRoutes: React.FC = () => {
                 <Route path="/attendance/session/:sessionId" element={<SessionDetailsPage />} />
                 <Route path="/admin/team" element={<TeamSnapshot />} />
                 <Route path="/admin/my-leaves" element={<LeavesPage />} /> 
-                <Route path="/admin/leaves" element={<LeaveRequestsPage />} />
+                <Route path={NAVIGATION_PATHS.LEAVE_REQUESTS} element={<LeaveRequestsPage />} />
                 <Route path="/admin/offices" element={<OfficesPage />} />
                 {/* Fallback to dashboard */}
                 <Route path="*" element={<Navigate to="/admin" replace />} />
@@ -166,6 +166,10 @@ const Main: React.FC = () => {
         <Route
           path={NAVIGATION_PATHS.LEAVES}
           element={<LeavesPage />}
+        />
+        <Route
+          path={NAVIGATION_PATHS.LEAVE_REQUESTS}
+          element={<LeaveRequestsPage />}
         />
         
         {/* Remove Admin Routes from Main since they are now in AdminRoutes */}

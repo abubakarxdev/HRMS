@@ -41,8 +41,16 @@ const ApprovalItem: React.FC<{ request: any; onUpdate: (id: string, status: stri
     );
 }
 
+import { useOptionalOffice } from '@/context/OfficeContext';
+
 const ApprovalsPanel: React.FC = () => {
-    const { data: response, isLoading } = useAllLeaveRequests(1, 5, 'Pending'); // Fetch first 5 pending
+    const officeContext = useOptionalOffice();
+    const currentOfficeId = officeContext?.currentOfficeId;
+    
+    // Pass officeId to filter requests. 
+    // For Admins: Filters by selected office (or undefined for all if switcher allows).
+    // For HR/Employee: Backend overrides this with their fixed officeId anyway.
+    const { data: response, isLoading } = useAllLeaveRequests(1, 5, 'Pending', undefined, currentOfficeId);
     const updateStatusMutation = useUpdateLeaveStatus();
     const [selectedRequest, setSelectedRequest] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);

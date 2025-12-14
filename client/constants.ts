@@ -8,7 +8,7 @@ export const NAVIGATION_PATHS = {
     ATTENDANCE_LOG: '/attendance/log',
     TEAM_ATTENDANCE: '/attendance/team',
     LEAVES: '/leaves',
-    LEAVE_REQUESTS: '/admin/leaves',
+    LEAVE_REQUESTS: '/leaves/requests',
     OFFICES: '/admin/offices',
 };
 

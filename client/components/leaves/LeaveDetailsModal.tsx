@@ -3,6 +3,7 @@ import { Dialog } from '@headlessui/react';
 import { X, Calendar, User, FileText, CheckCircle, XCircle, Clock } from 'lucide-react';
 import Button from '../ui/Button';
 import dayjs from 'dayjs';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface LeaveDetailsModalProps {
     isOpen: boolean;
@@ -14,6 +15,9 @@ interface LeaveDetailsModalProps {
 
 const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, request, onApprove, onReject }) => {
     const [comment, setComment] = useState('');
+
+    const { user } = useAuth();
+    const isSelfRequest = user?.employeeId === request?.employeeId;
 
     if (!request) return null;
 
@@ -121,7 +125,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
                     </div>
 
                     {/* Actions Footer */}
-                    {request.status === 'Pending' && onApprove && onReject && (
+                    {request.status === 'Pending' && onApprove && onReject && !isSelfRequest && (
                         <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end space-x-3">
                             <Button variant="outline" onClick={onClose}>
                                 Cancel
@@ -143,7 +147,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
                     )}
                     
                     {/* Close button for View Only mode */}
-                    {(!onApprove || !onReject || request.status !== 'Pending') && (
+                    {(!onApprove || !onReject || request.status !== 'Pending' || isSelfRequest) && (
                          <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
                             <Button variant="outline" onClick={onClose}>
                                 Close

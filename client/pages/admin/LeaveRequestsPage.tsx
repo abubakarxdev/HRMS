@@ -12,7 +12,8 @@ const LeaveRequestsPage: React.FC = () => {
     const [selectedRequest, setSelectedRequest] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     
-    const { currentOfficeId } = useOptionalOffice();
+    const officeContext = useOptionalOffice();
+    const currentOfficeId = officeContext?.currentOfficeId;
     const { data: requestsData, isLoading } = useAllLeaveRequests(page, 10, statusFilter === 'all' ? undefined : statusFilter, undefined, currentOfficeId);
     const updateStatusMutation = useUpdateLeaveStatus();
 

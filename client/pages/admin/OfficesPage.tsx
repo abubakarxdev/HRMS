@@ -90,67 +90,92 @@ const OfficesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Offices</h1>
-          <p className="text-slate-500">Manage your company's office locations.</p>
+      <Card
+        title="Offices"
+        description="Manage your company's office locations and branches."
+        actions={
+          <>
+            <div className="w-64">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                        type="text" 
+                        placeholder="Search offices..." 
+                        className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+            </div>
+            <Button onClick={() => { setEditingOffice(null); setIsModalOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 shadow-sm shadow-indigo-200">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Office
+            </Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-1">
+          {filteredOffices.length > 0 ? (
+            filteredOffices.map((office) => (
+                <div key={office.id} className="group relative bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col">
+                    {/* Decorative Header Gradient */}
+                    <div className="h-24 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-90 group-hover:opacity-100 transition-opacity"></div>
+                    
+                    <div className="p-6 pt-0 flex-grow">
+                        <div className="flex justify-between items-start -mt-10 mb-4">
+                            <div className="p-4 bg-white rounded-xl shadow-md group-hover:scale-105 transition-transform duration-300">
+                                <div className="p-2 bg-indigo-50 rounded-lg">
+                                    <MapPin className="w-6 h-6 text-indigo-600" />
+                                </div>
+                            </div>
+                            <div className="flex space-x-1 mt-11">
+                                <button 
+                                    onClick={() => { setEditingOffice(office); setIsModalOpen(true); }}
+                                    className="p-2 bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                    title="Edit">
+                                    <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button 
+                                     onClick={() => handleDelete(office.id)}
+                                     className="p-2 bg-slate-50 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg transition-colors"
+                                     title="Delete">
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <h3 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">{office.name}</h3>
+                        
+                        <div className="space-y-3 mb-6">
+                            {office.address && (
+                                <p className="text-slate-500 text-sm flex items-start gap-2 line-clamp-2 min-h-[2.5rem]">
+                                    <MapPin className="w-4 h-4 mt-0.5 text-slate-400 flex-shrink-0" />
+                                    {office.address}
+                                </p>
+                            )}
+                            <div className="flex items-center text-sm text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                <Clock className="w-4 h-4 mr-2 text-indigo-400" />
+                                <span className="font-medium">{office.timezone}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center mt-auto">
+                        <span className="text-sm font-medium text-slate-500">Total Employees</span>
+                        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold bg-white border border-slate-200 text-indigo-600 shadow-sm">
+                            {office._count?.employees || 0}
+                        </span>
+                    </div>
+                </div>
+            ))
+          ) : (
+            <div className="col-span-full py-12 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <MapPin className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p>No offices found matching your search.</p>
+            </div>
+          )}
         </div>
-        <Button onClick={() => { setEditingOffice(null); setIsModalOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Office
-        </Button>
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input 
-            type="text" 
-            placeholder="Search offices..." 
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
-
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredOffices.map((office) => (
-            <Card key={office.id} className="p-6 hover:shadow-lg transition-shadow">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 bg-indigo-50 rounded-lg">
-                        <MapPin className="w-6 h-6 text-indigo-600" />
-                    </div>
-                    <div className="flex space-x-2">
-                         <button 
-                            onClick={() => { setEditingOffice(office); setIsModalOpen(true); }}
-                            className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-indigo-600">
-                            <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button 
-                             onClick={() => handleDelete(office.id)}
-                             className="p-1 hover:bg-red-50 rounded text-slate-500 hover:text-red-500">
-                            <Trash2 className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-1">{office.name}</h3>
-                {office.address && (
-                     <p className="text-slate-500 text-sm mb-4 line-clamp-2">{office.address}</p>
-                )}
-                
-                <div className="flex items-center text-sm text-slate-500 mb-4 bg-slate-50 p-2 rounded">
-                    <Clock className="w-4 h-4 mr-2" />
-                    {office.timezone}
-                </div>
-                
-                <div className="border-t border-slate-100 pt-4 flex justify-between text-sm">
-                    <span className="text-slate-500">Active Employees</span>
-                    <span className="font-bold text-slate-700">{office._count?.employees || 0}</span>
-                </div>
-            </Card>
-        ))}
-      </div>
+      </Card>
 
       {/* Modal */}
       {isModalOpen && (

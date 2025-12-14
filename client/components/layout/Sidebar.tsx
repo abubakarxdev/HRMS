@@ -169,6 +169,11 @@ const Sidebar: React.FC = () => {
     if (path === "/" || path === "/admin" || path === "/platform") {
       return location.pathname === path;
     }
+    // Prevent Leaves tab from being active when on Leave Requests sub-route
+    if (path === NAVIGATION_PATHS.LEAVES && location.pathname.startsWith(NAVIGATION_PATHS.LEAVE_REQUESTS)) {
+        return false;
+    }
+
     // For all other links, check if the current path starts with the link path
     return location.pathname.startsWith(path);
   };
@@ -192,12 +197,12 @@ const Sidebar: React.FC = () => {
                  else if (item.path === NAVIGATION_PATHS.ATTENDANCE_LOG) path = '/admin/attendance';
                  else if (item.path === NAVIGATION_PATHS.LEAVES) path = '/admin/my-leaves';
                  else if (item.path === NAVIGATION_PATHS.TEAM_ATTENDANCE) path = '/admin/team';
-                 else if (item.path === NAVIGATION_PATHS.LEAVE_REQUESTS) path = '/admin/leaves';
+                 else if (item.path === NAVIGATION_PATHS.TEAM_ATTENDANCE) path = '/admin/team';
              }
 
              // For Employee/HR: Append officeId to Team Attendance path
              if ((user.role === 'EMPLOYEE' || user.role === 'HR') && item.path === NAVIGATION_PATHS.TEAM_ATTENDANCE) {
-                 const empOfficeId = user.employee?.officeId || user.officeId;
+                 const empOfficeId = user.officeId;
                  if (empOfficeId) {
                      path = `${NAVIGATION_PATHS.TEAM_ATTENDANCE}/${empOfficeId}`;
                  }
