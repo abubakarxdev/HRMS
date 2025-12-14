@@ -16,10 +16,10 @@ import { toast } from 'sonner';
 /**
  * Hook to get all attendance records
  */
-export const useAttendanceRecords = (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string) => {
+export const useAttendanceRecords = (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string, officeId?: string) => {
   return useQuery({
-    queryKey: queryKeys.attendance.list({ page, limit, startDate, endDate, status }),
-    queryFn: () => attendanceService.getAll(page, limit, startDate, endDate, status),
+    queryKey: queryKeys.attendance.list({ page, limit, startDate, endDate, status, officeId }),
+    queryFn: () => attendanceService.getAll(page, limit, startDate, endDate, status, officeId),
     placeholderData: (previousData) => previousData,
   });
 };

@@ -89,21 +89,19 @@ const updateRecordTotals = async (recordId) => {
  * Get all attendance records with pagination and filtering
  * @returns {Promise<Object>}
  */
-const getAllAttendance = async (page = 1, limit = 10, startDate = null, endDate = null, status = 'all') => {
+const getAllAttendance = async (page = 1, limit = 10, startDate = null, endDate = null, status = 'all', officeId = null) => {
   try {
     const skip = (page - 1) * limit;
     const take = parseInt(limit);
 
     // Convert dates if provided
-    // Note: We don't have a specific timezone here as it's "all employees", 
-    // so we might need to rely on UTC or server time, or expect ISO strings.
-    // Assuming ISO strings or YYYY-MM-DD from frontend.
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
 
-    const [data, total] = await Promise.all([
-      attendanceRepository.findAllAttendance({ startDate: start, endDate: end, status, skip, take }),
-      attendanceRepository.countAllAttendance({ startDate: start, endDate: end, status })
+    const [data, total, aggregates] = await Promise.all([
+      attendanceRepository.findAllAttendance({ startDate: start, endDate: end, status, officeId, skip, take }),
+      attendanceRepository.countAllAttendance({ startDate: start, endDate: end, status, officeId }),
+      attendanceRepository.getAggregateStats({ startDate: start, endDate: end, status, officeId })
     ]);
 
     return {
@@ -113,7 +111,8 @@ const getAllAttendance = async (page = 1, limit = 10, startDate = null, endDate 
         page: parseInt(page),
         limit: parseInt(limit),
         totalPages: Math.ceil(total / limit)
-      }
+      },
+      aggregates
     };
   } catch (error) {
     throw new Error(`Error fetching all attendance: ${error.message}`);
@@ -205,9 +204,10 @@ const getAttendanceForEmployee = async (employeeId, startDate = null, endDate = 
     const skip = (page - 1) * limit;
     const take = parseInt(limit);
 
-    const [data, total] = await Promise.all([
+    const [data, total, aggregates] = await Promise.all([
       attendanceRepository.findAttendanceRecordsByDateRange(empId, start, end, status, skip, take),
-      attendanceRepository.countAttendanceRecordsByDateRange(empId, start, end, status)
+      attendanceRepository.countAttendanceRecordsByDateRange(empId, start, end, status),
+      attendanceRepository.getAggregateStats({ employeeId: empId, startDate: start, endDate: end, status })
     ]);
 
     return {
@@ -217,7 +217,8 @@ const getAttendanceForEmployee = async (employeeId, startDate = null, endDate = 
         page: parseInt(page),
         limit: parseInt(limit),
         totalPages: Math.ceil(total / limit)
-      }
+      },
+      aggregates
     };
   } catch (error) {
     throw new Error(`Error fetching employee attendance: ${error.message}`);
@@ -554,37 +555,6 @@ const getAttendanceStats = async (employeeId) => {
       startOfMonth
     );
 
-    // Calculate minutes for today by filtering sessions from recent records
-    let minutesToday = 0;
-    recentRecords.forEach(record => {
-      if (!record.sessions) return;
-      
-      record.sessions.forEach(session => {
-        if (!session.checkInTime) return;
-        
-        const checkInTime = new Date(session.checkInTime);
-        // Check if session belongs to Today
-        if (checkInTime >= todayStart && checkInTime <= todayEnd) {
-           // Calculate duration for this session
-           const sessionEndTime = session.checkOutTime ? new Date(session.checkOutTime) : now;
-           const grossDuration = dateUtil.calculateDurationMinutes(checkInTime, sessionEndTime);
-           
-           let totalBreakMinutes = 0;
-           if (session.breaks && session.breaks.length > 0) {
-             session.breaks.forEach(breakItem => {
-               if (!breakItem.startTime) return;
-               const breakStartTime = new Date(breakItem.startTime);
-               let breakEndTime = breakItem.endTime ? new Date(breakItem.endTime) : now;
-               if (breakEndTime > sessionEndTime) breakEndTime = sessionEndTime;
-               totalBreakMinutes += dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime);
-             });
-           }
-           
-           minutesToday += Math.max(0, grossDuration - totalBreakMinutes);
-        }
-      });
-    });
-    
     // Helper to calculate minutes for a specific range
     const calculateMinutesInRange = (records, startDate) => {
       let totalMinutes = 0;
@@ -619,8 +589,58 @@ const getAttendanceStats = async (employeeId) => {
       return Math.floor(totalMinutes);
     };
 
-    const minutesThisWeek = calculateMinutesInRange(weekRecords, startOfWeek);
-    const minutesThisMonth = calculateMinutesInRange(monthRecords, startOfMonth);
+    // Helper to deduplicate records by date (keeping the one with most work minutes/data)
+    const deduplicateRecords = (records) => {
+      const uniqueMap = new Map();
+      records.forEach(record => {
+        const dateStr = new Date(record.date).toISOString().split('T')[0];
+        if (!uniqueMap.has(dateStr)) {
+          uniqueMap.set(dateStr, record);
+        } else {
+          // If duplicate exists, keep the one with more content/minutes
+          const existing = uniqueMap.get(dateStr);
+          if ((record.totalWorkMinutes || 0) > (existing.totalWorkMinutes || 0)) {
+            uniqueMap.set(dateStr, record);
+          }
+        }
+      });
+      return Array.from(uniqueMap.values());
+    };
+    // Calculate minutes for today
+    // We explicitly find the record matching Today's date from the deduplicated recent records
+    const uniqueRecent = deduplicateRecords(recentRecords);
+    const todayRecord = uniqueRecent.find(r => {
+        // Match by date string equality in the user's timezone
+        const rDate = dateUtil.dayjs(r.date).tz(timezone).format('YYYY-MM-DD');
+        const tDate = dateUtil.dayjs(todayStart).tz(timezone).format('YYYY-MM-DD');
+        return rDate === tDate;
+    });
+
+    let minutesToday = 0;
+    if (todayRecord && todayRecord.sessions) {
+        // Calculate raw minutes for this specific record's sessions
+        // We don't filter by checkInTime >= todayStart here because the record itself IS "Today"
+        todayRecord.sessions.forEach(session => {
+            if (!session.checkInTime) return;
+             const sessionEndTime = session.checkOutTime ? new Date(session.checkOutTime) : now;
+             const grossDuration = dateUtil.calculateDurationMinutes(new Date(session.checkInTime), sessionEndTime);
+             
+             let totalBreakMinutes = 0;
+             if (session.breaks && session.breaks.length > 0) {
+               session.breaks.forEach(breakItem => {
+                 if (!breakItem.startTime) return;
+                 const breakStartTime = new Date(breakItem.startTime);
+                 let breakEndTime = breakItem.endTime ? new Date(breakItem.endTime) : now;
+                 if (breakEndTime > sessionEndTime) breakEndTime = sessionEndTime;
+                 totalBreakMinutes += dateUtil.calculateDurationMinutes(breakStartTime, breakEndTime);
+               });
+             }
+             minutesToday += Math.max(0, grossDuration - totalBreakMinutes);
+        });
+    }
+
+    const minutesThisWeek = calculateMinutesInRange(deduplicateRecords(weekRecords), startOfWeek);
+    const minutesThisMonth = calculateMinutesInRange(deduplicateRecords(monthRecords), startOfMonth);
 
     return {
       minutesToday,

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAllLeaveRequests, useUpdateLeaveStatus } from '../../hooks/useLeaves';
+import { useOptionalOffice } from '../../context/OfficeContext';
 import Button from '../../components/ui/Button';
 import LeaveDetailsModal from '../../components/leaves/LeaveDetailsModal';
 import dayjs from 'dayjs';
@@ -11,7 +12,8 @@ const LeaveRequestsPage: React.FC = () => {
     const [selectedRequest, setSelectedRequest] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     
-    const { data: requestsData, isLoading } = useAllLeaveRequests(page, 10, statusFilter === 'all' ? undefined : statusFilter);
+    const { currentOfficeId } = useOptionalOffice();
+    const { data: requestsData, isLoading } = useAllLeaveRequests(page, 10, statusFilter === 'all' ? undefined : statusFilter, undefined, currentOfficeId);
     const updateStatusMutation = useUpdateLeaveStatus();
 
     const handleViewDetails = (request: any) => {
@@ -20,12 +22,12 @@ const LeaveRequestsPage: React.FC = () => {
     };
 
     const handleApprove = async (id: string, comment: string) => {
-        await updateStatusMutation.mutateAsync({ id, status: 'Approved', managerComments: comment });
+        await updateStatusMutation.mutateAsync({ id, status: 'Approved', approverComments: comment });
         setIsModalOpen(false);
     };
 
     const handleReject = async (id: string, comment: string) => {
-        await updateStatusMutation.mutateAsync({ id, status: 'Rejected', managerComments: comment });
+        await updateStatusMutation.mutateAsync({ id, status: 'Rejected', approverComments: comment });
         setIsModalOpen(false);
     };
 

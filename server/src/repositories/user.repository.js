@@ -11,6 +11,8 @@ const findByEmail = async (email) => {
                         employeeIdNumber: true,
                         firstName: true,
                         lastName: true,
+                        legalEntityId: true,
+                        officeId: true,
                     }
                 }
             }
@@ -40,6 +42,8 @@ const findById = async (id) => {
                         lastName: true,
                         workEmail: true,
                         avatarUrl: true,
+                        legalEntityId: true,
+                        officeId: true,
                     }
                 }
             },
@@ -95,6 +99,8 @@ const findByRefreshToken = async (refreshToken) => {
                                 employeeIdNumber: true,
                                 firstName: true,
                                 lastName: true,
+                                legalEntityId: true,
+                                officeId: true,
                             }
                         }
                     }

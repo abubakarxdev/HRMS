@@ -24,6 +24,8 @@ const login = async (email, password) => {
             timezone: user.timezone || 'Asia/Karachi',
             firstName: user.employee?.firstName,
             lastName: user.employee?.lastName,
+            legalEntityId: user.employee?.legalEntityId,
+            officeId: user.employee?.officeId,
         };
         
         const accessToken = generateToken(payload);
@@ -46,6 +48,8 @@ const login = async (email, password) => {
                 firstName: user.employee?.firstName,
                 lastName: user.employee?.lastName,
                 employeeIdNumber: user.employee?.employeeIdNumber,
+                legalEntityId: user.employee?.legalEntityId,
+                officeId: user.employee?.officeId,
             }
         };
     } catch (error) {
@@ -78,6 +82,7 @@ const refreshAccessToken = async (refreshToken) => {
             timezone: user.timezone || 'Asia/Karachi',
             firstName: user.employee?.firstName,
             lastName: user.employee?.lastName,
+            legalEntityId: user.employee?.legalEntityId,
         };
         
         const accessToken = generateToken(payload);

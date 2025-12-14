@@ -16,10 +16,16 @@ import utc from 'dayjs/plugin/utc';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+import { useOptionalOffice } from "../../context/OfficeContext";
+
 const AttendanceLog: React.FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const { data: allEmployees = [] } = useEmployees();
+    const officeContext = useOptionalOffice();
+    const currentOfficeId = officeContext?.currentOffice?.id;
+    
+    // Pass officeId to employee fetch
+    const { data: allEmployees = [] } = useEmployees(currentOfficeId);
     
     // HR Specific State
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('myself');
@@ -65,12 +71,14 @@ const AttendanceLog: React.FC = () => {
         limit
     );
     
+    // Pass officeId to get filtered records for 'All Employees' view (when HR/Admin)
     const { data: allAttendanceData, isLoading: allAttendanceLoading } = useAttendanceRecords(
         page,
         limit,
         appliedStartDate ? appliedStartDate.format('YYYY-MM-DD') : undefined,
         appliedEndDate ? appliedEndDate.format('YYYY-MM-DD') : undefined,
-        statusFilter
+        statusFilter,
+        currentOfficeId // Pass officeId
     );
 
     const loading = selectedEmployeeId === 'all' ? allAttendanceLoading : attendanceLoading;
@@ -154,18 +162,19 @@ const AttendanceLog: React.FC = () => {
         return `${h}h ${m}m`;
     };
     
-    // Note: Total stats might be inaccurate with pagination if we only sum current page.
-    // Ideally backend should return aggregate stats. For now, we show stats for visible records or hide them?
-    // The previous implementation calculated stats from 'logs'.
-    // If we want accurate stats, we should use the `useAttendanceStats` hook or similar.
-    // For now, let's calculate from visible logs but be aware it's only for the page.
-    // Or better, hide them or fetch stats separately.
-    // Given the UI has stats cards, let's keep them but maybe label them "Page Stats" or fetch global stats.
-    // The prompt didn't ask to fix stats, but "pro UI/UX" implies correctness.
-    // Let's use the visible logs for now as a "Page Summary".
-    const totalFilteredMinutes = logs.reduce((acc, record) => acc + (record.totalWorkMinutes || 0), 0);
-    const averageMinutes = logs.length > 0 ? totalFilteredMinutes / logs.length : 0;
-    const presentDays = logs.filter(r => r.status === 'PRESENT').length;
+    // Use aggregates from backend if available, otherwise fallback to page stats (for transition)
+    const aggregates = response?.aggregates;
+    
+    // Total Hours
+    const totalFilteredMinutes = aggregates?.totalWorkMinutes ?? logs.reduce((acc, record) => acc + (record.totalWorkMinutes || 0), 0);
+    
+    // Days Present
+    const presentDays = aggregates?.totalDaysPresent ?? logs.filter(r => r.status === 'PRESENT').length;
+    
+    // Avg Daily Hours - use total days present for accurate average, or total records if simpler
+    // Using days present as denominator makes more sense for "Average Daily Hours Worked"
+    const avgDenominator = presentDays > 0 ? presentDays : 1;
+    const averageMinutes = totalFilteredMinutes / avgDenominator;
 
     const getSessionTimes = (record: any) => {
         if (!record.sessions || record.sessions.length === 0) return { checkIn: null, checkOut: null };
@@ -245,7 +254,7 @@ const AttendanceLog: React.FC = () => {
                         <FiClock size={24} />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500">Total Hours (Page)</p>
+                        <p className="text-sm font-medium text-slate-500">Total Hours</p>
                         <p className="text-2xl font-bold text-slate-900">{formatDuration(totalFilteredMinutes)}</p>
                     </div>
                 </div>
@@ -254,7 +263,7 @@ const AttendanceLog: React.FC = () => {
                         <FiCalendar size={24} />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500">Days Present (Page)</p>
+                        <p className="text-sm font-medium text-slate-500">Days Present</p>
                         <p className="text-2xl font-bold text-slate-900">{presentDays}</p>
                     </div>
                 </div>

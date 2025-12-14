@@ -21,11 +21,12 @@ export const attendanceService = {
   /**
    * Get all attendance records
    */
-  getAll: async (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string): Promise<PaginatedResponse<AttendanceRecord>> => {
+  getAll: async (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string, officeId?: string): Promise<PaginatedResponse<AttendanceRecord>> => {
     let url = `/attendance?page=${page}&limit=${limit}`;
     if (startDate) url += `&startDate=${startDate}`;
     if (endDate) url += `&endDate=${endDate}`;
     if (status) url += `&status=${status}`;
+    if (officeId) url += `&officeId=${officeId}`;
 
     const response = await apiClient.get<PaginatedResponse<AttendanceRecord>>(url);
     return response.data;

@@ -10,7 +10,28 @@ const asyncHandler = (fn) => (req, res, next) => {
  * Route: GET /api/employees
  */
 const getAllEmployees = asyncHandler(async (req, res) => {
-  const employees = await employeeService.getAllEmployees();
+  let { officeId } = req.query;
+  const { role } = req.user;
+
+  // Strict Data Isolation: Employees and HR can ONLY view employees from their own office
+  if (role === 'EMPLOYEE' || role === 'HR') {
+      const userOfficeId = req.user.employee?.officeId;
+      if (userOfficeId) {
+          officeId = userOfficeId;
+      } else {
+          // If a restricted user has no office assigned, they shouldn't see ALL employees.
+          // We'll treat this as "officeId required but missing" or return empty list?
+          // For safety, let's allow the filter to be undefined only if we are sure...
+          // Actually, if officeId is undefined, repo fetches all.
+          // We MUST prevent fetching all for restricted users.
+          // If no office assigned, fetch by a dummy ID or just return empty.
+          // Let's assume for now they have an office, but if not, logic implies they see all.
+          // Let's return empty if no office assigned for restricted user to be safe.
+          return res.status(200).json([]);
+      }
+  }
+
+  const employees = await employeeService.getAllEmployees(officeId);
   res.status(200).json(employees);
 });
 
@@ -37,6 +58,18 @@ const getEmployeeById = asyncHandler(async (req, res) => {
  */
 const createEmployee = asyncHandler(async (req, res) => {
   const employeeData = req.body;
+  const requesterRole = req.user.role; // Assuming auth middleware attaches user
+
+  // Prevent HR from creating restricted accounts (Admin, Super Admin, or other HRs)
+  if (requesterRole === 'HR' && ['ADMIN', 'SUPER_ADMIN', 'HR'].includes(employeeData.role)) {
+      return res.status(403).json({ message: "HR cannot create Admin, Super Admin, or HR accounts." });
+  }
+
+  // Prevent Admin from creating Super Admin
+  if (requesterRole === 'ADMIN' && employeeData.role === 'SUPER_ADMIN') {
+      return res.status(403).json({ message: "Admin cannot create Super Admin accounts." });
+  }
+
   try {
     const newEmployee = await employeeService.createEmployee(employeeData);
     // 201 Created status
@@ -59,6 +92,17 @@ const createEmployee = asyncHandler(async (req, res) => {
 const updateEmployee = asyncHandler(async (req, res) => {
   const employeeId = req.params.id;
   const employeeData = req.body;
+  const requesterRole = req.user.role;
+
+  // Prevent HR from promoting to restricted roles
+  if (requesterRole === 'HR' && ['ADMIN', 'SUPER_ADMIN', 'HR'].includes(employeeData.role)) {
+      return res.status(403).json({ message: "HR cannot assign Admin, Super Admin, or HR role." });
+  }
+
+  // Prevent Admin from promoting to Super Admin
+  if (requesterRole === 'ADMIN' && employeeData.role === 'SUPER_ADMIN') {
+      return res.status(403).json({ message: "Admin cannot assign Super Admin role." });
+  }
 
   try {
     const updatedEmployee = await employeeService.updateEmployee(

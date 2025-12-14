@@ -3,6 +3,7 @@ enum UserRole {
   HR
   FINANCE
   EMPLOYEE
+  SUPER_ADMIN
 }
 
 model User {

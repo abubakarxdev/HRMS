@@ -13,8 +13,12 @@ export const employeeService = {
   /**
    * Get all employees
    */
-  getAll: async (): Promise<Employee[]> => {
-    const response = await apiClient.get<Employee[]>('/employees');
+  getAll: async (officeId?: string): Promise<Employee[]> => {
+    let url = '/employees';
+    if (officeId) {
+      url += `?officeId=${officeId}`;
+    }
+    const response = await apiClient.get<Employee[]>(url);
     return response.data;
   },
 

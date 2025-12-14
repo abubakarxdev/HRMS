@@ -14,9 +14,9 @@ const generateEmployeeIdNumber = () =>
 /**
  * Get all employees
  */
-const getAllEmployees = async () => {
+const getAllEmployees = async (officeId) => {
   try {
-    return await employeeRepository.getAllEmployees();
+    return await employeeRepository.getAllEmployees(officeId);
   } catch (error) {
     throw new Error(`Error fetching employees: ${error.message}`);
   }

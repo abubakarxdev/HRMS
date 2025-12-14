@@ -7,9 +7,15 @@ const prisma = require("../config/prisma");
 /**
  * Get all employees with their user information
  */
-const getAllEmployees = async () => {
+const getAllEmployees = async (officeId) => {
   try {
+    const where = {};
+    if (officeId) {
+      where.officeId = officeId;
+    }
+
     return await prisma.employee.findMany({
+      where,
       include: {
         user: {
           select: {

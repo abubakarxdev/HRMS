@@ -10,8 +10,8 @@ const asyncHandler = (fn) => (req, res, next) => {
  * Route: GET /api/attendance
  */
 const getAllAttendance = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, startDate, endDate, status } = req.query;
-  const attendance = await attendanceService.getAllAttendance(page, limit, startDate, endDate, status);
+  const { page = 1, limit = 10, startDate, endDate, status, officeId } = req.query;
+  const attendance = await attendanceService.getAllAttendance(page, limit, startDate, endDate, status, officeId);
   res.status(200).json(attendance);
 });
 

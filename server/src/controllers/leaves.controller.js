@@ -48,7 +48,7 @@ const createRequest = async (req, res) => {
       return res.status(400).json({ message: "Employee ID not found for user" });
     }
 
-    const request = await leaveService.createRequest(employeeId, req.body);
+    const request = await leaveService.createRequest(employeeId, req.body, req.user.role);
     res.status(201).json(request);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -60,10 +60,11 @@ const createRequest = async (req, res) => {
  */
 const getAllRequests = async (req, res) => {
   try {
-    const { page, limit, status, employeeId } = req.query;
+    const { page, limit, status, employeeId, officeId } = req.query;
     const filters = {};
     if (status) filters.status = status;
     if (employeeId) filters.employeeId = employeeId;
+    if (officeId) filters.officeId = officeId;
 
     const result = await leaveService.getRequests(page, limit, filters);
     res.json(result);
@@ -78,13 +79,14 @@ const getAllRequests = async (req, res) => {
 const updateRequestStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, managerComments } = req.body;
+    const { status, approverComments } = req.body;
+    const approverId = req.user.employeeId; // Get ID of the person performing the action
 
     if (!['Approved', 'Rejected'].includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
 
-    const updatedRequest = await leaveService.updateRequestStatus(id, status, managerComments);
+    const updatedRequest = await leaveService.updateRequestStatus(id, status, approverComments, approverId, req.user.role);
     res.json(updatedRequest);
   } catch (error) {
     res.status(400).json({ message: error.message });

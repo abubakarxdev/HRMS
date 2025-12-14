@@ -3,18 +3,7 @@ import dayjs from 'dayjs';
 import LeaveDetailsModal from './LeaveDetailsModal';
 import Button from '../ui/Button';
 import { Eye } from 'lucide-react';
-
-interface LeaveRequest {
-    id: string;
-    leaveType: string;
-    startDate: string;
-    endDate: string;
-    reason: string;
-    createdAt: string;
-    status: string;
-    managerComments?: string;
-    employee?: any; // Add employee if needed for modal, though for history it's usually current user
-}
+import { LeaveRequest } from '../../api/types/leaves';
 
 interface LeaveHistoryTableProps {
     requests: LeaveRequest[];

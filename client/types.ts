@@ -3,7 +3,8 @@ export enum Role {
   HR = 'HR',
   FINANCE = 'FINANCE',
   EMPLOYEE = 'EMPLOYEE',
-  MANAGER = 'MANAGER', // Deprecated
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  // MANAGER = 'MANAGER', // Deprecated
 }
 
 export enum View {
@@ -23,6 +24,7 @@ export interface User {
   role: Role;
   employeeId: string | null;
   timezone: string;
+  officeId?: string;
 }
 
 // Updated Employee Interface
@@ -41,7 +43,7 @@ export interface Employee {
   user?: {
     id: string;
     email: string;
-    role: 'ADMIN' | 'HR' | 'FINANCE' | 'EMPLOYEE';
+    role: 'ADMIN' | 'HR' | 'FINANCE' | 'EMPLOYEE' | 'SUPER_ADMIN';
     timezone: string;
   };
   legalEntity?: {
@@ -64,7 +66,7 @@ export interface Employee {
   department?: string;
 }
 
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'ON_LEAVE';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'ON_LEAVE' | 'OFF';
 export type SessionStatus = 'ACTIVE' | 'COMPLETED';
 
 export interface Break {

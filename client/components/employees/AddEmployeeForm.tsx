@@ -12,6 +12,8 @@ import FormField from "../ui/FormField";
 import Card from "../ui/Card";
 import { useEmployees, useCreateEmployee, useUpdateEmployee } from "../../hooks/useEmployees";
 import { Role } from "../../types";
+import { useAuth } from "../../contexts/AuthContext";
+import { useOptionalOffice } from "../../context/OfficeContext";
 import { employeeSchema } from "@/validations/employeeValidation";
 import { NAVIGATION_PATHS } from "@/constants";
 
@@ -48,6 +50,7 @@ const AddEmployeeForm: React.FC = () => {
   const { data: employees = [], isLoading: loading } = useEmployees();
   const createEmployeeMutation = useCreateEmployee();
   const updateEmployeeMutation = useUpdateEmployee();
+  const { currentOfficeId } = useOptionalOffice();
   
   const { employeeId } = useParams<{ employeeId: string }>();
   const isEditMode = !!employeeId;
@@ -91,7 +94,8 @@ const AddEmployeeForm: React.FC = () => {
           role: employeeToEdit.user?.role as Role || Role.EMPLOYEE,
           password: "", // Don't populate password
           
-          nid: employeeToEdit.nid || "", // Assuming nid might be added to schema later or in personalDetails
+          nid: "", // nid not in Employee type
+          // nid: (employeeToEdit as any).nid || "", // If it really exists at runtime but not in type
           bankDetails: JSON.stringify(employeeToEdit.bankDetails) || "",
         });
       } else {
@@ -184,6 +188,7 @@ const AddEmployeeForm: React.FC = () => {
           department: formData.department,
         },
         bankDetails: formData.bankDetails ? { accountNumber: formData.bankDetails } : null,
+        officeId: currentOfficeId, 
       };
 
       if (isEditMode) {
@@ -194,13 +199,17 @@ const AddEmployeeForm: React.FC = () => {
               id: originalEmployee.id,
               data: {
                 ...payload,
+                role: payload.role as any, 
                 // Only include password if set
                 ...(formData.password ? { password: formData.password } : {})
               }
           });
           // Success toast handled in hook
       } else {
-          await createEmployeeMutation.mutateAsync(payload);
+          await createEmployeeMutation.mutateAsync({
+              ...payload,
+              role: payload.role as any
+          });
           // Success toast handled in hook
       }
       
@@ -216,7 +225,24 @@ const AddEmployeeForm: React.FC = () => {
   const isFormLoading = isSubmitting || loading || createEmployeeMutation.isPending || updateEmployeeMutation.isPending;
 
   // Options
-  const roles = Object.values(Role);
+  const { user } = useAuth();
+  
+  const roles = Object.values(Role).filter(role => {
+    // Super Admin can assign any role
+    if (user?.role === Role.SUPER_ADMIN) return true;
+    
+    // Admin can assign anything except Super Admin
+    if (user?.role === Role.ADMIN) {
+      return role !== Role.SUPER_ADMIN;
+    }
+    
+    // HR can only assign Employee or Finance (cannot assign Admin, Super Admin, or HR)
+    if (user?.role === Role.HR) {
+      return ![Role.ADMIN, Role.SUPER_ADMIN, Role.HR].includes(role);
+    }
+    
+    return false;
+  });
   const departments = ["Technology", "Human Resources", "Sales", "Finance", "Marketing", "Operations"];
   const positions = ["Software Engineer", "Senior Software Engineer", "Product Manager", "HR Manager", "Sales Representative", "Accountant", "Director"];
 
@@ -474,15 +500,6 @@ const AddEmployeeForm: React.FC = () => {
                 onChange={handleChange}
                 error={errors.bankDetails}
                 placeholder="Account Number / IBAN"
-              />
-              <FormField
-                label="National ID / SSN"
-                id="nid"
-                name="nid"
-                value={formData.nid}
-                onChange={handleChange}
-                error={errors.nid}
-                placeholder="National Identity Number"
               />
             </div>
           </Card>

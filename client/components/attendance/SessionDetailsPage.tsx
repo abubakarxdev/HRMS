@@ -80,7 +80,13 @@ const SessionDetailsPage: React.FC = () => {
                     </div>
                     <h2 className="text-2xl font-bold text-slate-900 mb-2">Session Not Found</h2>
                     <p className="text-slate-600 mb-6">{error || 'The requested session could not be found.'}</p>
-                    <Button onClick={() => navigate('/attendance/log')} className="inline-flex items-center justify-center">
+                    <Button onClick={() => {
+                        if (user?.role === 'ADMIN' || user?.role === 'HR') {
+                            navigate('/admin/attendance');
+                        } else {
+                            navigate('/attendance/log');
+                        }
+                    }} className="inline-flex items-center justify-center">
                         <FiArrowLeft className="mr-2" />
                         Back to Attendance Log
                     </Button>
@@ -97,7 +103,13 @@ const SessionDetailsPage: React.FC = () => {
             {/* Header with Back Button */}
             <div className="flex items-center gap-4">
                 <button
-                    onClick={() => navigate('/attendance/log')}
+                    onClick={() => {
+                        if (user?.role === 'ADMIN' || user?.role === 'HR') {
+                            navigate('/admin/attendance');
+                        } else {
+                            navigate('/attendance/log');
+                        }
+                    }}
                     className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
                     title="Back to Attendance Log"
                 >

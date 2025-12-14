@@ -18,6 +18,15 @@ router.use("/attendance", attendanceRoutes);
 // Mount leaves routes
 router.use("/leaves", require("./leaves.routes"));
 
+// Mount organization/tenant routes
+router.use("/organizations", require("./organization.routes"));
+
+// Mount office routes
+router.use("/offices", require("./office.routes"));
+
+// Mount user routes (Platform Admin)
+router.use("/users", require("./user.routes"));
+
 // Mount employee routes
 router.use("/", employeeRoutes);
 

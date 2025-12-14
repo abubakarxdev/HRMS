@@ -110,11 +110,11 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
                                     placeholder="Enter any comments regarding approval or rejection..."
                                 />
                             </div>
-                        ) : request.managerComments && (
+                        ) : request.approverComments && (
                             <div className="space-y-2">
-                                <h4 className="text-sm font-semibold text-slate-700">HR Comments</h4>
+                                <h4 className="text-sm font-semibold text-slate-700">Approver Comments</h4>
                                 <p className="text-slate-600 bg-slate-50 p-4 rounded-lg border border-slate-100 text-sm italic">
-                                    "{request.managerComments}"
+                                    "{request.approverComments}"
                                 </p>
                             </div>
                         )}

@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { NAVIGATION_ITEMS, NAVIGATION_PATHS } from "../../constants";
 
@@ -41,6 +41,8 @@ const NavItem: React.FC<{
 const Sidebar: React.FC = () => {
   const { user } = useAuth();
   const location = useLocation(); // Hook to get current path
+  const [searchParams] = useSearchParams();
+  const officeId = searchParams.get('officeId');
 
   if (!user) {
     return null; // Don't show sidebar if not logged in
@@ -144,11 +146,27 @@ const Sidebar: React.FC = () => {
         />
       </svg>
     ),
+    [NAVIGATION_PATHS.OFFICES]: (
+       <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+        />
+      </svg>
+    ),
   };
 
   const isLinkActive = (path: string) => {
-    // Special case for dashboard: only active if path is exactly '/'
-    if (path === "/") {
+    // Special case for dashboard roots: only active if path is exactly '/' or '/admin' or '/platform'
+    if (path === "/" || path === "/admin" || path === "/platform") {
       return location.pathname === path;
     }
     // For all other links, check if the current path starts with the link path
@@ -165,15 +183,41 @@ const Sidebar: React.FC = () => {
         {NAVIGATION_ITEMS.filter(
           (item) => user && item.roles.includes(user.role)
         ) // Added user check
-          .map((item) => (
-            <NavItem
-              key={item.path}
-              path={item.path}
-              label={item.label}
-              icon={icons[item.path]}
-              isActive={isLinkActive(item.path)}
-            />
-          ))}
+          .map((item) => {
+             let path = item.path;
+             // Dynamic path adjustment for Admin
+             if (user.role === 'ADMIN') {
+                 if (item.path === NAVIGATION_PATHS.DASHBOARD) path = '/admin';
+                 else if (item.path === NAVIGATION_PATHS.EMPLOYEES) path = '/admin/employees';
+                 else if (item.path === NAVIGATION_PATHS.ATTENDANCE_LOG) path = '/admin/attendance';
+                 else if (item.path === NAVIGATION_PATHS.LEAVES) path = '/admin/my-leaves';
+                 else if (item.path === NAVIGATION_PATHS.TEAM_ATTENDANCE) path = '/admin/team';
+                 else if (item.path === NAVIGATION_PATHS.LEAVE_REQUESTS) path = '/admin/leaves';
+             }
+
+             // For Employee/HR: Append officeId to Team Attendance path
+             if ((user.role === 'EMPLOYEE' || user.role === 'HR') && item.path === NAVIGATION_PATHS.TEAM_ATTENDANCE) {
+                 const empOfficeId = user.employee?.officeId || user.officeId;
+                 if (empOfficeId) {
+                     path = `${NAVIGATION_PATHS.TEAM_ATTENDANCE}/${empOfficeId}`;
+                 }
+             }
+             
+             // Append officeId query param if it exists and path doesn't already have it (mostly for Admin context switching)
+             if (officeId && !path.includes('?') && !path.includes(officeId)) {
+                 path += `?officeId=${officeId}`;
+             }
+
+             return (
+                <NavItem
+                  key={item.path}
+                  path={path}
+                  label={item.label}
+                  icon={icons[item.path]}
+                  isActive={isLinkActive(path.split('?')[0])} 
+                />
+            );
+          })}
       </nav>
     </div>
   );

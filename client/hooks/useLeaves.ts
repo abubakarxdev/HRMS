@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 const leaveKeys = {
   balances: ['leaves', 'balances'],
   myRequests: (page: number, limit: number, status?: string) => ['leaves', 'my-requests', page, limit, status],
-  allRequests: (page: number, limit: number, status?: string, employeeId?: string) => ['leaves', 'all-requests', page, limit, status, employeeId],
+  allRequests: (page: number, limit: number, status?: string, employeeId?: string, officeId?: string) => ['leaves', 'all-requests', page, limit, status, employeeId, officeId],
 };
 
 export const useLeaveBalances = () => {
@@ -45,10 +45,10 @@ export const useCreateLeaveRequest = () => {
   });
 };
 
-export const useAllLeaveRequests = (page = 1, limit = 10, status?: string, employeeId?: string) => {
+export const useAllLeaveRequests = (page = 1, limit = 10, status?: string, employeeId?: string, officeId?: string) => {
   return useQuery({
-    queryKey: leaveKeys.allRequests(page, limit, status, employeeId),
-    queryFn: () => leavesService.getAllRequests(page, limit, status, employeeId),
+    queryKey: leaveKeys.allRequests(page, limit, status, employeeId, officeId),
+    queryFn: () => leavesService.getAllRequests(page, limit, status, employeeId, officeId),
     placeholderData: (previousData) => previousData,
   });
 };
@@ -57,8 +57,8 @@ export const useUpdateLeaveStatus = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status, managerComments }: { id: string; status: string; managerComments?: string }) =>
-      leavesService.updateRequestStatus(id, status, managerComments),
+    mutationFn: ({ id, status, approverComments }: { id: string; status: string; approverComments?: string }) =>
+      leavesService.updateRequestStatus(id, status, approverComments),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leaves', 'all-requests'] });
       toast.success('Leave status updated successfully');

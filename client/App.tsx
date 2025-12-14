@@ -24,6 +24,14 @@ import { NAVIGATION_PATHS } from "./constants";
 import Login from "./components/auth/Login";
 import Toaster from "./components/ui/Toaster";
 import FourSquare from "./components/ui/FourSquare";
+import PlatformLayout from "./components/layout/PlatformLayout";
+import TenantsPage from "./pages/platform/TenantsPage";
+import PlatformDashboard from "./pages/platform/PlatformDashboard";
+import GlobalAdminsPage from "./pages/platform/GlobalAdminsPage";
+import PlatformSettingsPage from "./pages/platform/PlatformSettingsPage";
+import OfficesPage from "./pages/admin/OfficesPage";
+import AdminLayout from "./components/layout/AdminLayout";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 
 const App: React.FC = () => {
   return (
@@ -61,9 +69,57 @@ const AuthGate: React.FC = () => {
     );
   }
 
-  // Authenticated: Render the Main application routes
+  // Super Admin: Authenticated but restricted to Platform
+  if (user.role === 'SUPER_ADMIN') {
+      return <PlatformRoutes />;
+  }
+
+  // Company Admin: Authenticated but restricted to Admin Dashboard & Office Mgmt
+  if (user.role === 'ADMIN') {
+      return <AdminRoutes />;
+  }
+
+  // Authenticated Standard User: Render the Main application routes (Employees, etc.)
+  // Actually, Main uses 'Layout' which has Sidebar. 
+  // If we split Admin, Main might be just for Employee/HR roles.
   return <Main />;
 };
+
+const PlatformRoutes: React.FC = () => {
+    return (
+        <Routes>
+            <Route element={<PlatformLayout />}>
+                <Route path="/platform" element={<PlatformDashboard />} />
+                <Route path="/platform/tenants" element={<TenantsPage />} />
+                <Route path="/platform/admins" element={<GlobalAdminsPage />} />
+                <Route path="/platform/settings" element={<PlatformSettingsPage />} />
+                <Route path="*" element={<Navigate to="/platform" replace />} />
+            </Route>
+        </Routes>
+    );
+};
+
+const AdminRoutes: React.FC = () => {
+    return (
+        <Routes>
+            <Route element={<AdminLayout />}>
+                <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route path="/admin/employees" element={<EmployeeDirectory />} /> 
+                <Route path="/admin/employees/add" element={<AddEmployeeForm />} />
+                <Route path="/admin/employees/:employeeId" element={<EmployeeProfileWrapper />} />
+                <Route path="/admin/employees/edit/:employeeId" element={<AddEmployeeForm />} />
+                <Route path="/admin/attendance" element={<AttendanceLog />} />
+                <Route path="/attendance/session/:sessionId" element={<SessionDetailsPage />} />
+                <Route path="/admin/team" element={<TeamSnapshot />} />
+                <Route path="/admin/my-leaves" element={<LeavesPage />} /> 
+                <Route path="/admin/leaves" element={<LeaveRequestsPage />} />
+                <Route path="/admin/offices" element={<OfficesPage />} />
+                {/* Fallback to dashboard */}
+                <Route path="*" element={<Navigate to="/admin" replace />} />
+            </Route>
+        </Routes>
+    );
+}
 
 const Main: React.FC = () => {
   return (
@@ -72,18 +128,18 @@ const Main: React.FC = () => {
         {/* Dashboard - Default Route */}
         <Route path={NAVIGATION_PATHS.DASHBOARD} element={<Dashboard />} />
 
-        {/* Employee Management Routes */}
+        {/* Employee Self-Service Routes */}
+        {/* Helper function to keep generic routes working for Employees */}
+        
+        {/* 
+            TODO: Refactor EmployeeDirectory etc to be simpler for standard employees? 
+            Or reused.
+            For now, Main handles Employee View.
+        */}
+
         <Route
           path={NAVIGATION_PATHS.EMPLOYEES}
           element={<EmployeeDirectory />}
-        />
-        <Route
-          path={`${NAVIGATION_PATHS.EMPLOYEES}/add`}
-          element={<AddEmployeeForm />}
-        />
-        <Route
-          path={`${NAVIGATION_PATHS.EMPLOYEES}/edit/:employeeId`}
-          element={<AddEmployeeForm />}
         />
         <Route
           path={`${NAVIGATION_PATHS.EMPLOYEES}/:employeeId`}
@@ -93,6 +149,10 @@ const Main: React.FC = () => {
         {/* Attendance Routes */}
         <Route
           path={NAVIGATION_PATHS.TEAM_ATTENDANCE}
+          element={<TeamSnapshot />}
+        />
+        <Route
+          path={`${NAVIGATION_PATHS.TEAM_ATTENDANCE}/:officeId`}
           element={<TeamSnapshot />}
         />
         <Route
@@ -107,10 +167,15 @@ const Main: React.FC = () => {
           path={NAVIGATION_PATHS.LEAVES}
           element={<LeavesPage />}
         />
-        <Route
-          path={NAVIGATION_PATHS.LEAVE_REQUESTS}
-          element={<LeaveRequestsPage />}
-        />
+        
+        {/* Remove Admin Routes from Main since they are now in AdminRoutes */}
+        {/* 
+            Note: EmployeeDirectory was used by "HR" role too in Main. 
+            If "HR" role exists, we need to decide if they use AdminRoutes or Main.
+            Assuming HR uses Main or a similar HR layout. 
+            For now, simpler to leave Main as is for "HR" and "EMPLOYEE".
+        */}
+
         <Route
           path="*"
           element={<Navigate to={NAVIGATION_PATHS.DASHBOARD} replace />}

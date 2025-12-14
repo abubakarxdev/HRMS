@@ -11,9 +11,95 @@ import { toast } from "sonner";
 import DeleteConfirmationModal from "../modals/DeleteConfirmationModal";
 import FourSquare from "../ui/FourSquare";
 
+import { useOffice } from "../../context/OfficeContext";
+
+import { useOptionalOffice } from "../../context/OfficeContext";
+
 const EmployeeDirectory: React.FC = () => {
   const { user } = useAuth();
-  const { data: employees = [], isLoading } = useEmployees();
+  const officeContext = useOptionalOffice();
+  const currentOfficeId = officeContext?.currentOffice?.id;
+  
+  const canManageEmployees = user?.role === "ADMIN" || user?.role === "HR";
+  
+  // Pass officeId only if user is admin/hr (or consistent with logic)
+  // Actually, if I am a standard employee, do I view directory only for my office?
+  // Let's assume standard employees view all or same office.
+  // Ideally, context should key off user role.
+  // But for now, let's use currentOffice?.id for everyone if it exists, or just for admins.
+  // Admin dashboard sets the office context. Main layout might not have OfficeProvider unless we add it to Main too.
+  // Wait, AdminLayout provides OfficeProvider. Main doesn't.
+  // If EmployeeDirectory is used in Main, useOffice will look for context.
+  // If I use `useOffice` inside Main (standard user), it will throw "must be used within OfficeProvider".
+  // I need to be careful. useOffice throws if no context.
+  
+  // Option A: Wrap Main in OfficeProvider too.
+  // Option B: Make access optional or safe.
+  
+  // Let's create a safe version of useOffice or checks.
+  // Or better, wrap App.tsx/Main in OfficeProvider?
+  // Standard employees belong to an office.
+  
+  // For now, I will use a safe access pattern or try/catch? No hooks can't try/catch.
+  // I'll assume currentOffice is undefined if context is missing? No, useOffice throws.
+  
+  // Let's modify usage.
+  // If I am in AdminRoutes, I have context.
+  // If I am in MainRoutes, I might not.
+  
+  // I will skip adding useOffice here blindly.
+  // I should check if I am in Admin mode or pass props?
+  // Or I just update Main to also provide OfficeContext (defaulting to user's assigned office).
+  
+  // Decision: Update Main to wrap in OfficeProvider? 
+  // Maybe too much change. 
+  // Let's assume this View is used in Admin Dashboard context mostly for "Managing".
+  // Standard user directory view might not need filtering or backend handles it based on user token.
+  
+  // But the User asked: "ensure all... filtered by the selected office".
+  // The Admin uses the Office Context.
+  
+  // Implementation:
+  // I will check if useOffice is available. 
+  // Actually, I can just use a helper: `useOfficeContextSafe`.
+  
+  // Or I can just Wrap `Main` in `OfficeProvider` too!
+  // That seems most correct. Employees also have an "office" context (their own).
+  
+  // Let's update Main in App.tsx to use OfficeProvider first?
+  // Yes, that allows re-use of components without fear.
+  
+  // But wait, OfficeProvider fetches *All Offices*. Standard employee might not be allowed to see /offices.
+  // Good point.
+  
+  // So: Only Admins can switch offices.
+  // Standard employees are fixed to their office.
+  
+  // I will implement a check in EmployeeDirectory:
+  // We can't conditional hook.
+  
+  // Quick fix:
+  // In `App.tsx`, for `AdminRoutes`, we clearly have `OfficeProvider`.
+  // `EmployeeDirectory` is used in `AdminRoutes`.
+  // It is ALSO used in `Main`.
+  
+  // I will create `AdminEmployeeDirectory` wrapper? 
+  // Or just make `EmployeeDirectory` accept `officeId` as a prop!
+  // And `AdminRoutes` passes the prop.
+  // Use `useEmployees(officeId)` in the component.
+  
+  // Refactor `EmployeeDirectory` to take `officeId` prop?
+  // `useEmployees` hook call is inside.
+  
+  // Let's add an optional prop `officeId` to `EmployeeDirectory`.
+  // In `AdminRoutes`, we use the wrapper component `EmployeeDirectoryWrapper` (or similar) or just render `<EmployeeDirectory officeId={currentOffice.id} />`.
+  
+  // But `EmployeeDirectory` is a page/component.
+  // Let's modify it to accept props.
+  
+  // Pass officeId if available (Admin Context)
+  const { data: employees = [], isLoading } = useEmployees(canManageEmployees ? currentOfficeId : undefined);
+
   const deleteMutation = useDeleteEmployee();
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -31,7 +117,11 @@ const EmployeeDirectory: React.FC = () => {
   );
 
   const handleAddEmployee = () => {
-    navigate(`${NAVIGATION_PATHS.EMPLOYEES}/add`);
+    if (user?.role === 'ADMIN' || user?.role === 'HR') {
+        navigate('/admin/employees/add');
+    } else {
+        navigate(`${NAVIGATION_PATHS.EMPLOYEES}/add`);
+    }
   };
 
   const handleEditEmployee = (employeeId: string) => {
@@ -55,7 +145,7 @@ const EmployeeDirectory: React.FC = () => {
     }
   };
 
-  const canManageEmployees = user?.role === "ADMIN" || user?.role === "HR";
+
 
   return (
     <>
@@ -105,9 +195,12 @@ const EmployeeDirectory: React.FC = () => {
                 <tr>
                   <td
                     colSpan={5}
-                    className="text-center py-8"
+                    className="text-center py-12"
                   >
-                    <FourSquare />
+                    <div className="flex flex-col items-center justify-center text-slate-500 animate-pulse">
+                        <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3"></div>
+                        <span className="text-sm font-medium">Loading employees...</span>
+                    </div>
                   </td>
                 </tr>
               ) : (

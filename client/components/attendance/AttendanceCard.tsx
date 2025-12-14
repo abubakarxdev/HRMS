@@ -254,7 +254,7 @@ const AttendanceCard: React.FC = () => {
                         <Button 
                             type="button"
                             variant="outline" 
-                            onClick={() => navigate('/attendance/log')} 
+                            onClick={() => navigate(user.role === 'ADMIN' ? '/admin/attendance' : '/attendance/log')} 
                             className="w-full border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 justify-center py-3"
                         >
                             View History

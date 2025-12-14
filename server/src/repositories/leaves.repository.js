@@ -59,11 +59,16 @@ const createLeaveRequest = async (data) => {
 /**
  * Find leave requests with filtering and pagination
  */
-const findLeaveRequests = async ({ employeeId, status, skip, take } = {}) => {
+const findLeaveRequests = async ({ employeeId, status, officeId, skip, take } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
     if (status && status !== 'all') where.status = status;
+    if (officeId) {
+      where.employee = {
+        officeId: officeId
+      };
+    }
 
     return await prisma.leaveRequest.findMany({
       where,
@@ -92,11 +97,16 @@ const findLeaveRequests = async ({ employeeId, status, skip, take } = {}) => {
 /**
  * Count leave requests matching filters
  */
-const countLeaveRequests = async ({ employeeId, status } = {}) => {
+const countLeaveRequests = async ({ employeeId, status, officeId } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
     if (status && status !== 'all') where.status = status;
+    if (officeId) {
+      where.employee = {
+        officeId: officeId
+      };
+    }
 
     return await prisma.leaveRequest.count({ where });
   } catch (error) {

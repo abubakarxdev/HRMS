@@ -44,10 +44,12 @@ model Employee {
 
   attendanceRecords AttendanceRecord[]
   leaveBalances     LeaveBalance[]
-  leaveRequests     LeaveRequest[]
-  payslips          Payslip[]
-  issuedDocuments   IssuedDocument[]
-  documentRequests  DocumentRequest[]
+
+  leaveRequests    LeaveRequest[]
+  approvedLeaves   LeaveRequest[]    @relation("LeaveApprover")
+  payslips         Payslip[]
+  issuedDocuments  IssuedDocument[]
+  documentRequests DocumentRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

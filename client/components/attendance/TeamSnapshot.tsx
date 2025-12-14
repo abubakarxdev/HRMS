@@ -1,4 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { useOptionalOffice } from '../../context/OfficeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployees } from '../../hooks/useEmployees';
 import { useAttendanceRecords } from '../../hooks/useAttendance';
@@ -7,12 +9,21 @@ import { Role } from '../../types';
 
 const TeamSnapshot: React.FC = () => {
     const { user } = useAuth();
-    const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
+    const { officeId: paramOfficeId } = useParams<{ officeId: string }>();
+    const officeContext = useOptionalOffice();
+    
+    // Priority: 1. Admin Switcher (Context) 2. URL Param 3. User's assigned office
+    const currentOfficeId = officeContext?.currentOfficeId || paramOfficeId || user?.officeId;
+    
+    // Only fetch if we have an office ID (for standard users) or if we are Admin (who might view all if explicitly checking "All Offices" - but mainly we want to avoid accidental "All")
+    // Actually, backend getAllEmployees(undefined) returns ALL.
+    // If we want to restrict, we should pass officeId.
+    const { data: employees = [], isLoading: loadingEmployees } = useEmployees(currentOfficeId);
     const userTimezone = user?.timezone || 'Asia/Karachi';
     const todayLocal = useMemo(() => new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }), [userTimezone]);
 
     // Fetch today's records, limit 200 to cover all employees
-    const { data: response, isLoading: loadingAttendance } = useAttendanceRecords(1, 200, todayLocal, todayLocal);
+    const { data: response, isLoading: loadingAttendance } = useAttendanceRecords(1, 200, todayLocal, todayLocal, undefined, currentOfficeId);
     const allRecords = response?.data || [];
     
     const [currentTime, setCurrentTime] = useState(new Date());

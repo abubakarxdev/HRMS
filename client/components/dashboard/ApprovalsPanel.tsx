@@ -50,7 +50,7 @@ const ApprovalsPanel: React.FC = () => {
     const pendingApprovals = response?.data || [];
 
     const handleUpdate = (id: string, status: string, comment: string) => {
-        updateStatusMutation.mutate({ id, status, managerComments: comment }, {
+        updateStatusMutation.mutate({ id, status, approverComments: comment }, {
             onSuccess: () => {
                 setIsModalOpen(false);
             }

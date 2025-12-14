@@ -1,6 +1,6 @@
 // Attendance Types (Updated for new Session/Break schema)
 
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'ON_LEAVE';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'ON_LEAVE' | 'OFF';
 export type SessionStatus = 'ACTIVE' | 'COMPLETED';
 
 export interface Break {
@@ -107,5 +107,9 @@ export interface PaginatedResponse<T> {
     page: number;
     limit: number;
     totalPages: number;
+  };
+  aggregates?: {
+    totalWorkMinutes: number;
+    totalDaysPresent: number;
   };
 }
