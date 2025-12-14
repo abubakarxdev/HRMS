@@ -60,7 +60,21 @@ const createRequest = async (req, res) => {
  */
 const getAllRequests = async (req, res) => {
   try {
-    const { page, limit, status, employeeId, officeId } = req.query;
+    const { page, limit, status, employeeId } = req.query;
+    let { officeId } = req.query;
+    const { role } = req.user;
+
+    // Strict Data Isolation: Employees and HR can ONLY view requests from their own office
+    if (role === 'EMPLOYEE' || role === 'HR') {
+        const userOfficeId = req.user.employee?.officeId;
+        if (userOfficeId) {
+            officeId = userOfficeId;
+        } else {
+             // If a restricted user has no office assigned, they shouldn't see ALL requests.
+             return res.status(200).json({ data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } });
+        }
+    }
+
     const filters = {};
     if (status) filters.status = status;
     if (employeeId) filters.employeeId = employeeId;
