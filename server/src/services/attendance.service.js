@@ -767,6 +767,51 @@ const fixMissingClockOut = async (recordId, clockOutTime, breakStartTime, breakE
   }
 };
 
+/**
+ * Get Team Stats (Weekly/Monthly hours per employee)
+ */
+const getTeamStats = async (officeId) => {
+    try {
+        const now = dateUtil.getNow();
+        
+        // Calculate ranges (Assuming DEFAULT_TIMEZONE, ideally should be per-employee but for Team Dashboard approximate is OK for sorting/ranking or general view)
+        // Or we can use a standard timezone for the "Office". we will use DEFAULT_TIMEZONE.
+        const timezone = dateUtil.DEFAULT_TIMEZONE; 
+        
+        const startOfWeek = dateUtil.getStartOfWeek(now, timezone);
+        const startOfMonth = dateUtil.getStartOfMonth(now, timezone);
+
+        // Fetch grouped stats
+        const weekStats = await attendanceRepository.findGroupedAggregates({ 
+            startDate: startOfWeek, 
+            officeId 
+        });
+
+        const monthStats = await attendanceRepository.findGroupedAggregates({ 
+            startDate: startOfMonth, 
+            officeId 
+        });
+
+        // Transform into a map for easy lookup
+        // Result: { [employeeId]: { weekMinutes: 120, monthMinutes: 480 } }
+        const statsMap = {};
+
+        const processStats = (list, key) => {
+            list.forEach(item => {
+                if (!statsMap[item.employeeId]) statsMap[item.employeeId] = { weekMinutes: 0, monthMinutes: 0 };
+                statsMap[item.employeeId][key] = item._sum.totalWorkMinutes || 0;
+            });
+        };
+
+        processStats(weekStats, 'weekMinutes');
+        processStats(monthStats, 'monthMinutes');
+
+        return statsMap;
+    } catch (error) {
+        throw new Error(`Error fetching team stats: ${error.message}`);
+    }
+};
+
 module.exports = {
   getAllAttendance,
   getAttendanceForEmployee,
@@ -778,4 +823,5 @@ module.exports = {
   getTodayAttendance,
   getAttendanceById,
   fixMissingClockOut,
+  getTeamStats,
 };

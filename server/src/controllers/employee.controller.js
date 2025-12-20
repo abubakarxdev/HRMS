@@ -70,6 +70,15 @@ const createEmployee = asyncHandler(async (req, res) => {
       return res.status(403).json({ message: "Admin cannot create Super Admin accounts." });
   }
 
+  // Enforce Office ID for HR
+  if (requesterRole === 'HR') {
+      const userOfficeId = req.user.employee?.officeId;
+      if (!userOfficeId) {
+          return res.status(400).json({ message: "HR account does not have an assigned office. Cannot create employee." });
+      }
+      employeeData.officeId = userOfficeId;
+  }
+
   try {
     const newEmployee = await employeeService.createEmployee(employeeData);
     // 201 Created status

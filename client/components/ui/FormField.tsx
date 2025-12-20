@@ -6,7 +6,7 @@ interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputElement | HT
   type?: string;
   value: string | number;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
-  options?: string[];
+  options?: string[] | { label: string; value: string | number }[];
   error?: string | null | undefined;
   helperText?: string;
   icon?: React.ReactNode;
@@ -55,11 +55,15 @@ const FormField: React.FC<FormFieldProps> = ({
             } rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out ${icon ? "pl-10" : ""}`}
             {...props}
           >
-            {options.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
+            {options.map((option) => {
+                const optValue = typeof option === 'string' ? option : option.value;
+                const optLabel = typeof option === 'string' ? option : option.label;
+                return (
+                  <option key={optValue} value={optValue}>
+                    {optLabel}
+                  </option>
+                );
+            })}
           </select>
         ) : (
           <input

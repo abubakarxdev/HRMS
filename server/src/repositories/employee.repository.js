@@ -43,6 +43,10 @@ const getAllEmployees = async (officeId) => {
             firstName: true,
             lastName: true,
           }
+        },
+        contracts: {
+           orderBy: { startDate: 'desc' },
+           take: 1
         }
       },
       orderBy: {
@@ -97,16 +101,24 @@ const getEmployeeById = async (id) => {
 /**
  * Create employee with user account
  */
-const createEmployee = async (employeeData, userData) => {
-  try {
-    // Create employee with nested user creation
+const createEmployee = async (employeeData, userData, contractData = null) => {
+    const data = {
+      ...employeeData,
+      user: {
+        create: userData
+      }
+    };
+
+    // Add contract if provided
+    if (contractData) {
+      data.contracts = {
+        create: [contractData]
+      };
+    }
+
+    // Create employee with nested user and contract creation
     return await prisma.employee.create({
-      data: {
-        ...employeeData,
-        user: {
-          create: userData
-        }
-      },
+      data,
       include: {
         user: {
           select: {
@@ -115,19 +127,16 @@ const createEmployee = async (employeeData, userData) => {
             role: true,
             timezone: true,
           }
-        }
+        },
+        contracts: true, // Include contracts in return
       }
     });
-  } catch (error) {
-    throw new Error(`Error creating employee: ${error.message}`);
-  }
 };
 
 /**
  * Update employee
  */
 const updateEmployee = async (id, employeeData) => {
-  try {
     return await prisma.employee.update({
       where: { id },
       data: employeeData,
@@ -142,9 +151,6 @@ const updateEmployee = async (id, employeeData) => {
         }
       }
     });
-  } catch (error) {
-    throw new Error(`Error updating employee: ${error.message}`);
-  }
 };
 
 /**

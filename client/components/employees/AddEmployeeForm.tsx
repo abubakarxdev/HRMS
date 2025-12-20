@@ -50,7 +50,8 @@ const AddEmployeeForm: React.FC = () => {
   const { data: employees = [], isLoading: loading } = useEmployees();
   const createEmployeeMutation = useCreateEmployee();
   const updateEmployeeMutation = useUpdateEmployee();
-  const { currentOfficeId } = useOptionalOffice();
+  const officeContext = useOptionalOffice();
+  const currentOfficeId = officeContext?.currentOfficeId;
   
   const { employeeId } = useParams<{ employeeId: string }>();
   const isEditMode = !!employeeId;
@@ -165,6 +166,7 @@ const AddEmployeeForm: React.FC = () => {
 
     try {
       // Construct payload
+      // Construct payload
       const payload = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -173,19 +175,24 @@ const AddEmployeeForm: React.FC = () => {
         joiningDate: formData.joiningDate,
         status: formData.status,
         
+        // Contract/Job Details (Top Level for Service Extraction)
+        position: formData.position,
+        department: formData.department,
+        contractType: "FULL_TIME", // Default or add field
+        salary: 0, // Default or add field
+
         // User account
         email: formData.workEmail, // User email = Work email
         role: formData.role,
         password: formData.password,
         
-        // JSON fields
+        // JSON fields (Cleaned of Position/Department)
         personalDetails: {
           phone: formData.phone,
           address: formData.address,
           city: formData.city,
           country: formData.country,
-          position: formData.position,
-          department: formData.department,
+          // Removed position/department from here as they live in Contracts now
         },
         bankDetails: formData.bankDetails ? { accountNumber: formData.bankDetails } : null,
         officeId: currentOfficeId, 

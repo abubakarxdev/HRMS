@@ -15,6 +15,7 @@ import Dashboard from "./components/dashboard/Dashboard";
 import EmployeeDirectory from "./components/employees/EmployeeDirectory";
 import EmployeeProfile from "./components/employees/EmployeeProfile";
 import AddEmployeeForm from "./components/employees/AddEmployeeForm";
+import EmployeeContractsPage from "./pages/admin/EmployeeContractsPage";
 import AttendanceLog from "./components/attendance/AttendanceLog";
 import SessionDetailsPage from "./components/attendance/SessionDetailsPage";
 import TeamSnapshot from "./components/attendance/TeamSnapshot";
@@ -108,6 +109,7 @@ const AdminRoutes: React.FC = () => {
                 <Route path="/admin/employees/add" element={<AddEmployeeForm />} />
                 <Route path="/admin/employees/:employeeId" element={<EmployeeProfileWrapper />} />
                 <Route path="/admin/employees/edit/:employeeId" element={<AddEmployeeForm />} />
+                <Route path="/admin/contracts" element={<EmployeeContractsPage />} />
                 <Route path="/admin/attendance" element={<AttendanceLog />} />
                 <Route path="/attendance/session/:sessionId" element={<SessionDetailsPage />} />
                 <Route path="/admin/team" element={<TeamSnapshot />} />
@@ -142,6 +144,14 @@ const Main: React.FC = () => {
           element={<EmployeeDirectory />}
         />
         <Route
+          path={`${NAVIGATION_PATHS.EMPLOYEES}/add`}
+          element={<AddEmployeeForm />}
+        />
+        <Route
+          path={`${NAVIGATION_PATHS.EMPLOYEES}/edit/:employeeId`}
+          element={<AddEmployeeForm />}
+        />
+        <Route
           path={`${NAVIGATION_PATHS.EMPLOYEES}/:employeeId`}
           element={<EmployeeProfileWrapper />}
         />
@@ -170,6 +180,10 @@ const Main: React.FC = () => {
         <Route
           path={NAVIGATION_PATHS.LEAVE_REQUESTS}
           element={<LeaveRequestsPage />}
+        />
+        <Route
+          path={NAVIGATION_PATHS.CONTRACTS}
+          element={<EmployeeContractsPage />}
         />
         
         {/* Remove Admin Routes from Main since they are now in AdminRoutes */}

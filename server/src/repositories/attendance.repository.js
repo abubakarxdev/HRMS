@@ -510,6 +510,38 @@ const getAggregateStats = async ({ employeeId, startDate, endDate, status, offic
   }
 };
 
+/**
+ * Get grouped aggregates by employee
+ * @param {Object} filters
+ * @returns {Promise<Array>}
+ */
+const findGroupedAggregates = async ({ startDate, endDate, officeId } = {}) => {
+  try {
+    const where = {};
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = startDate;
+      if (endDate) where.date.lte = endDate;
+    }
+
+    if (officeId) {
+      where.employee = {
+        officeId: officeId
+      };
+    }
+
+    return await prisma.attendanceRecord.groupBy({
+      by: ['employeeId'],
+      where,
+      _sum: {
+        totalWorkMinutes: true,
+      },
+    });
+  } catch (error) {
+    throw new Error(`Error getting grouped stats: ${error.message}`);
+  }
+};
+
 module.exports = {
   findUserByEmployeeId,
   findUserById,
@@ -529,4 +561,5 @@ module.exports = {
   countAllAttendance,
   countAttendanceRecordsByDateRange,
   getAggregateStats,
+  findGroupedAggregates,
 };

@@ -4,7 +4,8 @@ import LeaveBalanceCard from '../components/leaves/LeaveBalanceCard';
 import LeaveHistoryTable from '../components/leaves/LeaveHistoryTable';
 import LeaveRequestModal from '../components/leaves/LeaveRequestModal';
 import Button from '../components/ui/Button';
-import { Plus } from 'lucide-react';
+import { Plus, Calendar, Clock, CheckCircle } from 'lucide-react';
+import { FiActivity } from 'react-icons/fi';
 
 const LeavesPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,22 +21,87 @@ const LeavesPage: React.FC = () => {
 
     const leaveTypes = balances?.map(b => b.leaveType) || ['Annual', 'Medical', 'Casual', 'Maternity', 'Others'];
 
-    return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-slate-700">My Leave Balances ({new Date().getFullYear()})</h2>
-                <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2">
-                    <Plus size={16} />
-                    Request Leave
-                </Button>
-            </div>
+    // Calculate aggregated stats
+    const totalLeaves = balances?.reduce((acc, curr) => acc + curr.totalCredits, 0) || 0;
+    const totalUsed = balances?.reduce((acc, curr) => acc + curr.usedCredits, 0) || 0;
+    const totalRemaining = totalLeaves - totalUsed;
+    const pendingRequests = requestsData?.data?.filter(r => r.status === 'PENDING').length || 0;
 
+    return (
+        <div className="space-y-8 animate-in fade-in duration-500 pb-10">
+            {/* Glassmorphism Header */}
+            <header className="relative overflow-hidden bg-gradient-to-r from-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl">
+                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
+                 <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-40 h-40 bg-purple-400 opacity-20 rounded-full blur-2xl"></div>
+
+                 <div className="relative z-10 flex flex-col justify-between gap-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                 <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm border border-white/20">
+                                    <Calendar className="w-6 h-6 text-white" />
+                                 </div>
+                                 <h1 className="text-3xl font-bold tracking-tight">My Leaves</h1>
+                            </div>
+                            <p className="text-indigo-100 max-w-lg text-lg">
+                                Manage your time off and view leave balances.
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => setIsModalOpen(true)} 
+                            className="bg-white text-indigo-600 hover:bg-indigo-50 border border-transparent shadow-lg shadow-black/10 transition-all hover:scale-105 active:scale-95 font-bold px-6 py-3 rounded-xl flex items-center gap-2 group"
+                        >
+                            <Plus size={18} className="group-hover:rotate-90 transition-transform duration-300" />
+                            Request Leave
+                        </button>
+                    </div>
+
+                    {/* Quick Stats Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 mt-2 border-t border-white/10">
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
+                            <div className="flex items-center gap-2 text-indigo-200 mb-1">
+                                <Clock size={16} />
+                                <span className="text-xs font-bold uppercase tracking-wider">Total Credits</span>
+                            </div>
+                            <p className="text-2xl font-bold text-white">{totalLeaves}</p>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
+                            <div className="flex items-center gap-2 text-emerald-300 mb-1">
+                                <CheckCircle size={16} />
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">Available</span>
+                            </div>
+                            <p className="text-2xl font-bold text-white">{totalRemaining}</p>
+                        </div>
+                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
+                            <div className="flex items-center gap-2 text-amber-300 mb-1">
+                                <FiActivity size={16} />
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">Used</span>
+                            </div>
+                            <p className="text-2xl font-bold text-white">{totalUsed}</p>
+                        </div>
+                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
+                            <div className="flex items-center gap-2 text-blue-300 mb-1">
+                                <Clock size={16} />
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">Pending</span>
+                            </div>
+                            <p className="text-2xl font-bold text-white">{pendingRequests}</p>
+                        </div>
+                    </div>
+                 </div>
+            </header>
+
+            {/* Balances Section */}
             <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        Leave Balances <span className="text-sm font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">{new Date().getFullYear()}</span>
+                    </h2>
+                </div>
 
                 {loadingBalances ? (
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                         {[1, 2, 3, 4, 5].map(i => (
-                            <div key={i} className="h-32 bg-slate-100 rounded-lg animate-pulse"></div>
+                            <div key={i} className="h-32 bg-slate-100 rounded-2xl animate-pulse border border-slate-200"></div>
                         ))}
                     </div>
                 ) : (
@@ -52,30 +118,38 @@ const LeavesPage: React.FC = () => {
                 )}
             </div>
 
-            <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-slate-700">Leave Request History</h2>
+            {/* History Section */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <h2 className="text-lg font-bold text-slate-800">Request History</h2>
+                    <div className="text-sm text-slate-500">
+                        Total Requests: <span className="font-bold text-slate-800">{requestsData?.meta?.total || 0}</span>
+                    </div>
+                </div>
+                
                 <LeaveHistoryTable 
                     requests={requestsData?.data || []} 
                     loading={loadingRequests} 
                 />
                 
-                {/* Simple Pagination for now */}
                 {requestsData?.meta && requestsData.meta.totalPages > 1 && (
-                    <div className="flex justify-end gap-2">
+                    <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
                         <Button 
-                            variant="secondary" 
+                            variant="outline" 
                             disabled={page === 1} 
                             onClick={() => setPage(p => Math.max(1, p - 1))}
+                            className="bg-white"
                         >
                             Previous
                         </Button>
-                        <span className="flex items-center text-sm text-slate-600">
+                        <span className="text-sm font-medium text-slate-600">
                             Page {page} of {requestsData.meta.totalPages}
                         </span>
                         <Button 
-                            variant="secondary" 
+                            variant="outline" 
                             disabled={page === requestsData.meta.totalPages} 
                             onClick={() => setPage(p => Math.min(requestsData.meta.totalPages, p + 1))}
+                            className="bg-white"
                         >
                             Next
                         </Button>

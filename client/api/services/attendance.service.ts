@@ -111,4 +111,14 @@ export const attendanceService = {
     const response = await apiClient.post<AttendanceRecord>('/attendance/fix-missing-clock-out', data);
     return response.data;
   },
+
+  /**
+   * Get Team Stats (Weekly/Monthly hours per employee)
+   */
+  getTeamStats: async (officeId?: string): Promise<Record<string, { weekMinutes: number; monthMinutes: number }>> => {
+    let url = `/attendance/team-stats`;
+    if (officeId) url += `?officeId=${officeId}`;
+    const response = await apiClient.get<Record<string, { weekMinutes: number; monthMinutes: number }>>(url);
+    return response.data;
+  },
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { FiEye, FiCalendar, FiClock, FiMapPin, FiFilter, FiRefreshCw, FiUser, FiUsers } from 'react-icons/fi';
+import { FiEye, FiCalendar, FiClock, FiMapPin, FiFilter, FiRefreshCw, FiUser, FiActivity, FiLayers } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployees } from '../../hooks/useEmployees';
@@ -8,15 +8,13 @@ import Button from '../ui/Button';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { Autocomplete, TextField, Avatar, Box, Typography } from '@mui/material';
 import dayjs, { Dayjs } from 'dayjs';
-import FourSquare from '../ui/FourSquare';
 import Select from '../ui/Select';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
+import { useOptionalOffice } from "../../context/OfficeContext";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
-import { useOptionalOffice } from "../../context/OfficeContext";
 
 const AttendanceLog: React.FC = () => {
     const { user } = useAuth();
@@ -59,7 +57,6 @@ const AttendanceLog: React.FC = () => {
     
     // Fetch attendance data based on selection
     const shouldFetchEmployee = selectedEmployeeId !== 'all' && !!targetEmployeeId;
-    const shouldFetchAll = selectedEmployeeId === 'all' && isHR;
     
     // Use APPLIED dates for fetching
     const { data: employeeAttendanceData, isLoading: attendanceLoading } = useEmployeeAttendance(
@@ -234,52 +231,63 @@ const AttendanceLog: React.FC = () => {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
-            {/* Page Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Attendance Log</h1>
-                    <p className="text-slate-500 mt-1">View and manage your attendance history</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">
-                        {meta?.total || 0} Records Found
-                    </span>
-                </div>
-            </div>
+            {/* Glassmorphism Header */}
+            <header className="relative overflow-hidden bg-gradient-to-r from-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl">
+                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
+                 <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-40 h-40 bg-purple-400 opacity-20 rounded-full blur-2xl"></div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 group hover:border-indigo-200 transition-colors">
-                    <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                        <FiClock size={24} />
+                 <div className="relative z-10 flex flex-col justify-between gap-6">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                 <FiCalendar className="w-8 h-8 text-white/80" />
+                                 <h1 className="text-3xl font-bold tracking-tight">Attendance Log</h1>
+                            </div>
+                            <p className="text-indigo-100 max-w-lg text-lg">
+                                Comprehensive history of attendance records and sessions.
+                            </p>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20">
+                            <span className="text-sm font-medium text-indigo-100 uppercase tracking-wider">Total Records</span>
+                            <div className="text-3xl font-bold font-mono text-white">{meta?.total || 0}</div>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-sm font-medium text-slate-500">Total Hours</p>
-                        <p className="text-2xl font-bold text-slate-900">{formatDuration(totalFilteredMinutes)}</p>
+
+                    {/* Stats Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 mt-2 border-t border-white/10">
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 flex items-center gap-4">
+                            <div className="p-3 bg-white/10 rounded-lg text-emerald-300">
+                                <FiClock size={24} />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold text-white">{formatDuration(totalFilteredMinutes)}</p>
+                                <p className="text-xs text-indigo-200 uppercase font-bold tracking-wider">Total Hours</p>
+                            </div>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 flex items-center gap-4">
+                            <div className="p-3 bg-white/10 rounded-lg text-amber-300">
+                                <FiCalendar size={24} />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold text-white">{presentDays}</p>
+                                <p className="text-xs text-indigo-200 uppercase font-bold tracking-wider">Days Present</p>
+                            </div>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 flex items-center gap-4">
+                             <div className="p-3 bg-white/10 rounded-lg text-blue-300">
+                                <FiActivity size={24} />
+                            </div>
+                            <div>
+                                <p className="text-2xl font-bold text-white">{formatDuration(averageMinutes)}</p>
+                                <p className="text-xs text-indigo-200 uppercase font-bold tracking-wider">Avg Daily</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 group hover:border-emerald-200 transition-colors">
-                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                        <FiCalendar size={24} />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-slate-500">Days Present</p>
-                        <p className="text-2xl font-bold text-slate-900">{presentDays}</p>
-                    </div>
-                </div>
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 group hover:border-blue-200 transition-colors">
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <FiRefreshCw size={24} />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-slate-500">Avg. Daily Hours</p>
-                        <p className="text-2xl font-bold text-slate-900">{formatDuration(averageMinutes)}</p>
-                    </div>
-                </div>
-            </div>
+                 </div>
+            </header>
 
             {/* Filters & Content */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative z-10">
                 {/* Filter Bar */}
                 <div className="p-5 border-b border-slate-100 bg-slate-50/50">
                     <div className="flex flex-col md:flex-row gap-4 items-end">
@@ -287,7 +295,7 @@ const AttendanceLog: React.FC = () => {
                             {/* Employee Selector for HR */}
                             {isHR && (
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Employee</label>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Employee</label>
                                     <Autocomplete
                                         options={employeeOptions}
                                         getOptionLabel={(option) => option.label}
@@ -327,11 +335,14 @@ const AttendanceLog: React.FC = () => {
                                                 {...params} 
                                                 size="small" 
                                                 fullWidth 
-                                                className="bg-white"
+                                                className="bg-white shadow-sm"
                                                 sx={{
                                                     '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '0.5rem',
+                                                        borderRadius: '0.75rem',
                                                         backgroundColor: 'white',
+                                                        '& fieldset': { borderColor: '#e2e8f0' },
+                                                        '&:hover fieldset': { borderColor: '#cbd5e1' },
+                                                        '&.Mui-focused fieldset': { borderColor: '#6366f1' },
                                                     }
                                                 }}
                                             />
@@ -343,10 +354,11 @@ const AttendanceLog: React.FC = () => {
 
                             {/* Quick Range */}
                             <div>
-                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Date Range</label>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Date Range</label>
                                 <Select
                                     value={quickRange}
                                     onChange={(e) => handleQuickRangeChange(e.target.value)}
+                                    className="bg-white shadow-sm border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl"
                                     options={[
                                         { value: 'last30', label: 'Last 30 Days' },
                                         { value: 'today', label: 'Today' },
@@ -363,23 +375,23 @@ const AttendanceLog: React.FC = () => {
                             {quickRange === 'custom' && (
                                 <>
                                     <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">From Date</label>
+                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">From Date</label>
                                         <DatePicker 
                                             value={startDate} 
                                             onChange={(newValue) => setStartDate(newValue)}
                                             slotProps={{ 
-                                                textField: { size: 'small', fullWidth: true, className: 'bg-white' },
+                                                textField: { size: 'small', fullWidth: true, className: 'bg-white shadow-sm rounded-xl' },
                                                 popper: { sx: { zIndex: 99999 } }
                                             }}
                                         />
                                     </div>
                                     <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">To Date</label>
+                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">To Date</label>
                                         <DatePicker 
                                             value={endDate} 
                                             onChange={(newValue) => setEndDate(newValue)}
                                             slotProps={{ 
-                                                textField: { size: 'small', fullWidth: true, className: 'bg-white' },
+                                                textField: { size: 'small', fullWidth: true, className: 'bg-white shadow-sm rounded-xl' },
                                                 popper: { sx: { zIndex: 99999 } }
                                             }}
                                         />
@@ -389,10 +401,11 @@ const AttendanceLog: React.FC = () => {
                             
                             {/* Status Filter */}
                             <div>
-                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Status</label>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Status</label>
                                 <Select
                                     value={statusFilter}
                                     onChange={(e) => setStatusFilter(e.target.value)}
+                                    className="bg-white shadow-sm border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl"
                                     options={[
                                         { value: 'all', label: 'All Statuses' },
                                         { value: 'PRESENT', label: 'Present' },
@@ -404,13 +417,13 @@ const AttendanceLog: React.FC = () => {
                                 />
                             </div>
                         </div>
-                        <div className="flex gap-2 w-full md:w-auto">
+                        <div className="flex gap-2 w-full md:w-auto h-[42px]">
                             {quickRange === 'custom' && (
-                                <Button onClick={handleApplyFilters} className="flex-1 md:flex-none bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm animate-in fade-in zoom-in duration-300">
+                                <Button onClick={handleApplyFilters} className="flex-1 md:flex-none bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm animate-in fade-in zoom-in duration-300 rounded-xl h-full">
                                     <FiFilter className="mr-2" /> Apply
                                 </Button>
                             )}
-                            <Button variant="outline" onClick={handleReset} className="flex-1 md:flex-none bg-white hover:bg-slate-50">
+                            <Button variant="outline" onClick={handleReset} className="flex-1 md:flex-none bg-white hover:bg-slate-50 border-slate-200 rounded-xl h-full">
                                 Reset
                             </Button>
                         </div>
@@ -418,42 +431,42 @@ const AttendanceLog: React.FC = () => {
                 </div>
 
                 {/* Table */}
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto min-h-[400px]">
                     <table className="min-w-full divide-y divide-slate-100">
                         <thead className="bg-slate-50">
                             <tr>
                                 {selectedEmployeeId === 'all' && (
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Employee</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
                                 )}
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Check In</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Check Out</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Break</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Location</th>
-                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Worked</th>
-                                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Check In</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Check Out</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Break</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Location</th>
+                                <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Worked</th>
+                                <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={selectedEmployeeId === 'all' ? 9 : 8} className="px-6 py-12 text-center text-slate-500">
+                                    <td colSpan={selectedEmployeeId === 'all' ? 9 : 8} className="px-6 py-20 text-center text-slate-500">
                                         <div className="flex flex-col items-center justify-center">
-                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>
-                                            <p>Loading records...</p>
+                                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mb-4"></div>
+                                            <p className="text-lg font-medium text-slate-700">Loading records...</p>
                                         </div>
                                     </td>
                                 </tr>
                             ) : logs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={selectedEmployeeId === 'all' ? 9 : 8} className="px-6 py-12 text-center text-slate-500">
+                                    <td colSpan={selectedEmployeeId === 'all' ? 9 : 8} className="px-6 py-20 text-center text-slate-500">
                                         <div className="flex flex-col items-center justify-center">
-                                            <div className="bg-slate-100 p-3 rounded-full mb-3">
-                                                <FiCalendar className="text-slate-400" size={24} />
+                                            <div className="bg-slate-50 p-6 rounded-full mb-4 border border-slate-100">
+                                                <FiLayers className="text-slate-300" size={48} />
                                             </div>
-                                            <p className="font-medium text-slate-900">No records found</p>
-                                            <p className="text-sm mt-1">Try adjusting your date filters</p>
+                                            <p className="font-bold text-lg text-slate-900">No records found</p>
+                                            <p className="text-slate-500 mt-1">Try adjusting your date filters or status</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -470,7 +483,7 @@ const AttendanceLog: React.FC = () => {
                                             {selectedEmployeeId === 'all' && (
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center">
-                                                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs mr-3 overflow-hidden">
+                                                        <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs mr-3 overflow-hidden border border-indigo-200">
                                                             {employee?.avatarUrl ? (
                                                                 <img src={employee.avatarUrl} alt="" className="h-full w-full object-cover" />
                                                             ) : (
@@ -478,7 +491,7 @@ const AttendanceLog: React.FC = () => {
                                                             )}
                                                         </div>
                                                         <div>
-                                                            <div className="text-sm font-medium text-slate-900">
+                                                            <div className="text-sm font-semibold text-slate-900">
                                                                 {employee ? `${employee.firstName} ${employee.lastName}` : `ID: ${record.employeeId}`}
                                                             </div>
                                                             <div className="text-xs text-slate-500">{employee?.employeeIdNumber || 'Employee'}</div>
@@ -487,7 +500,7 @@ const AttendanceLog: React.FC = () => {
                                                 </td>
                                             )}
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm font-medium text-slate-900">
+                                                <div className="text-sm font-semibold text-slate-900">
                                                     {new Date(checkIn || record.date).toLocaleDateString('en-US', { 
                                                         weekday: 'short', 
                                                         month: 'short', 
@@ -495,7 +508,7 @@ const AttendanceLog: React.FC = () => {
                                                         timeZone: user?.timezone || 'Asia/Karachi'
                                                     })}
                                                 </div>
-                                                <div className="text-xs text-slate-500">
+                                                <div className="text-xs text-slate-500 mt-0.5">
                                                     {new Date(checkIn || record.date).toLocaleDateString('en-US', { 
                                                         year: 'numeric',
                                                         timeZone: user?.timezone || 'Asia/Karachi'
@@ -503,7 +516,7 @@ const AttendanceLog: React.FC = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2.5 py-0.5 inline-flex text-xs font-bold rounded-full border ${
+                                                <span className={`px-2.5 py-1 inline-flex text-xs font-bold rounded-full border shadow-sm ${
                                                     record.status === 'PRESENT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                                     record.status === 'ABSENT' ? 'bg-rose-50 text-rose-700 border-rose-200' :
                                                     record.status === 'ON_LEAVE' ? 'bg-amber-50 text-amber-700 border-amber-200' :
@@ -513,10 +526,10 @@ const AttendanceLog: React.FC = () => {
                                                     {record.status}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-mono">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 font-mono font-medium">
                                                 {checkIn ? dayjs(checkIn).tz(user?.timezone || 'Asia/Karachi').format('hh:mm A') : '-'}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-mono">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 font-mono font-medium">
                                                 {checkOut ? dayjs(checkOut).tz(user?.timezone || 'Asia/Karachi').format('hh:mm A') : '-'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
@@ -529,7 +542,7 @@ const AttendanceLog: React.FC = () => {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className="text-sm font-bold text-slate-700">
+                                                <span className="text-sm font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
                                                     {formatDuration(record.totalWorkMinutes || 0)}
                                                 </span>
                                             </td>
@@ -537,11 +550,11 @@ const AttendanceLog: React.FC = () => {
                                                 {hasSessions && (
                                                     <button
                                                         onClick={() => handleViewDetails(record)}
-                                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium"
+                                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-xs font-bold shadow-sm shadow-indigo-200"
                                                         title="View Details"
                                                     >
-                                                        <FiEye size={16} />
-                                                        View Details
+                                                        <FiEye size={14} />
+                                                        Details
                                                     </button>
                                                 )}
                                             </td>
@@ -557,7 +570,7 @@ const AttendanceLog: React.FC = () => {
                 {meta && meta.totalPages > 1 && (
                     <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
                         <div className="text-sm text-slate-500">
-                            Showing <span className="font-medium">{(meta.page - 1) * meta.limit + 1}</span> to <span className="font-medium">{Math.min(meta.page * meta.limit, meta.total)}</span> of <span className="font-medium">{meta.total}</span> results
+                            Showing <span className="font-bold text-slate-700">{(meta.page - 1) * meta.limit + 1}</span> to <span className="font-bold text-slate-700">{Math.min(meta.page * meta.limit, meta.total)}</span> of <span className="font-bold text-slate-700">{meta.total}</span> results
                         </div>
                         <div className="flex gap-2">
                             <Button 
@@ -565,28 +578,28 @@ const AttendanceLog: React.FC = () => {
                                 size="sm" 
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
                                 disabled={page === 1}
-                                className="bg-white"
+                                className="bg-white border-slate-200 hover:bg-slate-50"
                             >
                                 Previous
                             </Button>
                             <div className="flex items-center gap-1">
                                 {Array.from({ length: Math.min(5, meta.totalPages) }, (_, i) => {
-                                    // Logic to show window of pages around current page could go here
-                                    // For simplicity, showing first 5 or simple logic
                                     let p = i + 1;
                                     if (meta.totalPages > 5) {
                                         if (page > 3) p = page - 2 + i;
                                         if (p > meta.totalPages) p = meta.totalPages - (4 - i);
                                     }
                                     
+                                    if (p <= 0) return null;
+
                                     return (
                                         <button
                                             key={p}
                                             onClick={() => setPage(p)}
-                                            className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                                            className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${
                                                 page === p 
-                                                    ? 'bg-indigo-600 text-white shadow-sm' 
-                                                    : 'text-slate-600 hover:bg-slate-200'
+                                                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-100' 
+                                                    : 'text-slate-500 hover:bg-slate-200 hover:text-slate-800'
                                             }`}
                                         >
                                             {p}
@@ -599,7 +612,7 @@ const AttendanceLog: React.FC = () => {
                                 size="sm" 
                                 onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
                                 disabled={page === meta.totalPages}
-                                className="bg-white"
+                                className="bg-white border-slate-200 hover:bg-slate-50"
                             >
                                 Next
                             </Button>

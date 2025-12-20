@@ -37,6 +37,20 @@ export interface Employee {
     firstName: string;
     lastName: string;
   } | null;
+
+  contracts?: {
+    id: string;
+    position: string;
+    department?: string;
+    type: string;
+    startDate: string;
+    isActive: boolean;
+  }[];
+
+  // Legacy fields (optional for compatibility)
+  name?: string;
+  position?: string;
+  department?: string;
 }
 
 export interface CreateEmployeeRequest {

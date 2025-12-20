@@ -3,9 +3,9 @@ import { useParams } from 'react-router-dom';
 import { useOptionalOffice } from '../../context/OfficeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployees } from '../../hooks/useEmployees';
-import { useAttendanceRecords } from '../../hooks/useAttendance';
+import { useAttendanceRecords, useTeamStats } from '../../hooks/useAttendance';
 import EmployeeAttendanceCard from './EmployeeAttendanceCard';
-import { Role } from '../../types';
+import { Users, Clock, Filter, RefreshCw, Layers } from 'lucide-react';
 
 const TeamSnapshot: React.FC = () => {
     const { user } = useAuth();
@@ -15,17 +15,17 @@ const TeamSnapshot: React.FC = () => {
     // Priority: 1. Admin Switcher (Context) 2. URL Param 3. User's assigned office
     const currentOfficeId = officeContext?.currentOfficeId || paramOfficeId || user?.officeId;
     
-    // Only fetch if we have an office ID (for standard users) or if we are Admin (who might view all if explicitly checking "All Offices" - but mainly we want to avoid accidental "All")
-    // Actually, backend getAllEmployees(undefined) returns ALL.
-    // If we want to restrict, we should pass officeId.
     const { data: employees = [], isLoading: loadingEmployees } = useEmployees(currentOfficeId);
     const userTimezone = user?.timezone || 'Asia/Karachi';
     const todayLocal = useMemo(() => new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }), [userTimezone]);
 
-    // Fetch today's records, limit 200 to cover all employees
-    const { data: response, isLoading: loadingAttendance } = useAttendanceRecords(1, 200, todayLocal, todayLocal, undefined, currentOfficeId);
+    // Fetch today's records
+    const { data: response, isLoading: loadingAttendance, refetch } = useAttendanceRecords(1, 200, todayLocal, todayLocal, undefined, currentOfficeId);
     const allRecords = response?.data || [];
     
+    // Fetch Team Stats (Weekly/Monthly Progress)
+    const { data: teamStats, isLoading: loadingStats } = useTeamStats(currentOfficeId);
+
     const [currentTime, setCurrentTime] = useState(new Date());
     const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -36,110 +36,151 @@ const TeamSnapshot: React.FC = () => {
 
     const attendanceByEmployee = useMemo(() => {
         const map = new Map();
-        
-        allRecords.forEach(a => {
-            // Backend already filtered by date, but double check or just map
-            map.set(String(a.employeeId), a);
-        });
+        allRecords.forEach(a => map.set(String(a.employeeId), a));
         return map;
     }, [allRecords]);
 
     const getEmployeeStatus = (employeeId: string): string => {
         const record = attendanceByEmployee.get(String(employeeId));
-        
         if (!record) return 'absent';
         if (record.status === 'ON_LEAVE') return 'on-leave';
         
-        const openSession = record.sessions?.find(s => !s.checkOutTime);
+        const openSession = record.sessions?.find((s: any) => !s.checkOutTime);
         if (openSession) {
-            // Check if on break
-            const onBreak = openSession.breaks?.some(b => !b.endTime);
+            const onBreak = openSession.breaks?.some((b: any) => !b.endTime);
             if (onBreak) return 'on-break';
             return 'present';
         }
         
-        if (record.sessions?.length > 0 && record.sessions.every(s => s.checkOutTime)) {
-            return 'checked-out';
+        if (record.sessions?.length > 0 && record.sessions.every((s: any) => s.checkOutTime)) {
+             return 'checked-out';
         }
-        
         return 'absent';
     };
 
-    const isPrivilegedUser = user?.role === 'ADMIN' || user?.role === 'HR';
-    const subtitle = isPrivilegedUser 
-        ? "View and manage team attendance for the current day." 
-        : "View your team's attendance status for today.";
-
     const filteredEmployees = useMemo(() => {
         if (statusFilter === 'all') return employees;
-        
-        return employees.filter(emp => {
-            const status = getEmployeeStatus(emp.id);
-            return status === statusFilter;
-        });
+        return employees.filter(emp => getEmployeeStatus(emp.id) === statusFilter);
     }, [employees, statusFilter, attendanceByEmployee]);
 
-    const loading = loadingEmployees || loadingAttendance;
+    const loading = loadingEmployees || loadingAttendance || loadingStats;
+
+    // Counts for Header
+    const counts = useMemo(() => {
+        const c = { present: 0, absent: 0, onBreak: 0, checkedOut: 0, onLeave: 0 };
+        employees.forEach(emp => {
+             const status = getEmployeeStatus(emp.id);
+             if (status === 'present') c.present++;
+             else if (status === 'absent') c.absent++;
+             else if (status === 'on-break') c.onBreak++;
+             else if (status === 'checked-out') c.checkedOut++;
+             else if (status === 'on-leave') c.onLeave++;
+        });
+        return c;
+    }, [employees, attendanceByEmployee]);
 
     return (
-        <div className="space-y-6">
-            <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-slate-200 gap-4">
-                <div className="flex-grow">
-                    <div className="flex items-baseline gap-3">
-                        <h1 className="text-xl font-bold text-slate-800">Team Dashboard &mdash; Today</h1>
-                        <span className="font-bold text-xl text-slate-800 font-mono hidden md:inline">
-                            {currentTime.toLocaleTimeString('en-US', { timeZone: user?.timezone || 'Asia/Karachi' })}
-                        </span>
-                        <span className="text-xs text-slate-500 font-mono">({user?.timezone || 'Asia/Karachi'})</span>
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* Glassmorphism Header */}
+            <header className="relative overflow-hidden bg-gradient-to-r from-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl">
+                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
+                 <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-40 h-40 bg-purple-400 opacity-20 rounded-full blur-2xl"></div>
+
+                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                             <Users className="w-8 h-8 text-white/80" />
+                             <h1 className="text-3xl font-bold tracking-tight">Team Dashboard</h1>
+                        </div>
+                        <p className="text-indigo-100 max-w-lg text-lg">
+                            Real-time insights into your team's attendance and performance targets.
+                        </p>
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                        <p className="text-sm text-slate-500">{subtitle}</p>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-                            Work Day
-                        </span>
+
+                    <div className="flex flex-col items-end">
+                         <div className="text-4xl font-bold font-mono tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-indigo-200">
+                             {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                         </div>
+                         <div className="flex items-center gap-2 text-indigo-200 text-sm font-medium uppercase tracking-wider mt-1">
+                             <Clock className="w-4 h-4" />
+                             {currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                         </div>
                     </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                    <select 
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="p-2 border rounded-md bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                        <option value="all">All Employees</option>
-                        <option value="present">Present</option>
-                        <option value="absent">Absent</option>
-                        <option value="checked-out">Checked Out</option>
-                        <option value="on-break">On Break</option>
-                    </select>
-                    <button 
-                        onClick={() => window.location.reload()}
-                        className="p-2 border rounded-md bg-slate-50 hover:bg-slate-100 transition-colors"
-                        title="Refresh"
-                    >
-                        <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    </button>
-                </div>
+                 </div>
+
+                 {/* Quick Stats Row */}
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-6 border-t border-white/20">
+                      {[ 
+                          { label: 'Present', count: counts.present, color: 'text-emerald-300' },
+                          { label: 'Checked Out', count: counts.checkedOut, color: 'text-blue-300' },
+                          { label: 'On Leave', count: counts.onLeave, color: 'text-purple-300' },
+                          { label: 'Absent', count: counts.absent, color: 'text-rose-300' },
+                      ].map((stat, idx) => (
+                          <div key={idx} className="bg-white/10 backdrop-blur-md rounded-xl p-3 flex flex-col items-center">
+                              <span className={`text-2xl font-bold ${stat.color}`}>{stat.count}</span>
+                              <span className="text-xs text-white/70 uppercase font-semibold">{stat.label}</span>
+                          </div>
+                      ))}
+                 </div>
             </header>
 
-            {(loading && employees.length === 0) ? (
-                <div className="text-center p-8 text-slate-500">Loading team data...</div>
+            {/* Controls */}
+            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 sticky top-4 z-20 mx-1">
+                 <div className="flex items-center gap-2 text-slate-500">
+                     <Layers className="w-5 h-5" />
+                     <span className="font-semibold">{employees.length} Employees</span>
+                     <span className="h-4 w-px bg-slate-300 mx-2"></span>
+                     <span className="text-sm">Showing {filteredEmployees.length}</span>
+                 </div>
+                 
+                 <div className="flex gap-3">
+                      <div className="relative">
+                          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <select 
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all hover:bg-slate-100"
+                          >
+                            <option value="all">All Statuses</option>
+                            <option value="present">Present</option>
+                            <option value="checked-out">Checked Out</option>
+                            <option value="on-leave">On Leave</option>
+                            <option value="absent">Absent</option>
+                          </select>
+                      </div>
+                      <button 
+                        onClick={() => refetch()} 
+                        className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 text-slate-600 transition-colors"
+                        title="Refresh Data"
+                      >
+                          <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                      </button>
+                 </div>
+            </div>
+
+            {/* Grid */}
+            {loading && employees.length === 0 ? (
+                <div className="flex justify-center py-20">
+                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                </div>
             ) : (
-                <>
-                    <div className="text-sm text-slate-600">
-                        Showing {filteredEmployees.length} of {employees.length} employees
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                        {filteredEmployees.map(employee => (
-                            <EmployeeAttendanceCard
-                                key={employee.id}
-                                employee={employee}
-                                todayRecord={attendanceByEmployee.get(String(employee.id))}
-                            />
-                        ))}
-                    </div>
-                </>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-10">
+                    {filteredEmployees.map(employee => (
+                        <EmployeeAttendanceCard
+                            key={employee.id}
+                            employee={employee}
+                            todayRecord={attendanceByEmployee.get(String(employee.id))}
+                            stats={teamStats?.[String(employee.id)]}
+                        />
+                    ))}
+                    
+                    {filteredEmployees.length === 0 && (
+                        <div className="col-span-full py-20 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                            <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                            <p className="text-lg font-medium">No employees found matching filter</p>
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     );

@@ -10,6 +10,7 @@ export const NAVIGATION_PATHS = {
     LEAVES: '/leaves',
     LEAVE_REQUESTS: '/leaves/requests',
     OFFICES: '/admin/offices',
+    CONTRACTS: '/contracts',
 };
 
 
@@ -28,6 +29,11 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     {
         path: NAVIGATION_PATHS.EMPLOYEES,
         label: 'Employees',
+        roles: [Role.SUPER_ADMIN, Role.ADMIN, Role.HR],
+    },
+    {
+        path: NAVIGATION_PATHS.CONTRACTS,
+        label: 'Employment Contracts',
         roles: [Role.SUPER_ADMIN, Role.ADMIN, Role.HR],
     },
     {

@@ -70,6 +70,30 @@ const createEmployee = async (data) => {
 
     // Generate employee ID number
     const employeeIdNumber = data.employeeIdNumber || generateEmployeeIdNumber();
+    
+    // Extract Position and Department from top-level or personalDetails
+    // Prirority: Top-level data > personalDetails > Defaults
+    const position = data.position || data.personalDetails?.position || "Unassigned";
+    const department = data.department || data.personalDetails?.department || "Unassigned";
+    
+    // Clean specific fields from personalDetails to avoid duplication
+    let personalDetailsRaw = data.personalDetails || {};
+    // Clone to avoid mutation if needed
+    const personalDetails = { ...personalDetailsRaw };
+    delete personalDetails.position;
+    delete personalDetails.department;
+
+    // Prepare Contract Data
+    const contractData = {
+        type: data.contractType || "FULL_TIME", // Enum: FULL_TIME, PART_TIME, etc.
+        position: position,
+        department: department,
+        startDate: new Date(data.joiningDate),
+        endDate: data.endDate ? new Date(data.endDate) : null,
+        salary: data.salary || 0,
+        currency: data.currency || "USD",
+        isActive: true, // Auto-activate initial contract
+    };
 
     // Prepare employee data
     const employeeData = {
@@ -81,7 +105,7 @@ const createEmployee = async (data) => {
       avatarUrl: data.avatarUrl || null,
       status: data.status || "Active",
       joiningDate: new Date(data.joiningDate),
-      personalDetails: data.personalDetails || null,
+      personalDetails: Object.keys(personalDetails).length > 0 ? personalDetails : null,
       bankDetails: data.bankDetails || null,
       legalEntityId: data.legalEntityId || null,
       officeId: data.officeId || null,
@@ -96,8 +120,8 @@ const createEmployee = async (data) => {
       timezone: data.timezone || "Asia/Karachi",
     };
 
-    // Create employee with user
-    return await employeeRepository.createEmployee(employeeData, userData);
+    // Create employee with user and contract
+    return await employeeRepository.createEmployee(employeeData, userData, contractData);
   } catch (error) {
     // Handle Prisma unique constraint errors
     if (error.code === "P2002") {

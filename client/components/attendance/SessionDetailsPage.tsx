@@ -5,7 +5,6 @@ import { api } from '../../services/apiService';
 import { AttendanceRecord } from '../../types';
 import Button from '../ui/Button';
 import FourSquare from '../ui/FourSquare';
-
 import { useAuth } from '../../contexts/AuthContext';
 
 const SessionDetailsPage: React.FC = () => {
@@ -99,81 +98,80 @@ const SessionDetailsPage: React.FC = () => {
     const breakSessions = record.sessions?.flatMap(s => s.breaks || []) || [];
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Header with Back Button */}
-            <div className="flex items-center gap-4">
-                <button
-                    onClick={() => {
-                        if (user?.role === 'ADMIN' || user?.role === 'HR') {
-                            navigate('/admin/attendance');
-                        } else {
-                            navigate('/attendance/log');
-                        }
-                    }}
-                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                    title="Back to Attendance Log"
-                >
-                    <FiArrowLeft size={20} className="text-slate-600" />
-                </button>
-                <div className="flex-1">
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Session Details</h1>
-                    <p className="text-slate-500 mt-1">Detailed breakdown of attendance session</p>
-                </div>
-            </div>
+        <div className="space-y-6 animate-in fade-in duration-500 pb-10">
+            {/* Hero Section - Glassmorphism */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl">
+                 <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
+                 <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-40 h-40 bg-purple-400 opacity-20 rounded-full blur-2xl"></div>
 
-            {/* Hero Section - Summary Card */}
-            <div className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 rounded-2xl shadow-xl overflow-hidden">
-                <div className="p-8">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        {/* Date & Employee Info */}
+                <div className="relative z-10 space-y-6">
+                    {/* Header Row */}
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => navigate('/attendance/log')}
+                            className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl border border-white/20 text-white transition-all shadow-sm group"
+                            title="Back to Attendance Log"
+                        >
+                            <FiArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+                        </button>
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight text-white">Session Details</h1>
+                            <p className="text-indigo-100 mt-1 flex items-center gap-2 text-sm font-medium">
+                                <FiCalendar size={14} />
+                                {new Date(workSessions[0]?.checkInTime || record.date).toLocaleDateString('en-US', { 
+                                    weekday: 'long', 
+                                    month: 'long', 
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    timeZone: user?.timezone || 'Asia/Karachi'
+                                })}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 pt-6 border-t border-white/10">
+                        {/* Employee Info */}
                         <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 bg-white/10 backdrop-blur-sm rounded-xl">
-                                    <FiCalendar className="text-white" size={24} />
+                             <div className="flex items-center gap-4">
+                                <div className="h-14 w-14 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 text-2xl font-bold text-white">
+                                    {record.employee ? (
+                                        record.employee.avatarUrl ? (
+                                            <img src={record.employee.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
+                                        ) : (
+                                            record.employee.firstName?.[0] || 'U'
+                                        )
+                                    ) : <FiUser />}
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-bold text-white">
-                                        {new Date(workSessions[0]?.checkInTime || record.date).toLocaleDateString('en-US', { 
-                                            weekday: 'long', 
-                                            month: 'long', 
-                                            day: 'numeric',
-                                            year: 'numeric',
-                                            timeZone: user?.timezone || 'Asia/Karachi'
-                                        })}
-                                    </h2>
                                     {record.employee && (
-                                        <p className="text-indigo-100 text-sm mt-1 flex items-center gap-2">
-                                            <FiUser size={14} />
+                                        <h2 className="text-xl font-bold text-white tracking-tight">
                                             {`${record.employee.firstName} ${record.employee.lastName}`}
-                                        </p>
+                                        </h2>
                                     )}
+                                    <p className="text-indigo-200 text-sm font-medium">
+                                        {record.employee?.employeeIdNumber || 'Employee ID'}
+                                    </p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Stats Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <FiClock className="text-indigo-200" size={18} />
-                                    <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider">Total Work Hours</p>
-                                </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full md:w-auto">
+                            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[110px]">
+                                <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider mb-1">Worked</p>
                                 <p className="text-2xl font-bold text-white">{formatDuration((record.totalWorkMinutes || 0) / 60)}</p>
-                                <p className="text-indigo-200 text-xs mt-1">Breaks excluded</p>
                             </div>
-                            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <FiCoffee className="text-orange-200" size={18} />
-                                    <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider">Total Break</p>
-                                </div>
+                            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[110px]">
+                                <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider mb-1">Break</p>
                                 <p className="text-2xl font-bold text-white">{formatDuration((record.totalBreakMinutes || 0) / 60)}</p>
                             </div>
-                            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 col-span-2 md:col-span-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <FiActivity className="text-emerald-200" size={18} />
-                                    <p className="text-indigo-100 text-xs font-medium uppercase tracking-wider">Sessions</p>
-                                </div>
-                                <p className="text-2xl font-bold text-white">{workSessions.length} Work / {breakSessions.length} Break</p>
+                            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[110px]">
+                                <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider mb-1">Work Sess.</p>
+                                <p className="text-2xl font-bold text-white">{workSessions.length}</p>
+                            </div>
+                            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[110px]">
+                                <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider mb-1">Break Sess.</p>
+                                <p className="text-2xl font-bold text-white">{breakSessions.length}</p>
                             </div>
                         </div>
                     </div>
@@ -182,69 +180,81 @@ const SessionDetailsPage: React.FC = () => {
 
             {/* Work Sessions Section */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-slate-200">
+                <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 rounded-lg">
-                            <FiClock className="text-indigo-600" size={20} />
+                        <div className="p-2 bg-indigo-100/50 text-indigo-600 rounded-lg">
+                            <FiClock size={20} />
                         </div>
                         <div>
                             <h3 className="text-lg font-bold text-slate-900">Work Sessions</h3>
-                            <p className="text-sm text-slate-600">All work periods for this day</p>
                         </div>
                     </div>
+                    <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold border border-indigo-100">
+                        {workSessions.length} Sessions
+                    </span>
                 </div>
                 
                 <div className="overflow-x-auto">
                     {workSessions.length > 0 ? (
-                        <table className="min-w-full divide-y divide-slate-200">
-                            <thead className="bg-slate-50">
+                        <table className="min-w-full divide-y divide-slate-100">
+                            <thead className="bg-slate-50/50">
                                 <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Session</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Check In</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Check Out</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Location</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Duration</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider pl-8">#</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Timings</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Location</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</th>
+                                    <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider pr-8">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-100">
                                 {workSessions.map((session, idx) => (
-                                    <tr key={session.id} className="hover:bg-indigo-50/30 transition-colors group">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-indigo-100 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                                #{idx + 1}
-                                            </span>
+                                    <tr key={session.id} className="hover:bg-slate-50/80 transition-colors group">
+                                        <td className="px-6 py-5 pl-8 whitespace-nowrap text-slate-400 font-mono text-sm">
+                                            {String(idx + 1).padStart(2, '0')}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-mono font-medium text-slate-900">{formatTime(session.checkInTime)}</div>
+                                        <td className="px-6 py-5 whitespace-nowrap">
+                                            <div className="flex items-center gap-3">
+                                                 <div className="flex flex-col">
+                                                     <span className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Check In</span>
+                                                     <span className="text-sm font-mono font-bold text-slate-800">{formatTime(session.checkInTime)}</span>
+                                                 </div>
+                                                 <div className="h-px w-8 bg-slate-300"></div>
+                                                 <div className="flex flex-col">
+                                                     <span className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Check Out</span>
+                                                     <span className="text-sm font-mono font-bold text-slate-800">{formatTime(session.checkOutTime)}</span>
+                                                 </div>
+                                            </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            {session.checkOutTime ? (
-                                                <div className="text-sm font-mono font-medium text-slate-900">{formatTime(session.checkOutTime)}</div>
-                                            ) : (
-                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                                                    Ongoing
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-2 text-sm text-slate-600">
+                                        <td className="px-6 py-5 whitespace-nowrap">
+                                            <div className="flex items-center gap-2 text-sm font-medium text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg inline-flex">
                                                 <FiMapPin size={14} className="text-slate-400" />
                                                 {session.location || 'Office'}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="text-sm font-bold text-slate-900">
+                                        <td className="px-6 py-5 whitespace-nowrap">
+                                            <span className="text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100">
                                                 {calculateSessionDuration(session.checkInTime, session.checkOutTime)}
                                             </span>
+                                        </td>
+                                        <td className="px-6 py-5 whitespace-nowrap text-right pr-8">
+                                            {session.checkOutTime ? (
+                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                    Completed
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+                                                    Ongoing
+                                                </span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     ) : (
-                        <div className="px-6 py-12 text-center text-slate-500">
-                            <FiClock className="mx-auto mb-3 text-slate-300" size={32} />
-                            <p className="font-medium">No work sessions recorded</p>
+                        <div className="px-6 py-16 text-center text-slate-500">
+                            <FiClock className="mx-auto mb-3 text-slate-300" size={48} />
+                            <p className="font-medium text-lg text-slate-600">No work sessions recorded</p>
                         </div>
                     )}
                 </div>
@@ -253,52 +263,64 @@ const SessionDetailsPage: React.FC = () => {
             {/* Break Sessions Section */}
             {breakSessions.length > 0 && (
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="bg-gradient-to-r from-orange-50 to-amber-50 px-6 py-4 border-b border-slate-200">
+                    <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-orange-100 rounded-lg">
-                                <FiCoffee className="text-orange-600" size={20} />
+                            <div className="p-2 bg-orange-100/50 text-orange-600 rounded-lg">
+                                <FiCoffee size={20} />
                             </div>
                             <div>
                                 <h3 className="text-lg font-bold text-slate-900">Break Sessions</h3>
-                                <p className="text-sm text-slate-600">All break periods for this day</p>
                             </div>
                         </div>
+                        <span className="bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-xs font-bold border border-orange-100">
+                            {breakSessions.length} Breaks
+                        </span>
                     </div>
                     
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-slate-200">
-                            <thead className="bg-slate-50">
+                        <table className="min-w-full divide-y divide-slate-100">
+                            <thead className="bg-slate-50/50">
                                 <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Break</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Start Time</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">End Time</th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Duration</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider pl-8">#</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Time Window</th>
+                                    <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</th>
+                                    <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider pr-8">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-slate-100">
                                 {breakSessions.map((breakSession, idx) => (
-                                    <tr key={breakSession.id} className="hover:bg-orange-50/30 transition-colors group">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-orange-100 text-orange-700 group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                                                #{idx + 1}
-                                            </span>
+                                    <tr key={breakSession.id} className="hover:bg-slate-50/80 transition-colors group">
+                                        <td className="px-6 py-5 pl-8 whitespace-nowrap text-slate-400 font-mono text-sm">
+                                            {String(idx + 1).padStart(2, '0')}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-mono font-medium text-slate-900">{formatTime(breakSession.startTime)}</div>
+                                        <td className="px-6 py-5 whitespace-nowrap">
+                                            <div className="flex items-center gap-3">
+                                                 <div className="flex flex-col">
+                                                     <span className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">Start</span>
+                                                     <span className="text-sm font-mono font-bold text-slate-800">{formatTime(breakSession.startTime)}</span>
+                                                 </div>
+                                                 <div className="h-px w-8 bg-slate-300"></div>
+                                                 <div className="flex flex-col">
+                                                     <span className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">End</span>
+                                                     <span className="text-sm font-mono font-bold text-slate-800">{formatTime(breakSession.endTime)}</span>
+                                                 </div>
+                                            </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            {breakSession.endTime ? (
-                                                <div className="text-sm font-mono font-medium text-slate-900">{formatTime(breakSession.endTime)}</div>
-                                            ) : (
-                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                                                    Ongoing
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="text-sm font-bold text-slate-900">
+                                        <td className="px-6 py-5 whitespace-nowrap">
+                                            <span className="text-sm font-bold text-orange-700 bg-orange-50 px-3 py-1 rounded-lg border border-orange-100">
                                                 {calculateSessionDuration(breakSession.startTime, breakSession.endTime)}
                                             </span>
+                                        </td>
+                                        <td className="px-6 py-5 whitespace-nowrap text-right pr-8">
+                                            {breakSession.endTime ? (
+                                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                                    Finished
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200 animate-pulse">
+                                                    Active
+                                                </span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

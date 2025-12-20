@@ -66,10 +66,7 @@ model EmploymentContract {
   department String?
 
   startDate DateTime  @db.Date
-  endDate   DateTime? @db.Date // For Interns/Contractors
-
-  // MOVED HERE: Specific to this contract engagement
-  probationEndDate DateTime? @db.Date
+  endDate   DateTime? @db.Date // For Interns/Contractors, or Probation End Date
 
   isActive Boolean @default(false)
 

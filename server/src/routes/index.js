@@ -27,6 +27,9 @@ router.use("/offices", require("./office.routes"));
 // Mount user routes (Platform Admin)
 router.use("/users", require("./user.routes"));
 
+// Mount contract routes
+router.use("/contracts", require("./contract.routes"));
+
 // Mount employee routes
 router.use("/", employeeRoutes);
 

@@ -70,6 +70,16 @@ export const useAttendanceStats = (employeeId: string) => {
 };
 
 /**
+ * Hook to get team stats
+ */
+export const useTeamStats = (officeId?: string) => {
+  return useQuery({
+    queryKey: ['attendance', 'team-stats', { officeId }],
+    queryFn: () => attendanceService.getTeamStats(officeId),
+  });
+};
+
+/**
  * Hook to clock in
  */
 export const useClockIn = () => {

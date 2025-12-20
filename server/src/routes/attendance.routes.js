@@ -31,6 +31,13 @@ router.post(
   attendanceController.clockOut
 );
 
+// GET TEAM STATS (Placed before :id routes to distinguish)
+router.get(
+  "/team-stats",
+  authMiddleware.protect,
+  attendanceController.getTeamStats
+);
+
 // GET STATS
 router.get(
   "/stats/:employeeId",

@@ -64,6 +64,15 @@ export interface Employee {
   name?: string;
   position?: string;
   department?: string;
+
+  contracts?: {
+    id: string;
+    position: string;
+    department?: string;
+    type: string;
+    startDate: string;
+    isActive: boolean;
+  }[];
 }
 
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'ON_LEAVE' | 'OFF';
