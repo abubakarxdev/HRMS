@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, TrendingUp } from "lucide-react";
+import { Users, UserCheck, UserMinus, FileClock, Clock, Sparkles } from "lucide-react";
 import { useOffice } from "../../context/OfficeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { useEmployeeAttendance, useAttendanceRecords } from "../../hooks/useAttendance";
-import Card from "../../components/ui/Card";
+import { useAllLeaveRequests } from "../../hooks/useLeaves"; // Added for pending requests
 import Button from "../../components/ui/Button";
 import { apiClient as api } from "../../api/client";
 import AttendanceCard from "../../components/attendance/AttendanceCard";
@@ -14,43 +14,6 @@ import ApprovalsPanel from "../../components/dashboard/ApprovalsPanel";
 import MissedClockOutAlert from "../../components/dashboard/MissedClockOutAlert";
 import ResolveMissingClockOutModal from "../../components/attendance/ResolveMissingClockOutModal";
 import dayjs from "dayjs";
-
-// Enhanced Stat Card Component for Admin
-const StatCard: React.FC<{
-    title: string;
-    value: string | number;
-    icon: React.ReactNode;
-    trend?: string;
-    color: "indigo" | "emerald" | "amber" | "rose";
-}> = ({ title, value, icon, trend, color }) => {
-    const colorClasses = {
-        indigo: "bg-indigo-50 text-indigo-600",
-        emerald: "bg-emerald-50 text-emerald-600",
-        amber: "bg-amber-50 text-amber-600",
-        rose: "bg-rose-50 text-rose-600",
-    };
-
-    return (
-        <Card className="p-6 border-0 shadow-sm ring-1 ring-slate-100">
-            <div className="flex items-start justify-between">
-                <div>
-                    <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
-                    <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
-                </div>
-                <div className={`p-3 rounded-xl ${colorClasses[color]}`}>
-                    {icon}
-                </div>
-            </div>
-            {trend && (
-                <div className="mt-4 flex items-center text-sm">
-                    <TrendingUp className="w-4 h-4 text-emerald-500 mr-1" />
-                    <span className="text-emerald-600 font-medium">{trend}</span>
-                    <span className="text-slate-400 ml-1">vs last month</span>
-                </div>
-            )}
-        </Card>
-    );
-};
 
 const AdminDashboardPage: React.FC = () => {
     const { user } = useAuth();
@@ -88,6 +51,10 @@ const AdminDashboardPage: React.FC = () => {
         totalLate: 0,
         totalAbsent: 0
     };
+
+    // Fetch pending approvals count (Matches HR Dashboard)
+    const { data: pendingLeavesResponse } = useAllLeaveRequests(1, 1, 'Pending');
+    const pendingApprovalsCount = pendingLeavesResponse?.meta?.total || 0;
 
     // Fetch user's history for missed checkouts (Admin is also an employee)
     const { data: userHistoryResponse } = useEmployeeAttendance(user?.employeeId || '', undefined, undefined, undefined, 1, 50);
@@ -142,7 +109,7 @@ const AdminDashboardPage: React.FC = () => {
     const displayName = user?.firstName || user?.email.split('@')[0];
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 pb-12 animate-in fade-in duration-500">
             {recordToFix && (
                 <MissedClockOutAlert 
                     record={recordToFix}
@@ -150,40 +117,89 @@ const AdminDashboardPage: React.FC = () => {
                 />
             )}
 
-            <div>
-                <h1 className="text-2xl font-bold text-slate-800">Hi, {displayName} 👋</h1>
-                <p className="text-slate-500 mt-1">
-                    Here's what's happening at <span className="font-semibold text-indigo-600">{currentOffice.name}</span> today.
-                </p>
+            {/* HERO SECTION */}
+            <div className="relative overflow-hidden bg-gradient-to-r from-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl">
+                 {/* Decorative Blobs */}
+                 <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-indigo-500/20 rounded-full blur-3xl"></div>
+                 <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-60 h-60 bg-purple-500/10 rounded-full blur-3xl"></div>
+                 
+                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                     <div>
+                         <div className="flex items-center gap-3 mb-2">
+                             <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                                 <Sparkles className="w-5 h-5 text-yellow-300" />
+                             </div>
+                             <span className="font-medium text-blue-100 tracking-wide uppercase text-xs">Admin Overview</span>
+                         </div>
+                         <h1 className="text-3xl font-bold mb-2">Hi, {displayName} 👋</h1>
+                         <p className="text-blue-100/80 max-w-xl text-lg">
+                             Here's what's happening at <span className="font-semibold text-white">{currentOffice.name}</span> today.
+                         </p>
+                     </div>
+                 </div>
             </div>
 
-            {/* Stats Grid */}
+            {/* STATS GRID */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard 
-                    title="Total Employees" 
-                    value={employees.length} 
-                    icon={<Users className="w-6 h-6" />}
-                    trend="+12%"
-                    color="indigo"
-                />
-                <StatCard 
-                    title="Present Today" 
-                    value={stats.totalPresent || 0} 
-                    icon={<Clock className="w-6 h-6" />}
-                    color="emerald"
-                />
-                 <StatCard 
-                    title="On Leave" 
-                    value={stats.totalOnLeave || 0} 
-                    icon={<Calendar className="w-6 h-6" />}
-                    color="amber"
-                />
-                 <StatCard 
-                    title="Late Arrivals" 
-                    value={stats.totalLate || 0} 
-                    icon={<Clock className="w-6 h-6" />}
-                    color="rose"
-                />
+                
+                {/* Total Employees */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                            <Users className="w-6 h-6" />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <h3 className="text-slate-500 text-sm font-medium uppercase tracking-wide">Total Employees</h3>
+                        <p className="text-3xl font-bold text-slate-800">{employees.length}</p>
+                    </div>
+                </div>
+
+                {/* Checked In (Matches HR) */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                     <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                            <UserCheck className="w-6 h-6" />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <h3 className="text-slate-500 text-sm font-medium uppercase tracking-wide">Checked In</h3>
+                        <p className="text-3xl font-bold text-slate-800">{stats.totalPresent || 0}</p>
+                    </div>
+                </div>
+
+                {/* On Leave (Matches HR) */}
+                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                     <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                            <UserMinus className="w-6 h-6" />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <h3 className="text-slate-500 text-sm font-medium uppercase tracking-wide">On Leave</h3>
+                        <p className="text-3xl font-bold text-slate-800">{stats.totalOnLeave || 0}</p>
+                    </div>
+                </div>
+
+                {/* Pending Approvals (Matches HR - Replaces Late) */}
+                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow cursor-pointer">
+                     <div className="flex justify-between items-start mb-4">
+                        <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                            <FileClock className="w-6 h-6" />
+                        </div>
+                        {pendingApprovalsCount > 0 && (
+                            <span className="flex h-3 w-3 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                            </span>
+                        )}
+                    </div>
+                    <div className="space-y-1">
+                        <h3 className="text-slate-500 text-sm font-medium uppercase tracking-wide">Pending Requests</h3>
+                        <p className="text-3xl font-bold text-slate-800">{pendingApprovalsCount}</p>
+                    </div>
+                </div>
+
             </div>
 
             {/* Attendance & Summary Section */}
