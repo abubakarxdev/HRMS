@@ -16,10 +16,10 @@ import { toast } from 'sonner';
 /**
  * Hook to get all attendance records
  */
-export const useAttendanceRecords = (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string) => {
+export const useAttendanceRecords = (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string, officeId?: string) => {
   return useQuery({
-    queryKey: queryKeys.attendance.list({ page, limit, startDate, endDate, status }),
-    queryFn: () => attendanceService.getAll(page, limit, startDate, endDate, status),
+    queryKey: queryKeys.attendance.list({ page, limit, startDate, endDate, status, officeId }),
+    queryFn: () => attendanceService.getAll(page, limit, startDate, endDate, status, officeId),
     placeholderData: (previousData) => previousData,
   });
 };
@@ -66,6 +66,16 @@ export const useAttendanceStats = (employeeId: string) => {
     queryKey: queryKeys.attendance.stats(employeeId),
     queryFn: () => attendanceService.getStats(employeeId),
     enabled: !!employeeId,
+  });
+};
+
+/**
+ * Hook to get team stats
+ */
+export const useTeamStats = (officeId?: string) => {
+  return useQuery({
+    queryKey: ['attendance', 'team-stats', { officeId }],
+    queryFn: () => attendanceService.getTeamStats(officeId),
   });
 };
 

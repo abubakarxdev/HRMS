@@ -14,9 +14,51 @@ const generateEmployeeIdNumber = () =>
 /**
  * Get all employees
  */
-const getAllEmployees = async () => {
+const getAllEmployees = async (officeId, { page, limit, search, role, department, status } = {}) => {
   try {
-    return await employeeRepository.getAllEmployees();
+    const isPaginated = page !== undefined || limit !== undefined;
+    const take = isPaginated ? (parseInt(limit) || 10) : undefined;
+    const skip = isPaginated ? Math.max(0, ((parseInt(page) || 1) - 1) * take) : undefined;
+
+    const where = {};
+    if (officeId && officeId !== 'undefined' && officeId !== 'null') where.officeId = officeId;
+    if (status && status !== 'all') where.status = status;
+
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { workEmail: { contains: search, mode: 'insensitive' } },
+        { employeeIdNumber: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Filter by active contract details
+    if ((role && role !== 'all') || (department && department !== 'all')) {
+         where.contracts = {
+             some: {
+                isActive: true,
+                ...(role && role !== 'all' ? { position: role } : {}),
+                ...(department && department !== 'all' ? { department: department } : {}),
+             }
+         };
+    }
+
+    const { data, total } = await employeeRepository.getAllEmployees({ skip, take, where });
+
+    if (!isPaginated) {
+        return data; // Return raw array for backward compatibility
+    }
+
+    return {
+        data,
+        meta: {
+            total,
+            page: parseInt(page || 1),
+            limit: take,
+            totalPages: Math.ceil(total / take)
+        }
+    };
   } catch (error) {
     throw new Error(`Error fetching employees: ${error.message}`);
   }
@@ -70,6 +112,30 @@ const createEmployee = async (data) => {
 
     // Generate employee ID number
     const employeeIdNumber = data.employeeIdNumber || generateEmployeeIdNumber();
+    
+    // Extract Position and Department from top-level or personalDetails
+    // Prirority: Top-level data > personalDetails > Defaults
+    const position = data.position || data.personalDetails?.position || "Unassigned";
+    const department = data.department || data.personalDetails?.department || "Unassigned";
+    
+    // Clean specific fields from personalDetails to avoid duplication
+    let personalDetailsRaw = data.personalDetails || {};
+    // Clone to avoid mutation if needed
+    const personalDetails = { ...personalDetailsRaw };
+    delete personalDetails.position;
+    delete personalDetails.department;
+
+    // Prepare Contract Data
+    const contractData = {
+        type: data.contractType || "FULL_TIME", // Enum: FULL_TIME, PART_TIME, etc.
+        position: position,
+        department: department,
+        startDate: new Date(data.joiningDate),
+        endDate: data.endDate ? new Date(data.endDate) : null,
+        salary: data.salary || 0,
+        currency: data.currency || "USD",
+        isActive: true, // Auto-activate initial contract
+    };
 
     // Prepare employee data
     const employeeData = {
@@ -81,7 +147,7 @@ const createEmployee = async (data) => {
       avatarUrl: data.avatarUrl || null,
       status: data.status || "Active",
       joiningDate: new Date(data.joiningDate),
-      personalDetails: data.personalDetails || null,
+      personalDetails: Object.keys(personalDetails).length > 0 ? personalDetails : null,
       bankDetails: data.bankDetails || null,
       legalEntityId: data.legalEntityId || null,
       officeId: data.officeId || null,
@@ -96,8 +162,8 @@ const createEmployee = async (data) => {
       timezone: data.timezone || "Asia/Karachi",
     };
 
-    // Create employee with user
-    return await employeeRepository.createEmployee(employeeData, userData);
+    // Create employee with user and contract
+    return await employeeRepository.createEmployee(employeeData, userData, contractData);
   } catch (error) {
     // Handle Prisma unique constraint errors
     if (error.code === "P2002") {

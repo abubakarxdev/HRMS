@@ -7,42 +7,55 @@ const prisma = require("../config/prisma");
 /**
  * Get all employees with their user information
  */
-const getAllEmployees = async () => {
+const getAllEmployees = async ({ skip, take, where } = {}) => {
   try {
-    return await prisma.employee.findMany({
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-            timezone: true,
+    const [employees, total] = await prisma.$transaction([
+      prisma.employee.findMany({
+        where,
+        skip,
+        take,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              timezone: true,
+              lastLogin: true,
+            }
+          },
+          legalEntity: {
+            select: {
+              id: true,
+              name: true,
+            }
+          },
+          office: {
+            select: {
+              id: true,
+              name: true,
+            }
+          },
+          manager: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            }
+          },
+          contracts: {
+             orderBy: { startDate: 'desc' },
+             take: 1
           }
         },
-        legalEntity: {
-          select: {
-            id: true,
-            name: true,
-          }
-        },
-        office: {
-          select: {
-            id: true,
-            name: true,
-          }
-        },
-        manager: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          }
+        orderBy: {
+          createdAt: 'desc'
         }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+      }),
+      prisma.employee.count({ where })
+    ]);
+
+    return { data: employees, total };
   } catch (error) {
     throw new Error(`Error fetching all employees: ${error.message}`);
   }
@@ -91,16 +104,24 @@ const getEmployeeById = async (id) => {
 /**
  * Create employee with user account
  */
-const createEmployee = async (employeeData, userData) => {
-  try {
-    // Create employee with nested user creation
+const createEmployee = async (employeeData, userData, contractData = null) => {
+    const data = {
+      ...employeeData,
+      user: {
+        create: userData
+      }
+    };
+
+    // Add contract if provided
+    if (contractData) {
+      data.contracts = {
+        create: [contractData]
+      };
+    }
+
+    // Create employee with nested user and contract creation
     return await prisma.employee.create({
-      data: {
-        ...employeeData,
-        user: {
-          create: userData
-        }
-      },
+      data,
       include: {
         user: {
           select: {
@@ -109,19 +130,16 @@ const createEmployee = async (employeeData, userData) => {
             role: true,
             timezone: true,
           }
-        }
+        },
+        contracts: true, // Include contracts in return
       }
     });
-  } catch (error) {
-    throw new Error(`Error creating employee: ${error.message}`);
-  }
 };
 
 /**
  * Update employee
  */
 const updateEmployee = async (id, employeeData) => {
-  try {
     return await prisma.employee.update({
       where: { id },
       data: employeeData,
@@ -136,9 +154,6 @@ const updateEmployee = async (id, employeeData) => {
         }
       }
     });
-  } catch (error) {
-    throw new Error(`Error updating employee: ${error.message}`);
-  }
 };
 
 /**

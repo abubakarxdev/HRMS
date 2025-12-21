@@ -7,10 +7,11 @@ import { toast } from 'sonner';
 /**
  * Hook to get all employees
  */
-export const useEmployees = () => {
+export const useEmployees = (officeId?: string, params?: any) => {
   return useQuery({
-    queryKey: queryKeys.employees.all,
-    queryFn: () => employeeService.getAll(),
+    queryKey: [...queryKeys.employees.all(officeId), params],
+    queryFn: () => employeeService.getAll(officeId, params),
+    placeholderData: (previousData) => previousData,
   });
 };
 
@@ -35,7 +36,7 @@ export const useCreateEmployee = () => {
     mutationFn: (data: CreateEmployeeRequest) => employeeService.create(data),
     onSuccess: () => {
       // Invalidate employees list
-      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('Employee created successfully');
     },
     onError: (error: any) => {
@@ -56,7 +57,7 @@ export const useUpdateEmployee = () => {
       employeeService.update(id, data),
     onSuccess: (_, variables) => {
       // Invalidate employees list and specific employee
-      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.employees.detail(variables.id) });
       toast.success('Employee updated successfully');
     },
@@ -77,7 +78,7 @@ export const useDeleteEmployee = () => {
     mutationFn: (id: string) => employeeService.delete(id),
     onSuccess: () => {
       // Invalidate employees list
-      queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+      queryClient.invalidateQueries({ queryKey: ['employees'] });
       toast.success('Employee deleted successfully');
     },
     onError: (error: any) => {

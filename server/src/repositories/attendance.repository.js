@@ -43,7 +43,7 @@ const findUserById = async (id) => {
 /**
  * Find all attendance records with sessions and breaks, supporting filtering and pagination
  */
-const findAllAttendance = async ({ startDate, endDate, status, skip, take } = {}) => {
+const findAllAttendance = async ({ startDate, endDate, status, officeId, skip, take } = {}) => {
   try {
     const where = {};
     if (status && status !== 'all') where.status = status;
@@ -52,6 +52,12 @@ const findAllAttendance = async ({ startDate, endDate, status, skip, take } = {}
       where.date = {};
       if (startDate) where.date.gte = startDate;
       if (endDate) where.date.lte = endDate;
+    }
+
+    if (officeId) {
+      where.employee = {
+        officeId: officeId
+      };
     }
 
     return await prisma.attendanceRecord.findMany({
@@ -85,7 +91,7 @@ const findAllAttendance = async ({ startDate, endDate, status, skip, take } = {}
 /**
  * Count all attendance records matching filters
  */
-const countAllAttendance = async ({ startDate, endDate, status } = {}) => {
+const countAllAttendance = async ({ startDate, endDate, status, officeId } = {}) => {
   try {
     const where = {};
     if (status && status !== 'all') where.status = status;
@@ -94,6 +100,12 @@ const countAllAttendance = async ({ startDate, endDate, status } = {}) => {
       where.date = {};
       if (startDate) where.date.gte = startDate;
       if (endDate) where.date.lte = endDate;
+    }
+
+    if (officeId) {
+      where.employee = {
+        officeId: officeId
+      };
     }
 
     return await prisma.attendanceRecord.count({ where });
@@ -255,9 +267,9 @@ const findAttendanceRecord = async (employeeId, date) => {
 /**
  * Create attendance record
  */
-const createAttendanceRecord = async (data) => {
+const createAttendanceRecord = async (data, tx = prisma) => {
   try {
-    return await prisma.attendanceRecord.create({
+    return await tx.attendanceRecord.create({
       data,
       include: {
         sessions: {
@@ -439,6 +451,97 @@ const findActiveBreak = async (sessionId) => {
   }
 };
 
+/**
+ * Get aggregate stats for attendance records matching filters
+ */
+const getAggregateStats = async ({ employeeId, startDate, endDate, status, officeId } = {}) => {
+  try {
+    const where = {};
+    if (employeeId) where.employeeId = employeeId;
+    if (status && status !== 'all') where.status = status;
+    
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = startDate;
+      if (endDate) where.date.lte = endDate;
+    }
+
+    if (officeId) {
+      where.employee = {
+        officeId: officeId
+      };
+    }
+
+    const aggregations = await prisma.attendanceRecord.aggregate({
+      where,
+      _sum: {
+        totalWorkMinutes: true,
+      },
+      _count: {
+        _all: true,
+      },
+    });
+
+    // Aggregation for status counts
+    const statusAggregations = await prisma.attendanceRecord.groupBy({
+      by: ['status'],
+      where: where,
+      _count: {
+        _all: true
+      }
+    });
+
+    const statusCounts = statusAggregations.reduce((acc, curr) => {
+      acc[curr.status] = curr._count._all;
+      return acc;
+    }, {});
+
+    return {
+      totalWorkMinutes: aggregations._sum.totalWorkMinutes || 0,
+      totalRecordCount: aggregations._count._all,
+      totalPresent: (statusCounts['PRESENT'] || 0) + (statusCounts['HALF_DAY'] || 0),
+      totalOnLeave: statusCounts['ON_LEAVE'] || 0,
+      totalAbsent: statusCounts['ABSENT'] || 0,
+      totalLate: statusCounts['LATE'] || 0, // Assuming LATE status exists or will be used
+      totalDaysPresent: (statusCounts['PRESENT'] || 0) + (statusCounts['HALF_DAY'] || 0)
+    };
+  } catch (error) {
+    throw new Error(`Error getting aggregate stats: ${error.message}`);
+  }
+};
+
+/**
+ * Get grouped aggregates by employee
+ * @param {Object} filters
+ * @returns {Promise<Array>}
+ */
+const findGroupedAggregates = async ({ startDate, endDate, officeId } = {}) => {
+  try {
+    const where = {};
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date.gte = startDate;
+      if (endDate) where.date.lte = endDate;
+    }
+
+    if (officeId) {
+      where.employee = {
+        officeId: officeId
+      };
+    }
+
+    return await prisma.attendanceRecord.groupBy({
+      by: ['employeeId'],
+      where,
+      _sum: {
+        totalWorkMinutes: true,
+      },
+    });
+  } catch (error) {
+    throw new Error(`Error getting grouped stats: ${error.message}`);
+  }
+};
+
 module.exports = {
   findUserByEmployeeId,
   findUserById,
@@ -457,4 +560,6 @@ module.exports = {
   findActiveBreak,
   countAllAttendance,
   countAttendanceRecordsByDateRange,
+  getAggregateStats,
+  findGroupedAggregates,
 };

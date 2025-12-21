@@ -21,11 +21,12 @@ export const attendanceService = {
   /**
    * Get all attendance records
    */
-  getAll: async (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string): Promise<PaginatedResponse<AttendanceRecord>> => {
+  getAll: async (page = 1, limit = 10, startDate?: string, endDate?: string, status?: string, officeId?: string): Promise<PaginatedResponse<AttendanceRecord>> => {
     let url = `/attendance?page=${page}&limit=${limit}`;
     if (startDate) url += `&startDate=${startDate}`;
     if (endDate) url += `&endDate=${endDate}`;
     if (status) url += `&status=${status}`;
+    if (officeId) url += `&officeId=${officeId}`;
 
     const response = await apiClient.get<PaginatedResponse<AttendanceRecord>>(url);
     return response.data;
@@ -108,6 +109,16 @@ export const attendanceService = {
    */
   fixMissingClockOut: async (data: FixMissingClockOutRequest): Promise<AttendanceRecord> => {
     const response = await apiClient.post<AttendanceRecord>('/attendance/fix-missing-clock-out', data);
+    return response.data;
+  },
+
+  /**
+   * Get Team Stats (Weekly/Monthly hours per employee)
+   */
+  getTeamStats: async (officeId?: string): Promise<Record<string, { weekMinutes: number; monthMinutes: number }>> => {
+    let url = `/attendance/team-stats`;
+    if (officeId) url += `?officeId=${officeId}`;
+    const response = await apiClient.get<Record<string, { weekMinutes: number; monthMinutes: number }>>(url);
     return response.data;
   },
 };

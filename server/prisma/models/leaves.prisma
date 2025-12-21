@@ -30,17 +30,21 @@ model LeaveRequest {
 
   leaveType String // 'Annual', 'Sick'
 
-  startDate       DateTime @db.Date
-  endDate         DateTime @db.Date
-  reason          String?
-  managerComments String?
-  status          String   @default("Pending") // Pending, Approved, Rejected
+  startDate        DateTime @db.Date
+  endDate          DateTime @db.Date
+  reason           String?
+  approverComments String?
+  status           String   @default("Pending") // Pending, Approved, Rejected
 
   attachmentUrl String?
 
   employee Employee @relation(fields: [employeeId], references: [id])
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  approverId String?
+  approver   Employee? @relation("LeaveApprover", fields: [approverId], references: [id])
 
   @@map("leave_requests")
 }

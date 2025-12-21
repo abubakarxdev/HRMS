@@ -1,3 +1,5 @@
+import { Role } from '../../types';
+
 // Auth Types
 export interface LoginRequest {
   email: string;
@@ -13,12 +15,14 @@ export interface LoginResponse {
 export interface UserProfile {
   id: string;
   email: string;
-  role: 'ADMIN' | 'HR' | 'FINANCE' | 'EMPLOYEE';
+  role: Role;
   employeeId: string | null;
   timezone: string;
   firstName?: string;
   lastName?: string;
   employeeIdNumber?: string;
+  officeId?: string;
+  legalEntityId?: string;
 }
 
 export interface RefreshTokenRequest {
@@ -32,11 +36,12 @@ export interface RefreshTokenResponse {
 export interface DecodedToken {
   id: string;
   email: string;
-  role: 'ADMIN' | 'HR' | 'FINANCE' | 'EMPLOYEE';
+  role: Role;
   employeeId: string | null;
   timezone: string;
   firstName?: string;
   lastName?: string;
+  officeId?: string;
   iat: number;
   exp: number;
 }

@@ -19,138 +19,136 @@ async function main() {
   console.log('🌱 Starting seed...');
 
   // 1. Clean up existing data (Safe to re-run)
-  await prisma.$transaction([
-    prisma.auditLog.deleteMany(),
-    prisma.notification.deleteMany(),
-    prisma.break.deleteMany(),
-    prisma.session.deleteMany(),
-    prisma.attendanceRecord.deleteMany(),
-    prisma.leaveRequest.deleteMany(),
-    prisma.leaveBalance.deleteMany(),
-    prisma.employmentContract.deleteMany(),
-    prisma.user.deleteMany(),
-    prisma.employee.deleteMany(),
-    prisma.publicHoliday.deleteMany(),
-    prisma.office.deleteMany(),
-    prisma.legalEntity.deleteMany(),
-  ]);
+  // await prisma.$transaction([
+  //   prisma.auditLog.deleteMany(),
+  //   prisma.notification.deleteMany(),
+  //   prisma.break.deleteMany(),
+  //   prisma.session.deleteMany(),
+  //   prisma.attendanceRecord.deleteMany(),
+  //   prisma.leaveRequest.deleteMany(),
+  //   prisma.leaveBalance.deleteMany(),
+  //   prisma.employmentContract.deleteMany(),
+  //   prisma.user.deleteMany(),
+  //   prisma.employee.deleteMany(),
+  //   prisma.publicHoliday.deleteMany(),
+  //   prisma.office.deleteMany(),
+  //   prisma.legalEntity.deleteMany(),
+  // ]);
 
   // 2. Create Organization Structure
-  const legalEntity = await prisma.legalEntity.create({
-    data: {
-      name: 'TechFlow Solutions',
-      countryCode: 'PK',
-      defaultCurrency: 'PKR',
-    },
-  });
+  let legalEntity = await prisma.legalEntity.findFirst({ where: { name: 'TechFlow Solutions' } });
+  if (!legalEntity) {
+    legalEntity = await prisma.legalEntity.create({
+      data: {
+        name: 'TechFlow Solutions',
+        countryCode: 'PK',
+        defaultCurrency: 'PKR',
+      },
+    });
+  }
 
-  const office = await prisma.office.create({
-    data: {
-      name: 'Cogilent Solutions',
-      address: 'Evacuee Trust Complex , 2nd floor, 209 (A), Islamabad',
-      timezone: 'Asia/Karachi',
-      legalEntityId: legalEntity.id,
-    },
-  });
+  let office = await prisma.office.findFirst({ where: { name: 'Cogilent Solutions' } });
+  if (!office) {
+    office = await prisma.office.create({
+      data: {
+        name: 'Cogilent Solutions',
+        address: 'Evacuee Trust Complex , 2nd floor, 209 (A), Islamabad',
+        timezone: 'Asia/Karachi',
+        legalEntityId: legalEntity.id,
+      },
+    });
+  }
 
-  console.log('🏢 Organization created:', legalEntity.name);
+  console.log('🏢 Organization ensured:', legalEntity.name);
 
   // 3. Create Leave Settings
-  await prisma.leaveSetting.create({
-    data: {
-      legalEntityId: legalEntity.id,
-      policyType: 'Standard Full-Time',
-      config: {
-        annual: 14,
-        sick: 10,
-        casual: 8,
+  const existingSettings = await prisma.leaveSetting.findFirst({ where: { legalEntityId: legalEntity.id } });
+  if (!existingSettings) {
+    await prisma.leaveSetting.create({
+      data: {
+        legalEntityId: legalEntity.id,
+        policyType: 'Standard Full-Time',
+        config: {
+          annual: 14,
+          sick: 10,
+          casual: 8,
+        },
       },
-    },
-  });
+    });
+  }
 
   // 4. Create Users & Employees
   const passwordHash = await bcrypt.hash('password123', 10);
 
-  // -- ADMIN USER (HR Manager) --
-  const adminEmployee = await prisma.employee.create({
-    data: {
-      firstName: 'Madiha',
-      lastName: 'Kareem',
-      workEmail: 'madiha.admin@cogilent.com',
-      employeeIdNumber: 'EMP-001',
-      joiningDate: new Date('2020-01-01'),
-      legalEntityId: legalEntity.id,
-      officeId: office.id,
-      status: 'Active',
-      contracts: {
-        create: {
-          type: 'FULL_TIME',
-          position: 'HR Manager',
-          startDate: new Date('2020-01-01'),
-          probationEndDate: new Date('2020-04-01'), // Historical probation
-          currency: 'PKR',
-          salary: 250000,
-          isActive: true,
+  const upsertUser = async (
+    email: string,
+    firstName: string,
+    lastName: string,
+    empId: string,
+    role: string,
+    position: string,
+    salary: number,
+    managerId: string | null | undefined = null
+  ) => {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      console.log(`User ${email} already exists. Skipping.`);
+      const emp = await prisma.employee.findUnique({ where: { workEmail: email } });
+      return emp;
+    }
+
+    const employee = await prisma.employee.create({
+      data: {
+        firstName,
+        lastName,
+        workEmail: email,
+        employeeIdNumber: empId,
+        joiningDate: new Date('2020-01-01'),
+        legalEntityId: legalEntity.id,
+        officeId: office.id,
+        managerId: managerId || null, // Ensure valid value for Prisma
+        status: 'Active',
+        contracts: {
+          create: {
+            type: 'FULL_TIME',
+            position,
+            startDate: new Date('2020-01-01'),
+            currency: 'PKR',
+            salary,
+            isActive: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  await prisma.user.create({
-    data: {
-      email: 'madiha.admin@cogilent.com',
-      passwordHash,
-      role: 'HR',
-      employeeId: adminEmployee.id,
-    },
-  });
+    if (role === 'EMPLOYEE' && email === 'abubakar.dev@cogilent.com') {
+      // Special case for initial leave balances for dev employee
+      await prisma.leaveBalance.createMany({
+        data: [
+          { employeeId: employee.id, year: 2025, leaveType: 'Annual', totalCredits: 14, usedCredits: 0 },
+          { employeeId: employee.id, year: 2025, leaveType: 'Sick', totalCredits: 10, usedCredits: 0 },
+        ]
+      });
+    }
 
-  // -- REGULAR EMPLOYEE --
-  const devEmployee = await prisma.employee.create({
-    data: {
-      firstName: 'Abu',
-      lastName: 'Bakar',
-      workEmail: 'abubakar.dev@cogilent.com',
-      employeeIdNumber: 'EMP-002',
-      joiningDate: new Date('2025-11-06'),
-      legalEntityId: legalEntity.id,
-      officeId: office.id,
-      managerId: adminEmployee.id,
-      status: 'Active',
-      contracts: {
-        create: {
-          type: 'FULL_TIME',
-          position: 'Software Engineer',
-          department: 'Engineering',
-          startDate: new Date('2025-11-06'),
-          // Setting 3 months probation from joining
-          probationEndDate: new Date('2026-02-06'),
-          currency: 'PKR',
-          salary: 65000,
-          isActive: true,
-        },
+    await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        role: role as any, // Cast to any or import Role enum if strict
+        employeeId: employee.id,
       },
-      leaveBalances: {
-        createMany: {
-          data: [
-            { year: 2025, leaveType: 'Annual', totalCredits: 14 },
-            { year: 2025, leaveType: 'Sick', totalCredits: 10 },
-          ],
-        },
-      },
-    },
-  });
+    });
+    console.log(`✅ Created user: ${email}`);
+    return employee;
+  };
 
-  await prisma.user.create({
-    data: {
-      email: 'abubakar.dev@cogilent.com',
-      passwordHash,
-      role: 'EMPLOYEE',
-      employeeId: devEmployee.id,
-    },
-  });
+  const hrEmployee = await upsertUser('madiha.hr@cogilent.com', 'Madiha', 'Karim', 'EMP-3JL8GL8F', 'HR', 'HR Manager', 250000);
+  const devEmployee = await upsertUser('abubakar.dev@cogilent.com', 'Abu', 'Bakar', 'EMP-002', 'EMPLOYEE', 'Software Engineer', 65000, hrEmployee?.id);
 
-  console.log('👥 Users created: Admin (madiha.admin) & Employee (abubakar.dev)');
+  await upsertUser('super.admin@cogilent.com', 'Super', 'Admin', 'EMP-000', 'SUPER_ADMIN', 'System Owner', 500000);
+  await upsertUser('admin@cogilent.com', 'System', 'Admin', 'EMP-ADMIN', 'ADMIN', 'Administrator', 400000);
+
   console.log('🌱 Seed finished.');
 }
 

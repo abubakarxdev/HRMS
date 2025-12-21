@@ -94,7 +94,7 @@ const formatDuration = (minutes) => {
 const calculateDurationMinutes = (startTime, endTime) => {
   if (!startTime || !endTime) return 0;
   const diff = new Date(endTime) - new Date(startTime);
-  return Math.floor(diff / (1000 * 60));
+  return Math.round(diff / (1000 * 60));
 };
 
 const dayjs = require('dayjs');

@@ -10,8 +10,8 @@ const asyncHandler = (fn) => (req, res, next) => {
  * Route: GET /api/attendance
  */
 const getAllAttendance = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, startDate, endDate, status } = req.query;
-  const attendance = await attendanceService.getAllAttendance(page, limit, startDate, endDate, status);
+  const { page = 1, limit = 10, startDate, endDate, status, officeId } = req.query;
+  const attendance = await attendanceService.getAllAttendance(page, limit, startDate, endDate, status, officeId);
   res.status(200).json(attendance);
 });
 
@@ -103,6 +103,16 @@ const getAttendanceById = asyncHandler(async (req, res) => {
   res.status(200).json(record);
 });
 
+/**
+ * Get Team Stats
+ * Route: GET /api/attendance/team-stats
+ */
+const getTeamStats = asyncHandler(async (req, res) => {
+  const { officeId } = req.query;
+  const result = await attendanceService.getTeamStats(officeId);
+  res.status(200).json(result);
+});
+
 module.exports = {
   getAllAttendance,
   getAttendanceForEmployee,
@@ -114,4 +124,5 @@ module.exports = {
   endBreak,
   fixMissingClockOut,
   getAttendanceById,
+  getTeamStats,
 };
