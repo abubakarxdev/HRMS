@@ -93,3 +93,19 @@ export const useLeaveRequestDetails = (id: string, enabled: boolean = true) => {
     enabled: !!id && enabled,
   });
 };
+
+export const useMyUpcomingApprovedLeaves = () => {
+  return useQuery({
+    queryKey: ['leaves', 'my', 'approved', 'upcoming'],
+    queryFn: () => leavesService.getMyUpcomingApprovedLeaves(),
+  });
+};
+
+export const useLeaveStats = (employeeId?: string, officeId?: string, startDate?: string, endDate?: string) => {
+  return useQuery({
+    queryKey: ['leaves', 'stats', employeeId, officeId, startDate, endDate],
+    queryFn: () => leavesService.getStats(employeeId, officeId, startDate, endDate),
+    // Keep stats fresh but don't over-fetch
+    staleTime: 1000 * 30, // 30 seconds
+  });
+};

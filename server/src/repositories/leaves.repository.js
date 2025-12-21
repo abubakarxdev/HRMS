@@ -138,6 +138,43 @@ const countLeaveRequests = async ({ employeeId, status, officeId, startDate, end
 };
 
 /**
+ * Find overlapping approved leave requests
+ */
+const findOverlappingRequests = async (employeeId, startDate, endDate) => {
+  return await prisma.leaveRequest.findMany({
+    where: {
+      employeeId,
+      status: { in: ['Approved', 'Pending'] },
+      OR: [
+        {
+          // Case 1: Existing start date is within new range
+          startDate: {
+            gte: startDate,
+            lte: endDate
+          }
+        },
+        {
+          // Case 2: Existing end date is within new range
+          endDate: {
+            gte: startDate,
+            lte: endDate
+          }
+        },
+        {
+          // Case 3: New range is fully contained within existing range
+          startDate: {
+            lte: startDate
+          },
+          endDate: {
+            gte: endDate
+          }
+        }
+      ]
+    }
+  });
+};
+
+/**
  * Find leave request by ID
  */
 const findLeaveRequestById = async (id) => {
@@ -175,6 +212,57 @@ const updateLeaveRequest = async (id, data, tx = prisma) => {
   }
 };
 
+/**
+ * Get leave statistics grouped by status
+ */
+const getLeaveStats = async ({ employeeId, officeId, startDate, endDate } = {}) => {
+  try {
+    const where = {};
+    if (employeeId) where.employeeId = employeeId;
+    if (officeId) {
+      where.employee = {
+        officeId: officeId
+      };
+    }
+    
+    // Apply date filters if present
+    if (startDate && endDate) {
+      where.AND = [
+        { startDate: { lte: new Date(endDate) } },
+        { endDate: { gte: new Date(startDate) } }
+      ];
+    } else if (startDate) {
+      where.startDate = { gte: new Date(startDate) };
+    }
+
+    const stats = await prisma.leaveRequest.groupBy({
+      by: ['status'],
+      where,
+      _count: {
+        status: true
+      }
+    });
+
+    // Transform into a friendly object { Pending: 5, Approved: 10, ... }
+    const result = {
+      Pending: 0,
+      Approved: 0,
+      Rejected: 0
+    };
+
+    stats.forEach(group => {
+      const statusKey = group.status.charAt(0).toUpperCase() + group.status.slice(1);
+      if (result[statusKey] !== undefined) {
+        result[statusKey] = group._count.status;
+      }
+    });
+
+    return result;
+  } catch (error) {
+    throw new Error(`Error getting leave stats: ${error.message}`);
+  }
+};
+
 module.exports = {
   findLeaveBalances,
   createLeaveBalance,
@@ -184,4 +272,6 @@ module.exports = {
   countLeaveRequests,
   findLeaveRequestById,
   updateLeaveRequest,
+  findOverlappingRequests,
+  getLeaveStats,
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAllLeaveRequests, useUpdateLeaveStatus } from '@/hooks/useLeaves';
+import { useAllLeaveRequests, useUpdateLeaveStatus, useLeaveStats } from '@/hooks/useLeaves';
 import { useOptionalOffice } from '@/contexts/OfficeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import Button from '@/components/ui/Button';
@@ -29,7 +29,15 @@ const LeaveRequestsPage: React.FC = () => {
     
     const officeContext = useOptionalOffice();
     const currentOfficeId = officeContext?.currentOfficeId;
-    const { data: requestsData, isLoading } = useAllLeaveRequests(page, 10, statusFilter === 'all' ? undefined : statusFilter, undefined, currentOfficeId, startDate || undefined, endDate || undefined); // Fetch more for client-side search or implement server-side search later
+    const { data: requestsData, isLoading } = useAllLeaveRequests(page, 10, statusFilter === 'all' ? undefined : statusFilter, undefined, currentOfficeId, startDate || undefined, endDate || undefined);
+    
+    // Fetch dynamic stats based on same filters (minus status filter to show full picture)
+    const { data: stats } = useLeaveStats(undefined, currentOfficeId, startDate || undefined, endDate || undefined);
+    
+    // Use stats from backend (or fallback to 0)
+    const pendingCount = stats?.Pending || 0;
+    const approvedCount = stats?.Approved || 0;
+    const rejectedCount = stats?.Rejected || 0;
     const updateStatusMutation = useUpdateLeaveStatus();
 
     const handleViewDetails = (request: any) => {
@@ -56,8 +64,9 @@ const LeaveRequestsPage: React.FC = () => {
     };
 
     // Calculate quick stats
-    const pendingCount = requestsData?.data?.filter(r => r.status?.toUpperCase() === 'PENDING').length || 0;
-    const approvedCount = requestsData?.data?.filter(r => r.status?.toUpperCase() === 'APPROVED').length || 0;
+    // Old static calc removed
+    // const pendingCount = requestsData?.data?.filter(r => r.status?.toUpperCase() === 'PENDING').length || 0;
+    // const approvedCount = requestsData?.data?.filter(r => r.status?.toUpperCase() === 'APPROVED').length || 0;
 
     // Client-side search filtering
     const filteredRequests = requestsData?.data?.filter(request => {
@@ -101,6 +110,13 @@ const LeaveRequestsPage: React.FC = () => {
                                 <span className="text-xs font-bold uppercase tracking-wider">Approved</span>
                             </div>
                             <p className="text-3xl font-bold text-white">{approvedCount}</p>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 min-w-[140px]">
+                            <div className="flex items-center gap-2 text-rose-300 mb-1">
+                                <XCircle size={16} />
+                                <span className="text-xs font-bold uppercase tracking-wider">Rejected</span>
+                            </div>
+                            <p className="text-3xl font-bold text-white">{rejectedCount}</p>
                         </div>
                     </div>
                  </div>

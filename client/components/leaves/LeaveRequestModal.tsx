@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Modal from '../ui/Modal';
+import { useMyUpcomingApprovedLeaves } from '../../hooks/useLeaves';
 import Button from '../ui/Button';
 import { toast } from 'sonner';
 import { uploadFile } from '../../api/services/upload.service';
@@ -21,6 +22,9 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
     const [attachmentName, setAttachmentName] = useState('');
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
+    
+    // Fetch upcoming approved leaves for validation
+    const { data: approvedLeaves = [] } = useMyUpcomingApprovedLeaves();
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -55,6 +59,21 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
         
         if (start > end) {
             toast.error("Start date cannot be after end date");
+            setLoading(false);
+            return;
+        }
+
+        // Check for overlaps with approved leaves
+        const hasOverlap = approvedLeaves.some(leave => {
+            const leaveStart = new Date(leave.startDate);
+            const leaveEnd = new Date(leave.endDate);
+            
+            // Check if ranges overlap
+            return (start <= leaveEnd && end >= leaveStart);
+        });
+
+        if (hasOverlap) {
+            toast.error("You already have an approved leave for the selected dates.");
             setLoading(false);
             return;
         }

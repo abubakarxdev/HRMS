@@ -46,4 +46,21 @@ export const leavesService = {
     const response = await apiClient.get<LeaveRequest>(`/leaves/request/${id}`);
     return response.data;
   },
+
+  getMyUpcomingApprovedLeaves: async (): Promise<LeaveRequest[]> => {
+    const today = new Date().toISOString().split('T')[0];
+    const url = `/leaves/my-requests?status=Approved&startDate=${today}&limit=100`;
+    const response = await apiClient.get<PaginatedResponse<LeaveRequest>>(url);
+    return response.data.data;
+  },
+
+  getStats: async (employeeId?: string, officeId?: string, startDate?: string, endDate?: string): Promise<{ Pending: number; Approved: number; Rejected: number }> => {
+    let url = `/leaves/stats?`;
+    if (employeeId) url += `&employeeId=${employeeId}`;
+    if (officeId) url += `&officeId=${officeId}`;
+    if (startDate) url += `&startDate=${startDate}`;
+    if (endDate) url += `&endDate=${endDate}`;
+    const response = await apiClient.get(url);
+    return response.data;
+  },
 };

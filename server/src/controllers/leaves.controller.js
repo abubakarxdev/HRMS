@@ -144,6 +144,39 @@ const getRequestById = async (req, res) => {
   }
 };
 
+/**
+ * Get leave statistics (Admin/HR)
+ */
+const getLeaveStats = async (req, res) => {
+  try {
+    const { status, employeeId, startDate, endDate } = req.query;
+    let { officeId } = req.query;
+    const { role } = req.user;
+
+    // Strict Data Isolation: Employees and HR can ONLY view requests from their own office
+    if (role === 'EMPLOYEE' || role === 'HR') {
+        const userOfficeId = req.user.employee?.officeId;
+        if (userOfficeId) {
+            officeId = userOfficeId;
+        } else {
+             // Restricted user with no office
+             return res.status(200).json({ Pending: 0, Approved: 0, Rejected: 0 });
+        }
+    }
+
+    const filters = {};
+    if (employeeId) filters.employeeId = employeeId;
+    if (officeId) filters.officeId = officeId;
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
+
+    const stats = await leaveService.getStats(filters);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getMyBalances,
   getMyRequests,
@@ -152,4 +185,5 @@ module.exports = {
   updateRequestStatus,
   getEmployeeBalances,
   getRequestById,
+  getLeaveStats,
 };

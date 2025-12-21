@@ -9,6 +9,7 @@ router.get("/my-requests", protect, leavesController.getMyRequests);
 router.post("/request", protect, leavesController.createRequest);
 
 // Admin/HR Routes
+router.get("/stats", protect, authorize("ADMIN", "HR"), leavesController.getLeaveStats);
 router.get("/requests", protect, authorize("ADMIN", "HR"), leavesController.getAllRequests);
 router.get("/balances/:employeeId", protect, authorize("ADMIN", "HR"), leavesController.getEmployeeBalances);
 router.patch("/request/:id/status", protect, authorize("ADMIN", "HR"), leavesController.updateRequestStatus);
