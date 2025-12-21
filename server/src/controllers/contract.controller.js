@@ -1,4 +1,5 @@
 const contractService = require("../services/contract.service");
+const prisma = require("../config/prisma");
 
 // Helper for error handling
 const asyncHandler = (fn) => (req, res, next) => {
@@ -10,20 +11,43 @@ const asyncHandler = (fn) => (req, res, next) => {
  */
 const getAllContracts = asyncHandler(async (req, res) => {
   let { officeId } = req.query;
+
   const { role } = req.user;
 
-  // Enforce Office Isolation for HR
-  if (role === 'HR') {
+  // Tenant Isolation
+  // Tenant Isolation
+  let legalEntityId = undefined;
+  if (role !== 'SUPER_ADMIN') {
+      legalEntityId = req.user.employee?.legalEntityId || req.user.legalEntityId;
+
+      if (!legalEntityId) {
+           const userOfficeId = req.user.employee?.officeId || req.user.officeId;
+           if (userOfficeId) {
+               const office = await prisma.office.findUnique({
+                    where: { id: userOfficeId },
+                    select: { legalEntityId: true }
+               });
+               if (office) legalEntityId = office.legalEntityId;
+           }
+      }
+
+      if (!legalEntityId) {
+          return res.status(200).json([]);
+      }
+  }
+
+  // Strict Data Isolation: Employees and HR are bound to their assigned office
+  if (role === 'EMPLOYEE' || role === 'HR') {
       const userOfficeId = req.user.employee?.officeId;
       if (userOfficeId) {
           officeId = userOfficeId;
       } else {
-        // Safe fallback
+        // Safe fallback for unassigned users
         return res.status(200).json([]);
       }
   }
 
-  const contracts = await contractService.getAllContracts(officeId);
+  const contracts = await contractService.getAllContracts(officeId, legalEntityId);
   res.status(200).json(contracts);
 });
 
