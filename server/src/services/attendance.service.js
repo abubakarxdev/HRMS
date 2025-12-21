@@ -89,7 +89,7 @@ const updateRecordTotals = async (recordId) => {
  * Get all attendance records with pagination and filtering
  * @returns {Promise<Object>}
  */
-const getAllAttendance = async (page = 1, limit = 10, startDate = null, endDate = null, status = 'all', officeId = null) => {
+const getAllAttendance = async (page = 1, limit = 10, startDate = null, endDate = null, status = 'all', officeId = null, legalEntityId = null) => {
   try {
     const skip = (page - 1) * limit;
     const take = parseInt(limit);
@@ -99,9 +99,9 @@ const getAllAttendance = async (page = 1, limit = 10, startDate = null, endDate 
     const end = endDate ? new Date(endDate) : undefined;
 
     const [data, total, aggregates] = await Promise.all([
-      attendanceRepository.findAllAttendance({ startDate: start, endDate: end, status, officeId, skip, take }),
-      attendanceRepository.countAllAttendance({ startDate: start, endDate: end, status, officeId }),
-      attendanceRepository.getAggregateStats({ startDate: start, endDate: end, status, officeId })
+      attendanceRepository.findAllAttendance({ startDate: start, endDate: end, status, officeId, legalEntityId, skip, take }),
+      attendanceRepository.countAllAttendance({ startDate: start, endDate: end, status, officeId, legalEntityId }),
+      attendanceRepository.getAggregateStats({ startDate: start, endDate: end, status, officeId, legalEntityId })
     ]);
 
     return {
@@ -770,7 +770,7 @@ const fixMissingClockOut = async (recordId, clockOutTime, breakStartTime, breakE
 /**
  * Get Team Stats (Weekly/Monthly hours per employee)
  */
-const getTeamStats = async (officeId) => {
+const getTeamStats = async (officeId, legalEntityId) => {
     try {
         const now = dateUtil.getNow();
         
@@ -784,12 +784,14 @@ const getTeamStats = async (officeId) => {
         // Fetch grouped stats
         const weekStats = await attendanceRepository.findGroupedAggregates({ 
             startDate: startOfWeek, 
-            officeId 
+            officeId,
+            legalEntityId
         });
 
         const monthStats = await attendanceRepository.findGroupedAggregates({ 
             startDate: startOfMonth, 
-            officeId 
+            officeId,
+            legalEntityId
         });
 
         // Transform into a map for easy lookup

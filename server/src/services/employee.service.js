@@ -14,7 +14,7 @@ const generateEmployeeIdNumber = () =>
 /**
  * Get all employees
  */
-const getAllEmployees = async (officeId, { page, limit, search, role, department, status } = {}) => {
+const getAllEmployees = async (officeId, { page, limit, search, role, department, status, legalEntityId, excludeSystemRoles } = {}) => {
   try {
     const isPaginated = page !== undefined || limit !== undefined;
     const take = isPaginated ? (parseInt(limit) || 10) : undefined;
@@ -23,6 +23,26 @@ const getAllEmployees = async (officeId, { page, limit, search, role, department
     const where = {};
     if (officeId && officeId !== 'undefined' && officeId !== 'null') where.officeId = officeId;
     if (status && status !== 'all') where.status = status;
+    if (legalEntityId) where.legalEntityId = legalEntityId;
+    if (role && role !== 'all' && role !== 'undefined') {
+        // Handle legalEntityId passed via role/filters if needed, but better to extract it separate
+    }
+
+    if (excludeSystemRoles && excludeSystemRoles.length > 0) {
+        where.AND = [
+             {
+                 OR: [
+                     { user: null },
+                     { user: { role: { notIn: excludeSystemRoles } } }
+                 ]
+             }
+        ];
+    }
+
+    // Access legalEntityId from filters if passed (it's not a top-level arg, usually in 2nd arg object)
+    // The params object is destructured. I should check if I need to add it to destructuring.
+    // The destructuring is: { page, limit, search, role, department, status }
+    // I need to add legalEntityId to it.
 
     if (search) {
       where.OR = [

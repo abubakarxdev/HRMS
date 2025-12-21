@@ -1,4 +1,5 @@
 const attendanceService = require("../services/attendance.service");
+const prisma = require("../config/prisma");
 
 // Helper function for error handling
 const asyncHandler = (fn) => (req, res, next) => {
@@ -10,8 +11,47 @@ const asyncHandler = (fn) => (req, res, next) => {
  * Route: GET /api/attendance
  */
 const getAllAttendance = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, startDate, endDate, status, officeId } = req.query;
-  const attendance = await attendanceService.getAllAttendance(page, limit, startDate, endDate, status, officeId);
+  let { page = 1, limit = 10, startDate, endDate, status, officeId } = req.query;
+
+  const { role } = req.user;
+
+  // Tenant Isolation
+  // Tenant Isolation
+  let legalEntityId = undefined;
+  if (role !== 'SUPER_ADMIN') {
+      legalEntityId = req.user.employee?.legalEntityId || req.user.legalEntityId;
+
+      if (!legalEntityId) {
+           const userOfficeId = req.user.employee?.officeId || req.user.officeId;
+           if (userOfficeId) {
+               const office = await prisma.office.findUnique({
+                    where: { id: userOfficeId },
+                    select: { legalEntityId: true }
+               });
+               if (office) legalEntityId = office.legalEntityId;
+           }
+      }
+
+      if (!legalEntityId) {
+          return res.status(200).json({ data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 }, aggregates: {} });
+      }
+  }
+
+  // Strict Data Isolation: Employees and HR are bound to their assigned office
+  if (role === 'EMPLOYEE' || role === 'HR') {
+      const userOfficeId = req.user.employee?.officeId;
+      if (userOfficeId) {
+          officeId = userOfficeId;
+      } else {
+          // Return empty paginated structure if no office assigned
+          return res.status(200).json({ 
+              data: [], 
+              meta: { total: 0, page: 1, limit: 10, totalPages: 0 } 
+          });
+      }
+  }
+
+  const attendance = await attendanceService.getAllAttendance(page, limit, startDate, endDate, status, officeId, legalEntityId);
   res.status(200).json(attendance);
 });
 
@@ -109,7 +149,18 @@ const getAttendanceById = asyncHandler(async (req, res) => {
  */
 const getTeamStats = asyncHandler(async (req, res) => {
   const { officeId } = req.query;
-  const result = await attendanceService.getTeamStats(officeId);
+  const { role } = req.user;
+  
+  let legalEntityId = undefined;
+  if (role !== 'SUPER_ADMIN') {
+      legalEntityId = req.user.employee?.legalEntityId || req.user.legalEntityId;
+      if (!legalEntityId) {
+           // Return empty stats if no legal entity
+           return res.status(200).json({ hoursToday: "0h 0m", hoursThisWeek: "0h 0m", hoursThisMonth: "0h 0m" });
+      }
+  }
+
+  const result = await attendanceService.getTeamStats(officeId, legalEntityId);
   res.status(200).json(result);
 });
 

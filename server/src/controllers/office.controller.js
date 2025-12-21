@@ -56,6 +56,17 @@ const createOffice = async (req, res) => {
       }
     });
 
+    // Auto-assign the creator to this office if they don't have one
+    // This fixes the "First Office" visibility issue for new Admins
+    if ((req.user.role === 'ADMIN' || req.user.role === 'HR') && !req.user.employee?.officeId) {
+        if (req.user.employeeId) {
+            await prisma.employee.update({
+                where: { id: req.user.employeeId },
+                data: { officeId: newOffice.id }
+            });
+        }
+    }
+
     res.status(201).json(newOffice);
   } catch (error) {
     res.status(400).json({ message: error.message });
