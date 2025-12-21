@@ -1,4 +1,4 @@
-# HRIS Pro - Enterprise Human Resource Management System
+# HRMS - Enterprise Human Resource Management System
 
 ![Status](https://img.shields.io/badge/Status-Production%20Ready-success)
 ![Version](https://img.shields.io/badge/Version-1.2.0-blue)
