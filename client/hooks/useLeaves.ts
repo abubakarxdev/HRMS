@@ -1,28 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { leavesService } from '../api/services/leaves.service';
-import type { CreateLeaveRequest } from '../api/services/leaves.service';
+import type { CreateLeaveRequest } from '../api/types/leaves';
 import { queryKeys } from '../lib/queryClient'; // Need to update queryKeys
 import { toast } from 'sonner';
 
-// Extend queryKeys (assuming it's an object we can extend or I'll just use string keys for now if I can't edit it easily)
-// Actually, I should check queryKeys first. But I'll define local keys for now to avoid breaking changes there if it's complex.
-const leaveKeys = {
-  balances: ['leaves', 'balances'],
-  myRequests: (page: number, limit: number, status?: string) => ['leaves', 'my-requests', page, limit, status],
-  allRequests: (page: number, limit: number, status?: string, employeeId?: string, officeId?: string) => ['leaves', 'all-requests', page, limit, status, employeeId, officeId],
-};
+const leaveKeys = queryKeys.leaves;
 
 export const useLeaveBalances = () => {
   return useQuery({
-    queryKey: leaveKeys.balances,
+    queryKey: leaveKeys.balances(), // My balances (no employeeId)
     queryFn: () => leavesService.getMyBalances(),
   });
 };
 
-export const useMyLeaveRequests = (page = 1, limit = 10, status?: string) => {
+export const useMyLeaveRequests = (page = 1, limit = 10, status?: string, startDate?: string, endDate?: string) => {
   return useQuery({
-    queryKey: leaveKeys.myRequests(page, limit, status),
-    queryFn: () => leavesService.getMyRequests(page, limit, status),
+    queryKey: leaveKeys.myRequests(page, limit, status, startDate, endDate),
+    queryFn: () => leavesService.getMyRequests(page, limit, status, startDate, endDate),
     placeholderData: (previousData) => previousData,
   });
 };
@@ -33,9 +27,12 @@ export const useCreateLeaveRequest = () => {
   return useMutation({
     mutationFn: (data: CreateLeaveRequest) => leavesService.createRequest(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: leaveKeys.myRequests(1, 10) }); // Invalidate first page at least
-      // Also invalidate balances? Usually creating a request doesn't change balance until approved.
-      // But if we wanted to show pending...
+      // Invalidate my requests (broad match for all pages/filters)
+      queryClient.invalidateQueries({ queryKey: ['leaves', 'my'] });
+      // Invalidate pending approvals/all requests (broad match)
+      queryClient.invalidateQueries({ queryKey: ['leaves', 'all'] });
+      // Invalidate balances (credits are reserved on creation)
+      queryClient.invalidateQueries({ queryKey: leaveKeys.balances() });
       toast.success('Leave request submitted successfully');
     },
     onError: (error: any) => {
@@ -45,11 +42,13 @@ export const useCreateLeaveRequest = () => {
   });
 };
 
-export const useAllLeaveRequests = (page = 1, limit = 10, status?: string, employeeId?: string, officeId?: string) => {
+export const useAllLeaveRequests = (page = 1, limit = 10, status?: string, employeeId?: string, officeId?: string, startDate?: string, endDate?: string, enabled: boolean = true) => {
   return useQuery({
-    queryKey: leaveKeys.allRequests(page, limit, status, employeeId, officeId),
-    queryFn: () => leavesService.getAllRequests(page, limit, status, employeeId, officeId),
+    queryKey: leaveKeys.all(page, limit, status, employeeId, officeId, startDate, endDate),
+    queryFn: () => leavesService.getAllRequests(page, limit, status, employeeId, officeId, startDate, endDate),
     placeholderData: (previousData) => previousData,
+    enabled,
+    staleTime: 1000 * 60, // Keep fresh for 1 minute
   });
 };
 
@@ -59,13 +58,38 @@ export const useUpdateLeaveStatus = () => {
   return useMutation({
     mutationFn: ({ id, status, approverComments }: { id: string; status: string; approverComments?: string }) =>
       leavesService.updateRequestStatus(id, status, approverComments),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leaves', 'all-requests'] });
+    onSuccess: (data, variables) => {
+      // Invalidate list to remove/update item
+      queryClient.invalidateQueries({ queryKey: ['leaves', 'all'] });
+      // Invalidate specific detail view
+      queryClient.invalidateQueries({ queryKey: leaveKeys.detail(variables.id) });
+      // Invalidate balances as approval changes them
+      if (variables.status === 'Approved') {
+        queryClient.invalidateQueries({ queryKey: leaveKeys.balances() });
+      }
       toast.success('Leave status updated successfully');
     },
     onError: (error: any) => {
       const message = error.response?.data?.message || 'Failed to update leave status';
       toast.error(message);
     },
+  });
+};
+
+export const useEmployeeLeaveBalances = (employeeId?: string) => {
+  return useQuery({
+    queryKey: leaveKeys.balances(employeeId),
+    queryFn: () => {
+      if (!employeeId) return Promise.resolve([]);
+      return leavesService.getEmployeeBalances(employeeId);
+    },
+    enabled: !!employeeId,
+  });
+};
+export const useLeaveRequestDetails = (id: string, enabled: boolean = true) => {
+  return useQuery({
+    queryKey: leaveKeys.detail(id),
+    queryFn: () => leavesService.getRequestById(id),
+    enabled: !!id && enabled,
   });
 };

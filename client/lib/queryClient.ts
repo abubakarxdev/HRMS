@@ -40,6 +40,25 @@ export const queryKeys = {
     stats: (employeeId: string) => ['attendance', 'stats', employeeId] as const,
   },
 
+  // Leaves
+  leaves: {
+    all: (page?: number, limit?: number, status?: string, employeeId?: string, officeId?: string, startDate?: string, endDate?: string) =>
+      ['leaves', 'all', { page, limit, status, employeeId, officeId, startDate, endDate }] as const,
+    myRequests: (page?: number, limit?: number, status?: string, startDate?: string, endDate?: string) =>
+      ['leaves', 'my', { page, limit, status, startDate, endDate }] as const,
+    detail: (id: string) => ['leaves', 'detail', id] as const,
+    balances: (employeeId?: string) => ['leaves', 'balances', { employeeId }] as const,
+    types: ['leaves', 'types'] as const,
+  },
+
+  // Contracts
+  contracts: {
+    all: (page?: number, limit?: number, status?: string, employeeId?: string, officeId?: string) =>
+      ['contracts', 'all', { page, limit, status, employeeId, officeId }] as const,
+    detail: (id: string) => ['contracts', 'detail', id] as const,
+    types: ['contracts', 'types'] as const,
+  },
+
   // Audit Logs
   auditLogs: {
     byEmployee: (employeeId: string) => ['auditLogs', 'employee', employeeId] as const,

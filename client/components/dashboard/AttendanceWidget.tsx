@@ -30,7 +30,7 @@ const AttendanceWidget: React.FC = () => {
     const currentUserEmployee = employees.find(e => e.id === user?.employeeId);
     
     // Use timezone from auth user (token) as it's the source of truth for the current session
-    // This matches TeamSnapshot logic which is working correctly
+    // This matches TeamSnapshotPage logic which is working correctly
     const userTimezone = user?.timezone || 'Asia/Karachi';
 
     console.log("AttendanceWidget userTimezone:", userTimezone);

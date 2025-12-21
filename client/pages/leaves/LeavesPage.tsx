@@ -1,18 +1,25 @@
 import React, { useState } from 'react';
-import { useLeaveBalances, useMyLeaveRequests, useCreateLeaveRequest } from '../hooks/useLeaves';
-import LeaveBalanceCard from '../components/leaves/LeaveBalanceCard';
-import LeaveHistoryTable from '../components/leaves/LeaveHistoryTable';
-import LeaveRequestModal from '../components/leaves/LeaveRequestModal';
-import Button from '../components/ui/Button';
+import { useLeaveBalances , useMyLeaveRequests , useCreateLeaveRequest } from '@/hooks/useLeaves';
+import LeaveBalanceCard from '@/components/leaves/LeaveBalanceCard';
+import LeaveHistoryTable from '@/components/leaves/LeaveHistoryTable';
+import LeaveRequestModal from '@/components/leaves/LeaveRequestModal';
+import Button from '@/components/ui/Button';
 import { Plus, Calendar, Clock, CheckCircle } from 'lucide-react';
-import { FiActivity } from 'react-icons/fi';
+import { FiActivity, FiFilter } from 'react-icons/fi';
+import Pagination from '@/components/ui/Pagination';
+import dayjs from 'dayjs';
 
 const LeavesPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [page, setPage] = useState(1);
+    const [statusFilter, setStatusFilter] = useState('all');
+    
+    // Default to Current Year (Jan 1 - Dec 31)
+    const [startDate, setStartDate] = useState(dayjs().startOf('year').format('YYYY-MM-DD'));
+    const [endDate, setEndDate] = useState(dayjs().endOf('year').format('YYYY-MM-DD'));
     
     const { data: balances, isLoading: loadingBalances } = useLeaveBalances();
-    const { data: requestsData, isLoading: loadingRequests } = useMyLeaveRequests(page);
+    const { data: requestsData, isLoading: loadingRequests } = useMyLeaveRequests(page, 10, statusFilter === 'all' ? undefined : statusFilter, startDate || undefined, endDate || undefined);
     const createRequestMutation = useCreateLeaveRequest();
 
     const handleCreateRequest = async (data: any) => {
@@ -120,10 +127,70 @@ const LeavesPage: React.FC = () => {
 
             {/* History Section */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <h2 className="text-lg font-bold text-slate-800">Request History</h2>
-                    <div className="text-sm text-slate-500">
-                        Total Requests: <span className="font-bold text-slate-800">{requestsData?.meta?.total || 0}</span>
+                <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/50">
+                    <div className="flex flex-col gap-1">
+                        <h2 className="text-lg font-bold text-slate-800">Request History</h2>
+                        <div className="text-sm text-slate-500">
+                            Total Requests: <span className="font-bold text-slate-800">{requestsData?.meta?.total || 0}</span>
+                        </div>
+                    </div>
+                    
+                    {/* Filters */}
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                         <select
+                            value={statusFilter}
+                            onChange={(e) => {
+                                setStatusFilter(e.target.value);
+                                setPage(1);
+                            }}
+                            className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-600 font-medium cursor-pointer hover:bg-slate-50 transition-colors"
+                        >
+                            <option value="all">All Status</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                        
+                        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">From</span>
+                             <input 
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => {
+                                    setStartDate(e.target.value);
+                                    setPage(1);
+                                }}
+                                className="text-sm text-slate-600 outline-none bg-transparent font-medium"
+                             />
+                        </div>
+
+                         <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">To</span>
+                             <input 
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => {
+                                    setEndDate(e.target.value);
+                                    setPage(1);
+                                }}
+                                className="text-sm text-slate-600 outline-none bg-transparent font-medium"
+                             />
+                        </div>
+
+                        {(statusFilter !== 'all' || startDate !== dayjs().startOf('year').format('YYYY-MM-DD') || endDate !== dayjs().endOf('year').format('YYYY-MM-DD')) && (
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setStatusFilter('all');
+                                    setStartDate(dayjs().startOf('year').format('YYYY-MM-DD'));
+                                    setEndDate(dayjs().endOf('year').format('YYYY-MM-DD'));
+                                    setPage(1);
+                                }}
+                                className="bg-white text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border-slate-200 hover:border-indigo-200 rounded-xl font-semibold transition-all px-4 py-2 h-auto"
+                            >
+                                Reset Filters
+                            </Button>
+                        )}
                     </div>
                 </div>
                 
@@ -132,27 +199,15 @@ const LeavesPage: React.FC = () => {
                     loading={loadingRequests} 
                 />
                 
-                {requestsData?.meta && requestsData.meta.totalPages > 1 && (
-                    <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                        <Button 
-                            variant="outline" 
-                            disabled={page === 1} 
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            className="bg-white"
-                        >
-                            Previous
-                        </Button>
-                        <span className="text-sm font-medium text-slate-600">
-                            Page {page} of {requestsData.meta.totalPages}
-                        </span>
-                        <Button 
-                            variant="outline" 
-                            disabled={page === requestsData.meta.totalPages} 
-                            onClick={() => setPage(p => Math.min(requestsData.meta.totalPages, p + 1))}
-                            className="bg-white"
-                        >
-                            Next
-                        </Button>
+                {requestsData?.meta && (
+                     <div className="border-t border-slate-100 bg-slate-50/50">
+                        <Pagination 
+                            currentPage={page}
+                            totalPages={requestsData.meta.totalPages}
+                            totalItems={requestsData.meta.total}
+                            limit={10} 
+                            onPageChange={(p) => setPage(p)}
+                        />
                     </div>
                 )}
             </div>

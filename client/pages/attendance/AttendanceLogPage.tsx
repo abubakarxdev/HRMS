@@ -1,22 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FiEye, FiCalendar, FiClock, FiMapPin, FiFilter, FiRefreshCw, FiUser, FiActivity, FiLayers } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { useEmployees } from '../../hooks/useEmployees';
-import { useEmployeeAttendance, useAttendanceRecords } from '../../hooks/useAttendance';
-import Button from '../ui/Button';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { useAuth } from '@/contexts/AuthContext';
+import { useEmployees } from '@/hooks/useEmployees';
+import { useEmployeeAttendance } from '@/hooks/useAttendance';
+import { useAttendanceRecords } from '@/hooks/useAttendance';
+import Button from '@/components/ui/Button';
 import { Autocomplete, TextField, Avatar, Box, Typography } from '@mui/material';
 import dayjs, { Dayjs } from 'dayjs';
-import Select from '../ui/Select';
+import Select from '@/components/ui/Select';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
-import { useOptionalOffice } from "../../context/OfficeContext";
+import { useOptionalOffice } from '@/contexts/OfficeContext';
+import Pagination from '@/components/ui/Pagination';
+import isoWeek from 'dayjs/plugin/isoWeek';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+dayjs.extend(isoWeek);
 
-const AttendanceLog: React.FC = () => {
+const AttendanceLogPage: React.FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const officeContext = useOptionalOffice();
@@ -33,22 +36,18 @@ const AttendanceLog: React.FC = () => {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(10);
 
-    // Date Filters - Draft State (for UI inputs)
-    const [startDate, setStartDate] = useState<Dayjs | null>(() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 30);
-        return dayjs(d);
-    });
-    const [endDate, setEndDate] = useState<Dayjs | null>(dayjs());
+    // Default dates
+    const DEFAULT_START = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+    const DEFAULT_END = dayjs().format('YYYY-MM-DD');
 
-    // Date Filters - Applied State (for Data Fetching)
-    const [appliedStartDate, setAppliedStartDate] = useState<Dayjs | null>(startDate);
-    const [appliedEndDate, setAppliedEndDate] = useState<Dayjs | null>(endDate);
+    // Date State (Strings, synced directly like LeavesPage)
+    const [startDate, setStartDate] = useState<string>(DEFAULT_START);
+    const [endDate, setEndDate] = useState<string>(DEFAULT_END);
 
     // Reset page when filters change
     useEffect(() => {
         setPage(1);
-    }, [selectedEmployeeId, statusFilter, appliedStartDate, appliedEndDate]);
+    }, [selectedEmployeeId, statusFilter, startDate, endDate]);
 
     const isHR = user?.role === "ADMIN" || user?.role === "HR";
 
@@ -58,11 +57,10 @@ const AttendanceLog: React.FC = () => {
     // Fetch attendance data based on selection
     const shouldFetchEmployee = selectedEmployeeId !== 'all' && !!targetEmployeeId;
     
-    // Use APPLIED dates for fetching
     const { data: employeeAttendanceData, isLoading: attendanceLoading } = useEmployeeAttendance(
         shouldFetchEmployee ? targetEmployeeId : '',
-        shouldFetchEmployee && appliedStartDate ? appliedStartDate.format('YYYY-MM-DD') : undefined,
-        shouldFetchEmployee && appliedEndDate ? appliedEndDate.format('YYYY-MM-DD') : undefined,
+        shouldFetchEmployee && startDate ? startDate : undefined,
+        shouldFetchEmployee && endDate ? endDate : undefined,
         statusFilter,
         page,
         limit
@@ -72,8 +70,8 @@ const AttendanceLog: React.FC = () => {
     const { data: allAttendanceData, isLoading: allAttendanceLoading } = useAttendanceRecords(
         page,
         limit,
-        appliedStartDate ? appliedStartDate.format('YYYY-MM-DD') : undefined,
-        appliedEndDate ? appliedEndDate.format('YYYY-MM-DD') : undefined,
+        startDate ? startDate : undefined,
+        endDate ? endDate : undefined,
         statusFilter,
         currentOfficeId // Pass officeId
     );
@@ -82,11 +80,6 @@ const AttendanceLog: React.FC = () => {
     const response = selectedEmployeeId === 'all' ? allAttendanceData : employeeAttendanceData;
     const logs = response?.data || [];
     const meta = response?.meta;
-
-    const handleApplyFilters = () => {
-        setAppliedStartDate(startDate);
-        setAppliedEndDate(endDate);
-    };
 
     const handleQuickRangeChange = (range: string) => {
         setQuickRange(range);
@@ -101,12 +94,12 @@ const AttendanceLog: React.FC = () => {
                 newEnd = today;
                 break;
             case 'thisWeek':
-                newStart = today.startOf('week');
-                newEnd = today.endOf('week');
+                newStart = today.startOf('isoWeek');
+                newEnd = today.endOf('isoWeek');
                 break;
             case 'lastWeek':
-                newStart = today.subtract(1, 'week').startOf('week');
-                newEnd = today.subtract(1, 'week').endOf('week');
+                newStart = today.subtract(1, 'week').startOf('isoWeek');
+                newEnd = today.subtract(1, 'week').endOf('isoWeek');
                 break;
             case 'thisMonth':
                 newStart = today.startOf('month');
@@ -121,36 +114,33 @@ const AttendanceLog: React.FC = () => {
                 newEnd = today;
                 break;
             case 'custom':
-                // Don't change dates, just let user edit them
                 return; 
             default:
                 break;
         }
 
         if (newStart && newEnd) {
-            setStartDate(newStart);
-            setEndDate(newEnd);
-            // Auto-apply for quick ranges
-            setAppliedStartDate(newStart);
-            setAppliedEndDate(newEnd);
+            setStartDate(newStart.format('YYYY-MM-DD'));
+            setEndDate(newEnd.format('YYYY-MM-DD'));
         }
     };
 
     const handleReset = () => {
         setQuickRange('last30');
         setStatusFilter('all');
-        
-        const d = new Date();
-        d.setDate(d.getDate() - 30);
-        const defaultStart = dayjs(d);
-        const defaultEnd = dayjs();
-
-        setStartDate(defaultStart);
-        setEndDate(defaultEnd);
-        
-        setAppliedStartDate(defaultStart);
-        setAppliedEndDate(defaultEnd);
+        setStartDate(DEFAULT_START);
+        setEndDate(DEFAULT_END);
     };
+
+    // Check if filters are modified
+    const isFiltered = useMemo(() => {
+        return (
+            statusFilter !== 'all' ||
+            quickRange !== 'last30' ||
+            startDate !== DEFAULT_START ||
+            endDate !== DEFAULT_END
+        );
+    }, [statusFilter, quickRange, startDate, endDate, DEFAULT_START, DEFAULT_END]);
 
     const formatDuration = (minutes: number) => {
         if (minutes < 0) return "0h 0m";
@@ -230,7 +220,7 @@ const AttendanceLog: React.FC = () => {
     }, [selectedEmployeeId, employeeOptions]);
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-8 animate-in fade-in duration-500 pb-10">
             {/* Glassmorphism Header */}
             <header className="relative overflow-hidden bg-gradient-to-r from-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl">
                  <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
@@ -290,11 +280,12 @@ const AttendanceLog: React.FC = () => {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative z-10">
                 {/* Filter Bar */}
                 <div className="p-5 border-b border-slate-100 bg-slate-50/50">
-                    <div className="flex flex-col md:flex-row gap-4 items-end">
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 w-full md:w-auto">
+                    <div className="flex flex-col xl:flex-row gap-4 items-end xl:items-center justify-between">
+                        <div className="flex flex-col md:flex-row flex-wrap gap-4 w-full xl:w-auto items-end md:items-center">
+                            
                             {/* Employee Selector for HR */}
                             {isHR && (
-                                <div>
+                                <div className="w-full md:w-64">
                                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Employee</label>
                                     <Autocomplete
                                         options={employeeOptions}
@@ -353,12 +344,12 @@ const AttendanceLog: React.FC = () => {
                             )}
 
                             {/* Quick Range */}
-                            <div>
-                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Date Range</label>
+                            <div className="min-w-[160px]">
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Range Preset</label>
                                 <Select
                                     value={quickRange}
                                     onChange={(e) => handleQuickRangeChange(e.target.value)}
-                                    className="bg-white shadow-sm border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl"
+                                    className="bg-white shadow-sm border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg w-full py-2"
                                     options={[
                                         { value: 'last30', label: 'Last 30 Days' },
                                         { value: 'today', label: 'Today' },
@@ -371,41 +362,46 @@ const AttendanceLog: React.FC = () => {
                                 />
                             </div>
 
-                            {/* Custom Date Inputs - Only show when Custom Range is selected */}
-                            {quickRange === 'custom' && (
-                                <>
-                                    <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">From Date</label>
-                                        <DatePicker 
-                                            value={startDate} 
-                                            onChange={(newValue) => setStartDate(newValue)}
-                                            slotProps={{ 
-                                                textField: { size: 'small', fullWidth: true, className: 'bg-white shadow-sm rounded-xl' },
-                                                popper: { sx: { zIndex: 99999 } }
+                            {/* Date Inputs - Always Visible & Synced */}
+                            <div className="flex items-center gap-2">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">From</label>
+                                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                                        <input 
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => {
+                                                setStartDate(e.target.value);
+                                                setQuickRange('custom'); // Switch to custom if user manually edits
                                             }}
+                                            className="text-sm text-slate-600 outline-none bg-transparent font-medium w-full"
                                         />
                                     </div>
-                                    <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-                                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">To Date</label>
-                                        <DatePicker 
-                                            value={endDate} 
-                                            onChange={(newValue) => setEndDate(newValue)}
-                                            slotProps={{ 
-                                                textField: { size: 'small', fullWidth: true, className: 'bg-white shadow-sm rounded-xl' },
-                                                popper: { sx: { zIndex: 99999 } }
+                                </div>
+                                <div className="self-end pb-2 text-slate-400">-</div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">To</label>
+                                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+                                        <input 
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => {
+                                                setEndDate(e.target.value);
+                                                setQuickRange('custom');
                                             }}
+                                            className="text-sm text-slate-600 outline-none bg-transparent font-medium w-full"
                                         />
                                     </div>
-                                </>
-                            )}
+                                </div>
+                            </div>
                             
                             {/* Status Filter */}
-                            <div>
+                            <div className="min-w-[140px]">
                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Status</label>
                                 <Select
                                     value={statusFilter}
                                     onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="bg-white shadow-sm border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl"
+                                    className="bg-white shadow-sm border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg w-full py-2"
                                     options={[
                                         { value: 'all', label: 'All Statuses' },
                                         { value: 'PRESENT', label: 'Present' },
@@ -417,16 +413,19 @@ const AttendanceLog: React.FC = () => {
                                 />
                             </div>
                         </div>
-                        <div className="flex gap-2 w-full md:w-auto h-[42px]">
-                            {quickRange === 'custom' && (
-                                <Button onClick={handleApplyFilters} className="flex-1 md:flex-none bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm animate-in fade-in zoom-in duration-300 rounded-xl h-full">
-                                    <FiFilter className="mr-2" /> Apply
+
+                        {/* Reset Button - Conditional */}
+                        {isFiltered && (
+                            <div className="flex-shrink-0 animate-in fade-in zoom-in duration-200">
+                                <Button 
+                                    variant="outline" 
+                                    onClick={handleReset} 
+                                    className="bg-white text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border-slate-200 hover:border-indigo-200 rounded-lg font-semibold transition-all px-4 py-2 h-auto"
+                                >
+                                    Reset Filters
                                 </Button>
-                            )}
-                            <Button variant="outline" onClick={handleReset} className="flex-1 md:flex-none bg-white hover:bg-slate-50 border-slate-200 rounded-xl h-full">
-                                Reset
-                            </Button>
-                        </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -567,56 +566,16 @@ const AttendanceLog: React.FC = () => {
                 </div>
 
                 {/* Pagination Controls */}
-                {meta && meta.totalPages > 1 && (
-                    <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                        <div className="text-sm text-slate-500">
-                            Showing <span className="font-bold text-slate-700">{(meta.page - 1) * meta.limit + 1}</span> to <span className="font-bold text-slate-700">{Math.min(meta.page * meta.limit, meta.total)}</span> of <span className="font-bold text-slate-700">{meta.total}</span> results
-                        </div>
-                        <div className="flex gap-2">
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => setPage(p => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                                className="bg-white border-slate-200 hover:bg-slate-50"
-                            >
-                                Previous
-                            </Button>
-                            <div className="flex items-center gap-1">
-                                {Array.from({ length: Math.min(5, meta.totalPages) }, (_, i) => {
-                                    let p = i + 1;
-                                    if (meta.totalPages > 5) {
-                                        if (page > 3) p = page - 2 + i;
-                                        if (p > meta.totalPages) p = meta.totalPages - (4 - i);
-                                    }
-                                    
-                                    if (p <= 0) return null;
-
-                                    return (
-                                        <button
-                                            key={p}
-                                            onClick={() => setPage(p)}
-                                            className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${
-                                                page === p 
-                                                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-100' 
-                                                    : 'text-slate-500 hover:bg-slate-200 hover:text-slate-800'
-                                            }`}
-                                        >
-                                            {p}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
-                                disabled={page === meta.totalPages}
-                                className="bg-white border-slate-200 hover:bg-slate-50"
-                            >
-                                Next
-                            </Button>
-                        </div>
+                {/* Pagination Controls */}
+                {meta && (
+                    <div className="bg-slate-50/50 border-t border-slate-100">
+                        <Pagination
+                            currentPage={page}
+                            totalPages={meta.totalPages}
+                            totalItems={meta.total}
+                            limit={meta.limit}
+                            onPageChange={(p) => setPage(p)}
+                        />
                     </div>
                 )}
             </div>
@@ -624,4 +583,4 @@ const AttendanceLog: React.FC = () => {
     );
 };
 
-export default AttendanceLog;
+export default AttendanceLogPage;

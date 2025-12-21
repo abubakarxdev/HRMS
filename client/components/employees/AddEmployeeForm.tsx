@@ -13,7 +13,7 @@ import Card from "../ui/Card";
 import { useEmployees, useCreateEmployee, useUpdateEmployee } from "../../hooks/useEmployees";
 import { Role } from "../../types";
 import { useAuth } from "../../contexts/AuthContext";
-import { useOptionalOffice } from "../../context/OfficeContext";
+import { useOptionalOffice } from "@/contexts/OfficeContext";
 import { employeeSchema } from "@/validations/employeeValidation";
 import { NAVIGATION_PATHS } from "@/constants";
 

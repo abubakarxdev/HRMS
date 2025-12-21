@@ -1,13 +1,13 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useOptionalOffice } from '../../context/OfficeContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { useEmployees } from '../../hooks/useEmployees';
-import { useAttendanceRecords, useTeamStats } from '../../hooks/useAttendance';
-import EmployeeAttendanceCard from './EmployeeAttendanceCard';
+import { useOptionalOffice } from '@/contexts/OfficeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useEmployees } from '@/hooks/useEmployees';
+import { useAttendanceRecords, useTeamStats } from '@/hooks/useAttendance';
+import EmployeeAttendanceCard from '@/components/attendance/EmployeeAttendanceCard';
 import { Users, Clock, Filter, RefreshCw, Layers } from 'lucide-react';
 
-const TeamSnapshot: React.FC = () => {
+const TeamSnapshotPage: React.FC = () => {
     const { user } = useAuth();
     const { officeId: paramOfficeId } = useParams<{ officeId: string }>();
     const officeContext = useOptionalOffice();
@@ -186,4 +186,4 @@ const TeamSnapshot: React.FC = () => {
     );
 };
 
-export default TeamSnapshot;
+export default TeamSnapshotPage;

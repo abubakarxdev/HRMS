@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { apiClient as api } from "../api/client";
+import { apiClient as api } from "@/api/client";
 
 interface Office {
     id: string;
@@ -69,13 +69,18 @@ export const OfficeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
     };
 
+    // Derived loading state: true if fetching, OR if we have offices but haven't selected one yet.
+    // This prevents showing "No Office Selected" while we are matching the URL param or defaulting.
+    const isInitializing = offices.length > 0 && !currentOffice;
+    const derivedLoading = isLoading || isInitializing;
+
     return (
         <OfficeContext.Provider value={{ 
             currentOffice, 
             currentOfficeId: currentOffice?.id, 
             setCurrentOffice, 
             offices, 
-            isLoading 
+            isLoading: derivedLoading 
         }}>
             {children}
         </OfficeContext.Provider>

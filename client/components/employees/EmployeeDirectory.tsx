@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Eye, Edit, Trash2, Search, Filter, Plus, Users, UserCheck, Briefcase } from "lucide-react";
 import Button from "../ui/Button";
-import { useAuth } from "../../contexts/AuthContext";
-import { useEmployees, useDeleteEmployee } from "../../hooks/useEmployees";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEmployees, useDeleteEmployee } from "@/hooks/useEmployees";
 import { useNavigate } from "react-router-dom";
 import { NAVIGATION_PATHS } from "@/constants";
-import DeleteConfirmationModal from "../modals/DeleteConfirmationModal";
-import { useOptionalOffice } from "../../context/OfficeContext";
+import DeleteConfirmationModal from "../ui/DeleteConfirmationModal";
+import { useOptionalOffice } from "@/contexts/OfficeContext";
+import Pagination from "../ui/Pagination";
 
 const EmployeeDirectory: React.FC = () => {
   const { user } = useAuth();
@@ -71,6 +72,13 @@ const EmployeeDirectory: React.FC = () => {
       // Error handled by mutation
     }
   };
+
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const limit = 10;
+
+  const paginatedEmployees = filteredEmployees.slice((page - 1) * limit, page * limit);
+  const totalPages = Math.ceil(filteredEmployees.length / limit);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
@@ -146,7 +154,10 @@ const EmployeeDirectory: React.FC = () => {
                     type="text" 
                     placeholder="Search by name, email, or ID..." 
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setPage(1); // Reset to first page on search
+                    }}
                     className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
                 />
              </div>
@@ -175,7 +186,7 @@ const EmployeeDirectory: React.FC = () => {
                         </div>
                     </td>
                   </tr>
-                ) : filteredEmployees.length === 0 ? (
+                ) : paginatedEmployees.length === 0 ? (
                     <tr>
                     <td colSpan={4} className="px-6 py-16 text-center text-slate-500">
                         <div className="flex flex-col items-center justify-center">
@@ -188,7 +199,7 @@ const EmployeeDirectory: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredEmployees.map((employee) => {
+                    paginatedEmployees.map((employee) => {
                     const fullName = `${employee.firstName} ${employee.lastName}`;
                     const initials = `${employee.firstName?.[0] || ''}${employee.lastName?.[0] || ''}`;
                     const activeContract = employee.contracts?.[0]; // Assuming backend returns active contract
@@ -281,6 +292,17 @@ const EmployeeDirectory: React.FC = () => {
                 )}
               </tbody>
             </table>
+          </div>
+          
+          {/* Pagination */}
+          <div className="bg-slate-50/50 border-t border-slate-100">
+              <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  totalItems={filteredEmployees.length}
+                  limit={limit}
+                  onPageChange={(p) => setPage(p)}
+              />
           </div>
         </div>
       </div>

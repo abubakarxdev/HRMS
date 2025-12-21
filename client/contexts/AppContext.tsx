@@ -7,13 +7,20 @@ import React, {
 } from "react";
 import {
   User,
-  Role,
+  // Role, // Not used directly in Context Logic
   Employee,
   AttendanceRecord,
   ApprovalRequest,
   PublicHoliday,
 } from "../types";
-import { api } from "../services/apiService";
+
+// Import new services
+import { authService } from "../api/services/auth.service";
+import { employeeService } from "../api/services/employee.service";
+import { attendanceService } from "../api/services/attendance.service";
+import { approvalService } from "../api/services/approval.service";
+import { holidayService } from "../api/services/holiday.service";
+
 interface AppContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
@@ -63,7 +70,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const logout = useCallback(async () => {
-    await api.logout();
+    await authService.logout();
     setUser(null);
     setEmployees([]);
     setAttendance([]);
@@ -75,9 +82,23 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     const checkUserSession = async () => {
       setLoading(true);
       try {
-        const userProfile = await api.getProfile();
+        const userProfile = authService.getProfile();
+        // Convert UserProfile to User type if needed, or update User type
+        // Assuming partial compatibility or adapting here:
         if (userProfile) {
-          setUser(userProfile);
+            // Mapping new UserProfile to old User type for compatibility
+            // The old User type: { id, firstName?, lastName?, email, role, employeeId, timezone, officeId? }
+            // The new UserProfile: { id, email, role, employeeId, timezone, firstName, lastName }
+            const mappedUser: User = {
+                id: userProfile.id,
+                email: userProfile.email,
+                role: userProfile.role,
+                employeeId: userProfile.employeeId,
+                timezone: userProfile.timezone,
+                firstName: userProfile.firstName,
+                lastName: userProfile.lastName
+            };
+            setUser(mappedUser);
         }
       } catch (error) {
         console.error("Session check failed:", error);
@@ -92,9 +113,18 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const login = async (email: string, password: string): Promise<void> => {
     // Do not set global loading here, let the UI handle it
     try {
-      const loggedInUser = await api.login(email, password);
+      const loggedInUser = await authService.login({ email, password });
       if (loggedInUser) {
-        setUser(loggedInUser);
+           const mappedUser: User = {
+                id: loggedInUser.id,
+                email: loggedInUser.email,
+                role: loggedInUser.role,
+                employeeId: loggedInUser.employeeId,
+                timezone: loggedInUser.timezone,
+                firstName: loggedInUser.firstName,
+                lastName: loggedInUser.lastName
+            };
+        setUser(mappedUser);
       } else {
         throw new Error("Invalid credentials");
       }
@@ -108,7 +138,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const fetchEmployees = useCallback(async () => {
     try {
-      const data = await api.getEmployees();
+      const data = await employeeService.getAll();
       setEmployees(data);
     } catch (error) {
       console.error("Failed to fetch employees", error);
@@ -117,8 +147,12 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const fetchAttendance = useCallback(async () => {
     try {
-      const data = await api.getAllAttendance();
-      setAttendance(data);
+      // Assuming attendanceService.getAll returns { data: [], meta: ... } or just [], checking service
+      // attendanceService.getAll returns PaginatedResponse<AttendanceRecord>
+      // We might need to adjust or just take .data
+      const response = await attendanceService.getAll(1, 1000); // Fetching a large number for now or need to handle pagination in context?
+      // Old context expected array.
+      setAttendance(response.data);
     } catch (e) {
       console.error("Failed to fetch attendance:", e);
     }
@@ -126,7 +160,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const fetchApprovals = useCallback(async () => {
     try {
-      const data = await api.getApprovalRequests();
+      const data = await approvalService.getAll();
       setApprovals(data);
     } catch (e) {
       console.error("Failed to fetch approvals:", e);
@@ -135,7 +169,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const fetchHolidays = useCallback(async () => {
     try {
-      const data = await api.getPublicHolidays();
+      const data = await holidayService.getAll();
       setHolidays(data);
     } catch (e) {
       console.error("Failed to fetch holidays:", e);
@@ -168,7 +202,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const updateEmployee = async (employeeData: Employee) => {
     try {
-      await api.updateEmployee(employeeData);
+      await employeeService.update(employeeData.id, employeeData);
       await fetchEmployees();
       console.log("Employee updated successfully:", employeeData.id);
     } catch (error) {
@@ -179,9 +213,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const addEmployee = async (employeeData: Omit<Employee, "id" | "avatar">) => {
     try {
-      await api.addEmployee(employeeData);
+      // Need to cast to CreateEmployeeRequest or ensure types match
+      // The service expects CreateEmployeeRequest from api/types/employee.types
+      // Our context uses Employee from ../types.
+      // They should be compatible enough for this call or just pass it.
+      await employeeService.create(employeeData as any);
       await fetchEmployees();
-      console.log("Employee added successfully:", employeeData.email);
+      console.log("Employee added successfully:", employeeData.workEmail);
     } catch (error) {
       console.error("Failed to add employee:", error);
       throw error;
@@ -190,7 +228,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const deleteEmployee = async (id: string) => {
     try {
-      await api.deleteEmployee(id);
+      await employeeService.delete(id);
       await fetchEmployees();
       console.log("Employee deleted successfully:", id);
     } catch (error) {
@@ -204,7 +242,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     status: "Approved" | "Rejected"
   ) => {
     try {
-      await api.updateApprovalStatus(id, status);
+      await approvalService.updateStatus(id, status);
       await fetchApprovals();
       console.log(`Approval request ${id} ${status}`);
     } catch (error) {
@@ -224,9 +262,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   ) => {
     try {
       if (action === "in") {
-        await api.clockIn(employeeId, location, time, recordDate);
+        await attendanceService.clockIn({ employeeId, location, customTime: time });
       } else {
-        await api.clockOut(employeeId, time, breakStart, breakEnd, recordDate);
+        await attendanceService.clockOut({ employeeId, customTime: time, breakStart, breakEnd });
       }
       await fetchAttendance();
       console.log(`Clock ${action} successful for ${employeeId}`);
@@ -238,7 +276,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const fixMissingClockOut = async (recordId: string, clockOutTime: string, breakStart?: string, breakEnd?: string) => {
     try {
-      await api.fixMissingClockOut(recordId, clockOutTime, breakStart, breakEnd);
+      await attendanceService.fixMissingClockOut({ recordId, clockOutTime, breakStartTime: breakStart, breakEndTime: breakEnd });
       await fetchAttendance();
       console.log(`Fixed missing clock out for record ${recordId}`);
     } catch (error) {
@@ -249,7 +287,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const addHoliday = async (holiday: PublicHoliday) => {
     try {
-      await api.addPublicHoliday(holiday);
+      await holidayService.add(holiday);
       await fetchHolidays();
       console.log("Holiday added successfully:", holiday.name);
     } catch (error) {

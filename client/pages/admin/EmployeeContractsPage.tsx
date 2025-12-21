@@ -4,11 +4,12 @@ import {
     CheckCircle2, AlertTriangle, Clock, TrendingUp,
     Eye, Trash2, RefreshCw
 } from "lucide-react";
-import { useOptionalOffice } from "../../context/OfficeContext";
-import { useContracts, EmploymentContract, useDeleteContract } from "../../hooks/useContracts";
-import ContractModal from "../../components/contracts/ContractModal";
-import ContractHistoryModal from "../../components/contracts/ContractHistoryModal";
-import DeleteConfirmationModal from "../../components/modals/DeleteConfirmationModal";
+import { useOptionalOffice } from "@/contexts/OfficeContext";
+import { useContracts, EmploymentContract, useDeleteContract } from "@/hooks/useContracts";
+import ContractModal from "@/components/contracts/ContractModal";
+import ContractHistoryModal from "@/components/contracts/ContractHistoryModal";
+import DeleteConfirmationModal from "@/components/ui/DeleteConfirmationModal";
+import Pagination from "@/components/ui/Pagination";
 
 const EmployeeContractsPage: React.FC = () => {
     const officeContext = useOptionalOffice();
@@ -137,6 +138,14 @@ const EmployeeContractsPage: React.FC = () => {
         }
     };
 
+    // Pagination
+    const [page, setPage] = useState(1);
+    const limit = 10;
+    
+    // Derived: Paginated Contracts
+    const paginatedContracts = displayContracts.slice((page - 1) * limit, page * limit);
+    const totalPages = Math.ceil(displayContracts.length / limit);
+
     return (
         <div className="space-y-8 animate-in fade-in duration-500 pb-12">
             
@@ -225,7 +234,10 @@ const EmployeeContractsPage: React.FC = () => {
                     <select 
                         className="px-4 py-2 rounded-lg text-sm font-bold bg-slate-50 text-slate-600 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-40"
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            setPage(1);
+                        }}
                     >
                          <option value="ALL">All Statuses</option>
                          <option value="ACTIVE">Active</option>
@@ -238,7 +250,10 @@ const EmployeeContractsPage: React.FC = () => {
                     <select 
                         className="px-4 py-2 rounded-lg text-sm font-bold bg-slate-50 text-slate-600 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-40"
                         value={typeFilter}
-                        onChange={(e) => setTypeFilter(e.target.value)}
+                        onChange={(e) => {
+                            setTypeFilter(e.target.value);
+                            setPage(1);
+                        }}
                     >
                          <option value="ALL">All Contract Types</option>
                          <option value="FULL_TIME">Full Time</option>
@@ -254,7 +269,10 @@ const EmployeeContractsPage: React.FC = () => {
                         type="text" 
                         placeholder="Search employee, position..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setPage(1);
+                        }}
                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
                     />
                 </div>
@@ -299,7 +317,7 @@ const EmployeeContractsPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                displayContracts.map((contract) => (
+                                paginatedContracts.map((contract) => (
                                     <tr key={contract.id} className="group hover:bg-slate-50/50 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
@@ -401,6 +419,17 @@ const EmployeeContractsPage: React.FC = () => {
                             )}
                         </tbody>
                     </table>
+                </div>
+                
+                 {/* Pagination */}
+                 <div className="bg-slate-50/50 border-t border-slate-100">
+                    <Pagination
+                        currentPage={page}
+                        totalPages={totalPages}
+                        totalItems={displayContracts.length} // Should probably use displayContracts.length for accurate count of what's shown
+                        limit={limit}
+                        onPageChange={(p) => setPage(p)}
+                    />
                 </div>
             </div>
             

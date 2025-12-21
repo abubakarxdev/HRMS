@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiArrowLeft, FiClock, FiCoffee, FiMapPin, FiCalendar, FiUser, FiActivity } from 'react-icons/fi';
-import { api } from '../../services/apiService';
-import { AttendanceRecord } from '../../types';
-import Button from '../ui/Button';
-import FourSquare from '../ui/FourSquare';
-import { useAuth } from '../../contexts/AuthContext';
+import { attendanceService } from '@/api/services/attendance.service';
+import { AttendanceRecord } from '@/api/types/attendance.types';
+import Button from '@/components/ui/Button';
+import FourSquare from '@/components/ui/FourSquare';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SessionDetailsPage: React.FC = () => {
     const { user } = useAuth();
@@ -23,7 +23,7 @@ const SessionDetailsPage: React.FC = () => {
             setError(null);
             
             try {
-                const data = await api.getAttendanceById(sessionId);
+                const data = await attendanceService.getById(sessionId);
                 console.log('Fetched session data:', data);
                 setRecord(data);
             } catch (err: any) {

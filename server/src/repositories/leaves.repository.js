@@ -32,9 +32,9 @@ const createLeaveBalance = async (data) => {
 /**
  * Update a leave balance record
  */
-const updateLeaveBalance = async (id, data) => {
+const updateLeaveBalance = async (id, data, tx = prisma) => {
   try {
-    return await prisma.leaveBalance.update({
+    return await tx.leaveBalance.update({
       where: { id },
       data,
     });
@@ -59,7 +59,7 @@ const createLeaveRequest = async (data) => {
 /**
  * Find leave requests with filtering and pagination
  */
-const findLeaveRequests = async ({ employeeId, status, officeId, skip, take } = {}) => {
+const findLeaveRequests = async ({ employeeId, status, officeId, startDate, endDate, skip, take } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
@@ -68,6 +68,18 @@ const findLeaveRequests = async ({ employeeId, status, officeId, skip, take } = 
       where.employee = {
         officeId: officeId
       };
+    }
+    
+    // Date Filtering: Find leaves that overlap with the selected range
+    // Logic: (Request Start <= Filter End) AND (Request End >= Filter Start)
+    if (startDate && endDate) {
+      where.AND = [
+        { startDate: { lte: new Date(endDate) } },
+        { endDate: { gte: new Date(startDate) } }
+      ];
+    } else if (startDate) {
+        // If only start date provided, show leaves starting on or after
+        where.startDate = { gte: new Date(startDate) };
     }
 
     return await prisma.leaveRequest.findMany({
@@ -85,6 +97,7 @@ const findLeaveRequests = async ({ employeeId, status, officeId, skip, take } = 
             lastName: true,
             employeeIdNumber: true,
             avatarUrl: true,
+            officeId: true, // Useful for frontend to know
           },
         },
       },
@@ -97,7 +110,7 @@ const findLeaveRequests = async ({ employeeId, status, officeId, skip, take } = 
 /**
  * Count leave requests matching filters
  */
-const countLeaveRequests = async ({ employeeId, status, officeId } = {}) => {
+const countLeaveRequests = async ({ employeeId, status, officeId, startDate, endDate } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
@@ -107,6 +120,16 @@ const countLeaveRequests = async ({ employeeId, status, officeId } = {}) => {
         officeId: officeId
       };
     }
+
+    // Date Filtering (Same logic as find)
+    if (startDate && endDate) {
+        where.AND = [
+          { startDate: { lte: new Date(endDate) } },
+          { endDate: { gte: new Date(startDate) } }
+        ];
+      } else if (startDate) {
+          where.startDate = { gte: new Date(startDate) };
+      }
 
     return await prisma.leaveRequest.count({ where });
   } catch (error) {
@@ -141,9 +164,9 @@ const findLeaveRequestById = async (id) => {
 /**
  * Update leave request
  */
-const updateLeaveRequest = async (id, data) => {
+const updateLeaveRequest = async (id, data, tx = prisma) => {
   try {
-    return await prisma.leaveRequest.update({
+    return await tx.leaveRequest.update({
       where: { id },
       data,
     });

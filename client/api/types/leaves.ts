@@ -14,12 +14,14 @@ export interface LeaveRequest {
   status: string;
   approverComments?: string;
   createdAt: string;
+  attachmentUrl?: string; // Optional attachment URL
   employee?: {
     id: string;
     firstName: string;
     lastName: string;
     employeeIdNumber: string;
     avatarUrl?: string;
+    workEmail?: string; // Added workEmail
   };
 }
 

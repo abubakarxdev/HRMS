@@ -267,9 +267,9 @@ const findAttendanceRecord = async (employeeId, date) => {
 /**
  * Create attendance record
  */
-const createAttendanceRecord = async (data) => {
+const createAttendanceRecord = async (data, tx = prisma) => {
   try {
-    return await prisma.attendanceRecord.create({
+    return await tx.attendanceRecord.create({
       data,
       include: {
         sessions: {

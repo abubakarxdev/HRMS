@@ -7,7 +7,7 @@ import Card from "../ui/Card";
 import FormField from "../ui/FormField";
 import { useCreateContract, useUpdateContract, EmploymentContract } from "../../hooks/useContracts";
 import { useEmployees } from "../../hooks/useEmployees";
-import { useOptionalOffice } from "../../context/OfficeContext";
+import { useOptionalOffice } from "@/contexts/OfficeContext";
 import { contractSchema, ContractFormValues } from "../../validations/contract.schema";
 
 interface ContractModalProps {

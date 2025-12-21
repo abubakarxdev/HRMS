@@ -1,22 +1,35 @@
 import React, { useState } from 'react';
-import { useAllLeaveRequests, useUpdateLeaveStatus } from '../../hooks/useLeaves';
-import { useOptionalOffice } from '../../context/OfficeContext';
-import Button from '../../components/ui/Button';
-import LeaveDetailsModal from '../../components/leaves/LeaveDetailsModal';
+import { useAllLeaveRequests, useUpdateLeaveStatus } from '@/hooks/useLeaves';
+import { useOptionalOffice } from '@/contexts/OfficeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import Button from '@/components/ui/Button';
+import LeaveDetailsModal from '@/components/leaves/LeaveDetailsModal';
 import dayjs from 'dayjs';
 import { Eye, CheckCircle, XCircle, Clock, Filter, Search } from 'lucide-react';
+import { calculateWorkingDays } from '@/utils/dateUtils';
 import { FiUsers } from 'react-icons/fi';
+import Pagination from '@/components/ui/Pagination';
+
+import { useNavigate } from 'react-router-dom';
 
 const LeaveRequestsPage: React.FC = () => {
+    const navigate = useNavigate();
+    const { user } = useAuth();
+    const baseRoute = user?.role === 'ADMIN' ? '/admin/leave-request' : '/leave-request';
+
     const [page, setPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState('all');
+    
+    // Default to Current Year (Jan 1 - Dec 31)
+    const [startDate, setStartDate] = useState(dayjs().startOf('year').format('YYYY-MM-DD'));
+    const [endDate, setEndDate] = useState(dayjs().endOf('year').format('YYYY-MM-DD'));
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedRequest, setSelectedRequest] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     
     const officeContext = useOptionalOffice();
     const currentOfficeId = officeContext?.currentOfficeId;
-    const { data: requestsData, isLoading } = useAllLeaveRequests(page, 100, statusFilter === 'all' ? undefined : statusFilter, undefined, currentOfficeId); // Fetch more for client-side search or implement server-side search later
+    const { data: requestsData, isLoading } = useAllLeaveRequests(page, 10, statusFilter === 'all' ? undefined : statusFilter, undefined, currentOfficeId, startDate || undefined, endDate || undefined); // Fetch more for client-side search or implement server-side search later
     const updateStatusMutation = useUpdateLeaveStatus();
 
     const handleViewDetails = (request: any) => {
@@ -94,24 +107,70 @@ const LeaveRequestsPage: React.FC = () => {
             </div>
 
             {/* Filter Bar */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-2 text-slate-500 w-full md:w-auto">
-                     <Filter size={18} />
-                     <span className="text-sm font-medium">Filter by Status:</span>
-                     <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="p-2 border border-slate-200 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 text-slate-700 bg-slate-50 min-w-[150px]"
-                    >
-                        <option value="all">All Requests</option>
-                        <option value="Pending">Pending Only</option>
-                        <option value="Approved">Approved</option>
-                        <option value="Rejected">Rejected</option>
-                    </select>
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
+                    <div className="flex items-center gap-2 text-slate-500 w-full sm:w-auto">
+                         <Filter size={18} />
+                         <span className="text-sm font-medium whitespace-nowrap">Filter by:</span>
+                         <select
+                            value={statusFilter}
+                            onChange={(e) => {
+                                setStatusFilter(e.target.value);
+                                setPage(1);
+                            }}
+                            className="p-2 border border-slate-200 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 text-slate-700 bg-slate-50 min-w-[140px]"
+                        >
+                            <option value="all">All Status</option>
+                            <option value="Pending">Pending Only</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 overflow-hidden">
+                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">From</span>
+                         <input 
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => {
+                                setStartDate(e.target.value);
+                                setPage(1);
+                            }}
+                            className="text-sm text-slate-600 outline-none bg-transparent font-medium"
+                         />
+                    </div>
+
+                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 overflow-hidden">
+                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">To</span>
+                         <input 
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => {
+                                setEndDate(e.target.value);
+                                setPage(1);
+                            }}
+                            className="text-sm text-slate-600 outline-none bg-transparent font-medium"
+                         />
+                    </div>
+
+                    {(statusFilter !== 'all' || startDate !== dayjs().startOf('year').format('YYYY-MM-DD') || endDate !== dayjs().endOf('year').format('YYYY-MM-DD')) && (
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setStatusFilter('all');
+                                setStartDate(dayjs().startOf('year').format('YYYY-MM-DD'));
+                                setEndDate(dayjs().endOf('year').format('YYYY-MM-DD'));
+                                setPage(1);
+                            }}
+                            className="text-xs font-bold bg-white text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border-slate-200 hover:border-indigo-200 rounded-lg transition-all whitespace-nowrap px-4 h-auto"
+                        >
+                            Reset Filters
+                        </Button>
+                    )}
                 </div>
                 
                  {/* Search Input */}
-                 <div className="relative w-full md:w-64">
+                 <div className="relative w-full xl:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input 
                         type="text" 
@@ -124,6 +183,7 @@ const LeaveRequestsPage: React.FC = () => {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto min-h-[400px]">
                 <table className="min-w-full divide-y divide-slate-100">
                     <thead className="bg-slate-50/50">
                         <tr>
@@ -132,7 +192,7 @@ const LeaveRequestsPage: React.FC = () => {
                             <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</th>
                             <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Reason</th>
                             <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider pr-8">Actions</th>
+                            <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider pr-20">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-100">
@@ -159,7 +219,7 @@ const LeaveRequestsPage: React.FC = () => {
                             </tr>
                         ) : (
                             filteredRequests.map((request) => (
-                                <tr key={request.id} className="hover:bg-slate-50/80 transition-colors cursor-pointer group" onClick={() => handleViewDetails(request)}>
+                                <tr key={request.id} className="hover:bg-slate-50/80 transition-colors cursor-pointer group" onClick={() => request.id && navigate(`${baseRoute}/${request.id}`)}>
                                     <td className="px-6 py-4 whitespace-nowrap pl-8">
                                         <div className="flex items-center">
                                             <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm shadow-sm">
@@ -179,9 +239,13 @@ const LeaveRequestsPage: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-slate-900 font-medium">{dayjs(request.startDate).format('MMM D')} - {dayjs(request.endDate).format('MMM D, YYYY')}</div>
-                                        <div className="text-xs text-slate-500">
-                                            {dayjs(request.endDate).diff(dayjs(request.startDate), 'days') + 1} Days
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-slate-700">
+                                                {dayjs(request.startDate).format('MMM D')} - {dayjs(request.endDate).format('MMM D, YYYY')}
+                                            </span>
+                                            <span className="text-xs font-medium text-slate-500 mt-0.5">
+                                                {calculateWorkingDays(request.startDate, request.endDate)} {calculateWorkingDays(request.startDate, request.endDate) === 1 ? 'Day' : 'Days'}
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 max-w-xs">
@@ -194,50 +258,39 @@ const LeaveRequestsPage: React.FC = () => {
                                             {request.status}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right pr-8">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleViewDetails(request);
-                                            }}
-                                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-xs font-bold shadow-sm shadow-indigo-200"
-                                        >
-                                            Review
-                                        </button>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right pr-20">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (request && request.id) {
+                                                        navigate(`${baseRoute}/${request.id}`);
+                                                    } else {
+                                                        console.error("Invalid request ID:", request);
+                                                    }
+                                                }}
+                                                className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all text-xs font-bold shadow-sm shadow-indigo-200"
+                                            >
+                                                Review
+                                            </button>
                                     </td>
                                 </tr>
                             ))
                         )}
                     </tbody>
                 </table>
-            </div>
-
-            {/* Pagination */}
-            {requestsData?.meta && requestsData.meta.totalPages > 1 && (
-                <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <span className="text-sm text-slate-500">
-                        Showing page <span className="font-bold text-slate-900">{page}</span> of {requestsData.meta.totalPages}
-                    </span>
-                    <div className="flex gap-2">
-                        <Button 
-                            variant="outline" 
-                            disabled={page === 1} 
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            className="bg-white"
-                        >
-                            Previous
-                        </Button>
-                        <Button 
-                            variant="outline" 
-                            disabled={page === requestsData.meta.totalPages} 
-                            onClick={() => setPage(p => Math.min(requestsData.meta.totalPages, p + 1))}
-                            className="bg-white"
-                        >
-                            Next
-                        </Button>
-                    </div>
                 </div>
-            )}
+                {requestsData?.meta && (
+                    <div className="bg-slate-50/50 border-t border-slate-100">
+                        <Pagination 
+                            currentPage={page}
+                            totalPages={requestsData.meta.totalPages}
+                            totalItems={requestsData.meta.total}
+                            limit={10} 
+                            onPageChange={(p) => setPage(p)}
+                        />
+                    </div>
+                )}
+            </div>
 
             <LeaveDetailsModal
                 isOpen={isModalOpen}

@@ -5,7 +5,6 @@ import { useMyLeaveRequests } from '../../hooks/useLeaves';
 import Card from '../ui/Card';
 import AttendanceCard from '../attendance/AttendanceCard';
 import AttendanceSummaryCard from '../attendance/AttendanceSummaryCard';
-import FourSquare from '../ui/FourSquare';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -18,6 +17,9 @@ import {
   PointElement,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+import FourSquare from '../ui/FourSquare';
+import dayjs from 'dayjs';
 
 ChartJS.register(
   CategoryScale,
@@ -27,12 +29,95 @@ ChartJS.register(
   Tooltip,
   Legend,
   LineElement,
-  PointElement
+  PointElement,
+  ChartDataLabels
 );
+
+// ... inside component ...
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: {
+      padding: {
+        top: 25 // Add padding for labels
+      }
+    },
+    plugins: {
+      legend: {
+        display: false,
+      },
+      title: {
+        display: false,
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            const value = context.raw;
+            if (value === 0) return '0h 0m';
+            const h = Math.floor(value);
+            const m = Math.round((value - h) * 60);
+            return `${h}h ${m}m`;
+          }
+        }
+      },
+      datalabels: {
+        anchor: 'end' as const,
+        align: 'end' as const,
+        offset: -4,
+        color: '#64748b', // slate-500
+        font: {
+          weight: 'bold' as const,
+          size: 11
+        },
+        formatter: (value: number) => {
+          if (value === 0) return '';
+          const h = Math.floor(value);
+          const m = Math.round((value - h) * 60);
+          if (h === 0) return `${m}m`;
+          if (m === 0) return `${h}h`;
+          return `${h}h ${m}m`;
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(value: any) {
+            return value + ' hrs';
+          }
+        },
+        grid: {
+           display: false
+        }
+      },
+      x: {
+        grid: {
+           display: false
+        }
+      }
+    },
+  };
 
 const EmployeeDashboard: React.FC = () => {
   const { user } = useAuth();
-  const { data: attendanceResponse, isLoading: attendanceLoading } = useEmployeeAttendance(user?.employeeId || '');
+  
+  // Calculate date range for chart (last 7 days)
+  const today = dayjs();
+  const startDate = today.subtract(6, 'day').format('YYYY-MM-DD');
+  const endDate = today.format('YYYY-MM-DD');
+  
+  // Fetch attendance specifically for this range
+  const { data: attendanceResponse, isLoading: attendanceLoading } = useEmployeeAttendance(
+    user?.employeeId || '',
+    startDate,
+    endDate,
+    undefined, // status
+    1, // page
+    20 // limit (plenty for 7 days)
+  );
+
   const { data: response, isLoading: leavesLoading } = useMyLeaveRequests(1, 5, 'Pending'); // Fetch recent 5 pending requests
   const attendanceHistory = attendanceResponse?.data || [];
 

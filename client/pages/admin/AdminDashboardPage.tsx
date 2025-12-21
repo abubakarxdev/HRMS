@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Users, UserCheck, UserMinus, FileClock, Clock, Sparkles } from "lucide-react";
-import { useOffice } from "../../context/OfficeContext";
+import { useOffice } from "@/contexts/OfficeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { useEmployeeAttendance, useAttendanceRecords } from "../../hooks/useAttendance";
 import { useAllLeaveRequests } from "../../hooks/useLeaves"; // Added for pending requests
@@ -45,15 +45,17 @@ const AdminDashboardPage: React.FC = () => {
         currentOffice?.id
     );
 
-    const stats = attendanceData?.aggregates || {
+    const stats = (attendanceData?.aggregates || {
         totalPresent: 0,
         totalOnLeave: 0,
         totalLate: 0,
         totalAbsent: 0
-    };
+    }) as any;
 
     // Fetch pending approvals count (Matches HR Dashboard)
-    const { data: pendingLeavesResponse } = useAllLeaveRequests(1, 1, 'Pending');
+    // Fetch pending approvals count (Matches ApprovalsPanel & HR Dashboard)
+    // We increment limit to 5 to match the ApprovalsPanel query, allowing them to share the same cache and data.
+    const { data: pendingLeavesResponse } = useAllLeaveRequests(1, 5, 'Pending', undefined, currentOffice?.id);
     const pendingApprovalsCount = pendingLeavesResponse?.meta?.total || 0;
 
     // Fetch user's history for missed checkouts (Admin is also an employee)

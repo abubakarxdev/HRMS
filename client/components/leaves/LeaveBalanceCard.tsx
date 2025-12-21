@@ -8,9 +8,10 @@ interface LeaveBalanceCardProps {
     type: string;
     total: number;
     used: number;
+    compact?: boolean;
 }
 
-const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({ type, total, used }) => {
+const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({ type, total, used, compact }) => {
     const remaining = total - used;
     const percentageUsed = Math.min(100, Math.round((used / total) * 100));
     
@@ -31,6 +32,27 @@ const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({ type, total, used }
         colorClass = 'text-emerald-600';
         bgClass = 'bg-emerald-50';
         progressColor = 'bg-emerald-500';
+    }
+
+    if (compact) {
+        return (
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative overflow-hidden group">
+                 <div className={`absolute top-0 right-0 w-16 h-16 ${bgClass} rounded-bl-full -mr-4 -mt-4 opacity-50`}></div>
+                 <div className="relative z-10 flex justify-between items-end">
+                     <div>
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{type}</h3>
+                        <div className="flex items-baseline gap-1">
+                            <span className={`text-2xl font-bold ${colorClass}`}>{remaining}</span>
+                            <span className="text-slate-400 font-medium text-xs">/ {total}</span>
+                        </div>
+                     </div>
+                     <div className="text-right">
+                         <span className="text-xs font-bold text-slate-400 block mb-1">Used</span>
+                         <span className={`text-sm font-bold ${colorClass}`}>{used} <span className="text-[10px] text-slate-400 font-normal">({percentageUsed}%)</span></span>
+                     </div>
+                 </div>
+            </div>
+        );
     }
 
     return (

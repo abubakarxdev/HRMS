@@ -16,10 +16,10 @@ import EmployeeDirectory from "./components/employees/EmployeeDirectory";
 import EmployeeProfile from "./components/employees/EmployeeProfile";
 import AddEmployeeForm from "./components/employees/AddEmployeeForm";
 import EmployeeContractsPage from "./pages/admin/EmployeeContractsPage";
-import AttendanceLog from "./components/attendance/AttendanceLog";
-import SessionDetailsPage from "./components/attendance/SessionDetailsPage";
-import TeamSnapshot from "./components/attendance/TeamSnapshot";
-import LeavesPage from "./pages/LeavesPage";
+import AttendanceLogPage from "./pages/attendance/AttendanceLogPage";
+import SessionDetailsPage from "./pages/attendance/SessionDetailsPage";
+import TeamSnapshotPage from "./pages/attendance/TeamSnapshotPage";
+import LeavesPage from "./pages/leaves/LeavesPage";
 import LeaveRequestsPage from "./pages/admin/LeaveRequestsPage";
 import { NAVIGATION_PATHS } from "./constants";
 import Login from "./components/auth/Login";
@@ -33,6 +33,7 @@ import PlatformSettingsPage from "./pages/platform/PlatformSettingsPage";
 import OfficesPage from "./pages/admin/OfficesPage";
 import AdminLayout from "./components/layout/AdminLayout";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
+import LeaveRequestDetailsPage from "./pages/admin/LeaveRequestDetailsPage";
 
 const App: React.FC = () => {
   return (
@@ -110,11 +111,14 @@ const AdminRoutes: React.FC = () => {
                 <Route path="/admin/employees/:employeeId" element={<EmployeeProfileWrapper />} />
                 <Route path="/admin/employees/edit/:employeeId" element={<AddEmployeeForm />} />
                 <Route path="/admin/contracts" element={<EmployeeContractsPage />} />
-                <Route path="/admin/attendance" element={<AttendanceLog />} />
+                <Route path="/admin/attendance" element={<AttendanceLogPage />} />
                 <Route path="/attendance/session/:sessionId" element={<SessionDetailsPage />} />
-                <Route path="/admin/team" element={<TeamSnapshot />} />
+                <Route path="/admin/team" element={<TeamSnapshotPage />} />
                 <Route path="/admin/my-leaves" element={<LeavesPage />} /> 
-                <Route path={NAVIGATION_PATHS.LEAVE_REQUESTS} element={<LeaveRequestsPage />} />
+                <Route path="/admin/leaves/requests" element={<LeaveRequestsPage />} />
+                <Route path="/admin/leave-request/:id" element={<LeaveRequestDetailsPage />} />
+                {/* Alias for robust routing */}
+                <Route path="/hr-request/:id" element={<LeaveRequestDetailsPage />} />
                 <Route path="/admin/offices" element={<OfficesPage />} />
                 {/* Fallback to dashboard */}
                 <Route path="*" element={<Navigate to="/admin" replace />} />
@@ -159,15 +163,15 @@ const Main: React.FC = () => {
         {/* Attendance Routes */}
         <Route
           path={NAVIGATION_PATHS.TEAM_ATTENDANCE}
-          element={<TeamSnapshot />}
+          element={<TeamSnapshotPage />}
         />
         <Route
           path={`${NAVIGATION_PATHS.TEAM_ATTENDANCE}/:officeId`}
-          element={<TeamSnapshot />}
+          element={<TeamSnapshotPage />}
         />
         <Route
           path="/attendance/log"
-          element={<AttendanceLog />}
+          element={<AttendanceLogPage />}
         />
         <Route
           path="/attendance/session/:sessionId"
@@ -180,6 +184,21 @@ const Main: React.FC = () => {
         <Route
           path={NAVIGATION_PATHS.LEAVE_REQUESTS}
           element={<LeaveRequestsPage />}
+        />
+        {/* Helper route for HR access to details */}
+        <Route 
+          path="/leave-request/:id" 
+          element={<LeaveRequestDetailsPage />} 
+        />
+        {/* Allow HR to access the detail page via the same path used by the component */}
+        <Route 
+          path="/hr-request/:id" 
+          element={<LeaveRequestDetailsPage />} 
+        />
+        {/* Alias for robust routing */}
+        <Route 
+          path="/admin/leave-request/:id" 
+          element={<LeaveRequestDetailsPage />} 
         />
         <Route
           path={NAVIGATION_PATHS.CONTRACTS}

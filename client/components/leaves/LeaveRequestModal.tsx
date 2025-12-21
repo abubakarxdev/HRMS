@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import { toast } from 'sonner';
+import { uploadFile } from '../../api/services/upload.service';
+import { Upload, X, FileText } from 'lucide-react';
 
 interface LeaveRequestModalProps {
     isOpen: boolean;
@@ -15,7 +17,33 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [reason, setReason] = useState('');
+    const [attachmentUrl, setAttachmentUrl] = useState('');
+    const [attachmentName, setAttachmentName] = useState('');
     const [loading, setLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        try {
+            const url = await uploadFile(file);
+            setAttachmentUrl(url);
+            setAttachmentName(file.name);
+            toast.success("File uploaded successfully");
+        } catch (error) {
+            console.error("Upload failed", error);
+            toast.error("Failed to upload file");
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const removeAttachment = () => {
+        setAttachmentUrl('');
+        setAttachmentName('');
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -32,13 +60,15 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
         }
 
         try {
-            await onSubmit({ leaveType, startDate, endDate, reason });
+            await onSubmit({ leaveType, startDate, endDate, reason, attachmentUrl });
             toast.success("Leave request submitted successfully");
             onClose();
             // Reset form
             setStartDate('');
             setEndDate('');
             setReason('');
+            setAttachmentUrl('');
+            setAttachmentName('');
         } catch (error: any) {
             console.error(error);
             toast.error(error.response?.data?.message || "Failed to submit request. Please check your balance.");
@@ -99,11 +129,53 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
                     />
                 </div>
 
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Attachment (Optional)</label>
+                    
+                    {!attachmentUrl ? (
+                        <div className="flex items-center justify-center w-full">
+                            <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    {uploading ? (
+                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                                    ) : (
+                                        <>
+                                            <Upload className="w-6 h-6 text-slate-400 mb-1" />
+                                            <p className="text-xs text-slate-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                                        </>
+                                    )}
+                                </div>
+                                <input 
+                                    type="file" 
+                                    className="hidden" 
+                                    onChange={handleFileChange} 
+                                    disabled={uploading}
+                                    accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+                                />
+                            </label>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                            <div className="flex items-center overflow-hidden">
+                                <FileText className="w-5 h-5 text-indigo-500 mr-2 flex-shrink-0" />
+                                <span className="text-sm text-indigo-700 truncate max-w-[200px]">{attachmentName || "Attached File"}</span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={removeAttachment}
+                                className="text-indigo-400 hover:text-red-500 transition-colors p-1"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+
                 <div className="flex justify-end gap-3 pt-4">
-                    <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+                    <Button type="button" variant="secondary" onClick={onClose} disabled={loading || uploading}>
                         Cancel
                     </Button>
-                    <Button type="submit" disabled={loading}>
+                    <Button type="submit" disabled={loading || uploading}>
                         {loading ? 'Submitting...' : 'Submit Request'}
                     </Button>
                 </div>

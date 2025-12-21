@@ -18,6 +18,19 @@ const getMyBalances = async (req, res) => {
 };
 
 /**
+ * Get leave balances for a specific employee (Admin/HR)
+ */
+const getEmployeeBalances = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const balances = await leaveService.getBalances(employeeId);
+    res.json(balances);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
  * Get current user's leave requests
  */
 const getMyRequests = async (req, res) => {
@@ -27,9 +40,11 @@ const getMyRequests = async (req, res) => {
       return res.status(400).json({ message: "Employee ID not found for user" });
     }
 
-    const { page, limit, status } = req.query;
+    const { page, limit, status, startDate, endDate } = req.query;
     const filters = { employeeId };
     if (status) filters.status = status;
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
 
     const result = await leaveService.getRequests(page, limit, filters);
     res.json(result);
@@ -60,7 +75,7 @@ const createRequest = async (req, res) => {
  */
 const getAllRequests = async (req, res) => {
   try {
-    const { page, limit, status, employeeId } = req.query;
+    const { page, limit, status, employeeId, startDate, endDate } = req.query;
     let { officeId } = req.query;
     const { role } = req.user;
 
@@ -79,6 +94,8 @@ const getAllRequests = async (req, res) => {
     if (status) filters.status = status;
     if (employeeId) filters.employeeId = employeeId;
     if (officeId) filters.officeId = officeId;
+    if (startDate) filters.startDate = startDate;
+    if (endDate) filters.endDate = endDate;
 
     const result = await leaveService.getRequests(page, limit, filters);
     res.json(result);
@@ -107,10 +124,32 @@ const updateRequestStatus = async (req, res) => {
   }
 };
 
+/**
+ * Get a single leave request by ID (Admin/HR)
+ */
+const getRequestById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await leaveService.getRequestById(id);
+    
+    // Strict Data Isolation: 
+    // If not Admin/Super Admin, verify access (e.g., HR viewing their office, or Employee viewing their own)
+    // Note: This endpoint is protected by authorize('ADMIN', 'HR') in routes, so currently restricts to them.
+    // If we want to allow Employees to view their own detail via this endpoint, we'd need to relax the route middleware 
+    // and enforce ownership check here. For now, assuming Admin/HR context as per Plan.
+    
+    res.json(request);
+  } catch (error) {
+    res.status(404).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getMyBalances,
   getMyRequests,
   createRequest,
   getAllRequests,
   updateRequestStatus,
+  getEmployeeBalances,
+  getRequestById,
 };

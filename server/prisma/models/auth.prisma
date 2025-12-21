@@ -44,9 +44,12 @@ model RefreshToken {
 model Notification {
   id      String  @id @default(uuid())
   userId  String
+  type    String // e.g., 'LEAVE_REQUEST'
+  title   String
   message String
   link    String?
   isRead  Boolean @default(false)
+  data    Json?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

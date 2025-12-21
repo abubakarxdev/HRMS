@@ -41,9 +41,13 @@ const ApprovalItem: React.FC<{ request: any; onUpdate: (id: string, status: stri
     );
 }
 
-import { useOptionalOffice } from '@/context/OfficeContext';
+import { useOptionalOffice } from '@/contexts/OfficeContext';
+import { useAuth } from '@/contexts/AuthContext';
+
+import { useNavigate } from 'react-router-dom';
 
 const ApprovalsPanel: React.FC = () => {
+    const navigate = useNavigate();
     const officeContext = useOptionalOffice();
     const currentOfficeId = officeContext?.currentOfficeId;
     
@@ -65,9 +69,19 @@ const ApprovalsPanel: React.FC = () => {
         });
     };
 
+    // Navigate declared at the top of component
+
+    // ... (rest of the component)
+
+    const { user } = useAuth(); // Need to import useAuth
+
     const handleView = (request: any) => {
-        setSelectedRequest(request);
-        setIsModalOpen(true);
+        // Redirection based on role
+        if (user?.role === 'ADMIN') {
+            navigate(`/admin/leave-request/${request.id}`);
+        } else {
+             navigate(`/hr-request/${request.id}`);
+        }
     };
 
     return (

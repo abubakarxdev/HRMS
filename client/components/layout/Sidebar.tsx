@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { NAVIGATION_ITEMS, NAVIGATION_PATHS } from "../../constants";
+import NotificationBell from "../notifications/NotificationBell";
 
 const LogoIcon = () => (
   <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/30">
@@ -41,7 +42,7 @@ const NavItem: React.FC<{
         )}
 
       <div className="relative z-10 flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-        {React.cloneElement(icon as React.ReactElement, {
+        {React.cloneElement(icon as React.ReactElement<any>, {
             className: `w-5 h-5 ${isActive ? "text-white" : "group-hover:text-blue-400 text-slate-500"} transition-colors`
         })}
       </div>
@@ -216,14 +217,21 @@ const Sidebar: React.FC = () => {
   return (
     <div className="w-72 bg-[#0F172A] text-white flex flex-col hidden md:flex border-r border-slate-800 shadow-2xl relative z-20">
       {/* Premium Gradient Header/Logo Area */}
-      <div className="flex items-center gap-3 h-24 px-6 border-b border-white/5 bg-gradient-to-br from-[#0F172A] to-[#1E293B]">
-        <LogoIcon />
-        <div>
-            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                HRIS Pro
-            </h1>
-            <p className="text-xs text-slate-500 font-medium tracking-wide">ENTERPRISE</p>
+      <div className="flex items-center justify-between h-24 px-6 border-b border-white/5 bg-gradient-to-br from-[#0F172A] to-[#1E293B]">
+        <div className="flex items-center gap-3">
+            <LogoIcon />
+            <div>
+                <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                    HRIS Pro
+                </h1>
+                <p className="text-xs text-slate-500 font-medium tracking-wide">ENTERPRISE</p>
+            </div>
         </div>
+        
+        {/* Notification Bell (Moved to Header) */}
+        {/* <div className=" -mr-2">
+            <NotificationBell />
+        </div> */}
       </div>
       
       {/* 
@@ -248,6 +256,7 @@ const Sidebar: React.FC = () => {
                  else if (item.path === NAVIGATION_PATHS.LEAVES) path = '/admin/my-leaves';
                  else if (item.path === NAVIGATION_PATHS.TEAM_ATTENDANCE) path = '/admin/team';
                  else if (item.path === NAVIGATION_PATHS.TEAM_ATTENDANCE) path = '/admin/team';
+                 else if (item.path === NAVIGATION_PATHS.LEAVE_REQUESTS) path = '/admin/leaves/requests';
              }
 
              // For Employee/HR: Append officeId to Team Attendance path

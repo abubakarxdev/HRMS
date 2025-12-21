@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import FormField from "../../components/ui/FormField";
-import DeleteConfirmationModal from "../../components/modals/DeleteConfirmationModal";
+import DeleteConfirmationModal from "@/components/ui/DeleteConfirmationModal";
 import { Role } from "../../types";
 
 // Types

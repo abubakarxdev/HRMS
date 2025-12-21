@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../api/client";
 import { toast } from "sonner";
+import { queryKeys } from "../lib/queryClient";
+
+const contractKeys = queryKeys.contracts;
 
 export interface EmploymentContract {
   id: string;
@@ -27,7 +30,7 @@ export interface EmploymentContract {
 // Fetch all contracts (Admin/HR view)
 export const useContracts = (officeId?: string) => {
   return useQuery({
-    queryKey: ["contracts", officeId],
+    queryKey: contractKeys.all(undefined, undefined, undefined, undefined, officeId),
     queryFn: async () => {
       const params = officeId ? { officeId } : {};
       const { data } = await apiClient.get<EmploymentContract[]>("/contracts", { params });
@@ -39,7 +42,7 @@ export const useContracts = (officeId?: string) => {
 // Fetch contracts for a specific employee
 export const useEmployeeContracts = (employeeId: string) => {
   return useQuery({
-    queryKey: ["contracts", "employee", employeeId],
+    queryKey: contractKeys.all(undefined, undefined, undefined, employeeId),
     queryFn: async () => {
       if (!employeeId) return [];
       const { data } = await apiClient.get<EmploymentContract[]>(`/contracts/employee/${employeeId}`);
@@ -59,10 +62,7 @@ export const useCreateContract = () => {
       return data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["contracts"] });
-      if (variables.employeeId) {
-        queryClient.invalidateQueries({ queryKey: ["contracts", "employee", variables.employeeId] });
-      }
+      queryClient.invalidateQueries({ queryKey: contractKeys.all() });
       toast.success("Contract created successfully");
     },
     onError: (error: any) => {
@@ -81,11 +81,8 @@ export const useUpdateContract = () => {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["contracts"] });
-      // We might need to look up the employeeId to invalidate specific cache, 
-      // but invalidating 'contracts' usually covers the main list. 
-      // Deep invalidation might be safest.
-      queryClient.invalidateQueries({ queryKey: ["contracts", "employee"] });
+      queryClient.invalidateQueries({ queryKey: contractKeys.all() });
+      queryClient.invalidateQueries({ queryKey: contractKeys.detail(variables.id) });
       toast.success("Contract updated successfully");
     },
     onError: (error: any) => {
@@ -103,8 +100,7 @@ export const useDeleteContract = () => {
       await apiClient.delete(`/contracts/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contracts"] });
-      queryClient.invalidateQueries({ queryKey: ["contracts", "employee"] });
+      queryClient.invalidateQueries({ queryKey: contractKeys.all() });
       toast.success("Contract deleted successfully");
     },
     onError: (error: any) => {

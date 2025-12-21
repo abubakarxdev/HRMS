@@ -4,6 +4,7 @@ import LeaveDetailsModal from './LeaveDetailsModal';
 import Button from '../ui/Button';
 import { Eye, Calendar, FileText } from 'lucide-react';
 import { LeaveRequest } from '../../api/types/leaves';
+import { calculateWorkingDays } from '../../utils/dateUtils';
 
 interface LeaveHistoryTableProps {
     requests: LeaveRequest[];
@@ -76,16 +77,12 @@ const LeaveHistoryTable: React.FC<LeaveHistoryTableProps> = ({ requests, loading
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex flex-col">
-                                            <span className="text-sm font-medium text-slate-900">
-                                                {dayjs(request.startDate).format('MMM D, YYYY')}
+                                            <span className="text-sm font-bold text-slate-700">
+                                                {dayjs(request.startDate).format('MMM D')} - {dayjs(request.endDate).format('MMM D, YYYY')}
                                             </span>
-                                            {dayjs(request.startDate).isSame(request.endDate) ? (
-                                                <span className="text-xs text-slate-400">1 Day</span>
-                                            ) : (
-                                                <span className="text-xs text-slate-400">
-                                                    Until {dayjs(request.endDate).format('MMM D')}
-                                                </span>
-                                            )}
+                                            <span className="text-xs font-medium text-slate-500 mt-0.5">
+                                                {calculateWorkingDays(request.startDate, request.endDate)} {calculateWorkingDays(request.startDate, request.endDate) === 1 ? 'Day' : 'Days'}
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 max-w-xs">

@@ -2,8 +2,9 @@ import React from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
-import { OfficeProvider, useOffice } from "../../context/OfficeContext";
+import { OfficeProvider, useOffice } from "@/contexts/OfficeContext";
 import { Building2, ChevronDown } from "lucide-react";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 // Component for the Office Switcher Dropdown
 const OfficeSwitcher: React.FC = () => {
@@ -144,7 +145,11 @@ const HeaderContent: React.FC = () => {
     };
 
     return (
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-6">
+            <div className="flex items-center">
+                <NotificationBell />
+            </div>
+            <div className="h-8 border-l border-slate-200"></div>
              <div className="flex items-center">
                 <img
                     className="h-10 w-10 rounded-full object-cover ring-2 ring-indigo-50"

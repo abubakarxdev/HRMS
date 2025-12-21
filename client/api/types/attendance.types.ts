@@ -43,6 +43,7 @@ export interface AttendanceRecord {
     employeeIdNumber: string;
     firstName: string;
     lastName: string;
+    avatarUrl?: string | null;
   };
 }
 
