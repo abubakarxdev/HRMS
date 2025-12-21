@@ -35,10 +35,10 @@ const createContract = async (data) => {
 /**
  * Get all contracts (optionally filtered by office)
  */
-const getAllContracts = async (officeId) => {
+const getAllContracts = async (officeId, legalEntityId) => {
   // Auto-expire contracts before fetching
   await contractRepository.deactivateExpiredContracts();
-  return await contractRepository.getAllContracts(officeId);
+  return await contractRepository.getAllContracts(officeId, legalEntityId);
 };
 
 /**

@@ -59,7 +59,7 @@ const createLeaveRequest = async (data) => {
 /**
  * Find leave requests with filtering and pagination
  */
-const findLeaveRequests = async ({ employeeId, status, officeId, startDate, endDate, skip, take } = {}) => {
+const findLeaveRequests = async ({ employeeId, status, officeId, legalEntityId, startDate, endDate, skip, take } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
@@ -68,6 +68,13 @@ const findLeaveRequests = async ({ employeeId, status, officeId, startDate, endD
       where.employee = {
         officeId: officeId
       };
+    }
+    
+    if (legalEntityId) {
+        where.employee = {
+            ...where.employee,
+            legalEntityId: legalEntityId
+        };
     }
     
     // Date Filtering: Find leaves that overlap with the selected range
@@ -110,7 +117,7 @@ const findLeaveRequests = async ({ employeeId, status, officeId, startDate, endD
 /**
  * Count leave requests matching filters
  */
-const countLeaveRequests = async ({ employeeId, status, officeId, startDate, endDate } = {}) => {
+const countLeaveRequests = async ({ employeeId, status, officeId, legalEntityId, startDate, endDate } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
@@ -119,6 +126,13 @@ const countLeaveRequests = async ({ employeeId, status, officeId, startDate, end
       where.employee = {
         officeId: officeId
       };
+    }
+
+    if (legalEntityId) {
+        where.employee = {
+            ...where.employee,
+            legalEntityId: legalEntityId
+        };
     }
 
     // Date Filtering (Same logic as find)
@@ -215,7 +229,7 @@ const updateLeaveRequest = async (id, data, tx = prisma) => {
 /**
  * Get leave statistics grouped by status
  */
-const getLeaveStats = async ({ employeeId, officeId, startDate, endDate } = {}) => {
+const getLeaveStats = async ({ employeeId, officeId, legalEntityId, startDate, endDate } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
@@ -223,6 +237,13 @@ const getLeaveStats = async ({ employeeId, officeId, startDate, endDate } = {}) 
       where.employee = {
         officeId: officeId
       };
+    }
+
+    if (legalEntityId) {
+        where.employee = {
+            ...where.employee,
+            legalEntityId: legalEntityId
+        };
     }
     
     // Apply date filters if present

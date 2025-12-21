@@ -43,7 +43,7 @@ const findUserById = async (id) => {
 /**
  * Find all attendance records with sessions and breaks, supporting filtering and pagination
  */
-const findAllAttendance = async ({ startDate, endDate, status, officeId, skip, take } = {}) => {
+const findAllAttendance = async ({ startDate, endDate, status, officeId, legalEntityId, skip, take } = {}) => {
   try {
     const where = {};
     if (status && status !== 'all') where.status = status;
@@ -58,6 +58,13 @@ const findAllAttendance = async ({ startDate, endDate, status, officeId, skip, t
       where.employee = {
         officeId: officeId
       };
+    }
+
+    if (legalEntityId) {
+        where.employee = {
+            ...where.employee, // Preserve officeId filter if exists
+            legalEntityId: legalEntityId
+        };
     }
 
     return await prisma.attendanceRecord.findMany({
@@ -91,7 +98,7 @@ const findAllAttendance = async ({ startDate, endDate, status, officeId, skip, t
 /**
  * Count all attendance records matching filters
  */
-const countAllAttendance = async ({ startDate, endDate, status, officeId } = {}) => {
+const countAllAttendance = async ({ startDate, endDate, status, officeId, legalEntityId } = {}) => {
   try {
     const where = {};
     if (status && status !== 'all') where.status = status;
@@ -106,6 +113,13 @@ const countAllAttendance = async ({ startDate, endDate, status, officeId } = {})
       where.employee = {
         officeId: officeId
       };
+    }
+
+    if (legalEntityId) {
+        where.employee = {
+            ...where.employee,
+            legalEntityId: legalEntityId
+        };
     }
 
     return await prisma.attendanceRecord.count({ where });
@@ -454,7 +468,7 @@ const findActiveBreak = async (sessionId) => {
 /**
  * Get aggregate stats for attendance records matching filters
  */
-const getAggregateStats = async ({ employeeId, startDate, endDate, status, officeId } = {}) => {
+const getAggregateStats = async ({ employeeId, startDate, endDate, status, officeId, legalEntityId } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
@@ -470,6 +484,13 @@ const getAggregateStats = async ({ employeeId, startDate, endDate, status, offic
       where.employee = {
         officeId: officeId
       };
+    }
+
+    if (legalEntityId) {
+        where.employee = {
+            ...where.employee,
+            legalEntityId: legalEntityId
+        };
     }
 
     const aggregations = await prisma.attendanceRecord.aggregate({
@@ -515,7 +536,7 @@ const getAggregateStats = async ({ employeeId, startDate, endDate, status, offic
  * @param {Object} filters
  * @returns {Promise<Array>}
  */
-const findGroupedAggregates = async ({ startDate, endDate, officeId } = {}) => {
+const findGroupedAggregates = async ({ startDate, endDate, officeId, legalEntityId } = {}) => {
   try {
     const where = {};
     if (startDate || endDate) {
@@ -528,6 +549,13 @@ const findGroupedAggregates = async ({ startDate, endDate, officeId } = {}) => {
       where.employee = {
         officeId: officeId
       };
+    }
+
+    if (legalEntityId) {
+        where.employee = {
+            ...where.employee,
+            legalEntityId: legalEntityId
+        };
     }
 
     return await prisma.attendanceRecord.groupBy({

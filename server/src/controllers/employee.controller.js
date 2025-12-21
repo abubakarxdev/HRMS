@@ -1,4 +1,5 @@
 const employeeService = require("../services/employee.service");
+const prisma = require("../config/prisma");
 
 // Helper function for error handling (recommended in Express)
 const asyncHandler = (fn) => (req, res, next) => {
@@ -11,19 +12,51 @@ const asyncHandler = (fn) => (req, res, next) => {
  */
 const getAllEmployees = asyncHandler(async (req, res) => {
   let { officeId, page, limit, search, role: roleFilter, department, status } = req.query;
-  const { role } = req.user;
 
-  // Strict Data Isolation: Employees and HR can ONLY view employees from their own office
+  const { role } = req.user;
+  
+  // Tenant Isolation: Enforce Legal Entity for non-Super Admins
+  let legalEntityId = undefined;
+  if (role !== 'SUPER_ADMIN') {
+      legalEntityId = req.user.employee?.legalEntityId || req.user.legalEntityId;
+      
+      // Fallback: If no legalEntityId on user, try to get it from their Office
+      if (!legalEntityId) {
+          const userOfficeId = req.user.employee?.officeId || req.user.officeId;
+          if (userOfficeId) {
+              const office = await prisma.office.findUnique({
+                  where: { id: userOfficeId },
+                  select: { legalEntityId: true }
+              });
+              if (office) {
+                  legalEntityId = office.legalEntityId;
+              }
+          }
+      }
+
+      if (!legalEntityId) {
+          // Safety: If user has no legal entity, they see nothing
+          return res.status(200).json(page || limit ? { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } } : []);
+      }
+  }
+
+  // Strict Data Isolation: Employees and HR are bound to their assigned office
   if (role === 'EMPLOYEE' || role === 'HR') {
       const userOfficeId = req.user.employee?.officeId;
       if (userOfficeId) {
           officeId = userOfficeId;
       } else {
-          // Return empty paginated structure if no office assigned
-          return res.status(200).json({ 
-              data: [], 
-              meta: { total: 0, page: 1, limit: 10, totalPages: 0 } 
-          });
+          // Check if pagination was requested
+          const { page, limit } = req.query;
+          if (page || limit) {
+             return res.status(200).json({ 
+                 data: [], 
+                 meta: { total: 0, page: 1, limit: 10, totalPages: 0 } 
+             });
+          } else {
+             // Return empty array for non-paginated requests (e.g. dropdowns)
+             return res.status(200).json([]);
+          }
       }
   }
 
@@ -33,8 +66,11 @@ const getAllEmployees = asyncHandler(async (req, res) => {
       search,
       role: roleFilter,
       department,
-      status
+      status,
+      excludeSystemRoles: ['ADMIN', 'SUPER_ADMIN'], // Hide admins from directory
+      legalEntityId // Pass tenant filter
   });
+
   
   res.status(200).json(result);
 });
@@ -81,6 +117,30 @@ const createEmployee = asyncHandler(async (req, res) => {
           return res.status(400).json({ message: "HR account does not have an assigned office. Cannot create employee." });
       }
       employeeData.officeId = userOfficeId;
+  }
+
+  // Tenant Isolation: Enforce Legal Entity for Non-Super Admins
+  if (requesterRole !== 'SUPER_ADMIN') {
+      let userLegalEntityId = req.user.employee?.legalEntityId || req.user.legalEntityId;
+      
+      // Fallback: If no legalEntityId on user, try to get it from their Office
+      if (!userLegalEntityId) {
+          const userOfficeId = req.user.employee?.officeId || req.user.officeId;
+          if (userOfficeId) {
+              const office = await prisma.office.findUnique({
+                  where: { id: userOfficeId },
+                  select: { legalEntityId: true }
+              });
+              if (office) {
+                  userLegalEntityId = office.legalEntityId;
+              }
+          }
+      }
+
+      if (!userLegalEntityId) {
+          return res.status(400).json({ message: "Your account is not associated with a Legal Entity. Cannot create employee." });
+      }
+      employeeData.legalEntityId = userLegalEntityId;
   }
 
   try {

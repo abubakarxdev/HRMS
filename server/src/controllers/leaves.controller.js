@@ -1,4 +1,5 @@
 const leaveService = require("../services/leaves.service");
+const prisma = require("../config/prisma");
 
 /**
  * Get current user's leave balances
@@ -77,9 +78,31 @@ const getAllRequests = async (req, res) => {
   try {
     const { page, limit, status, employeeId, startDate, endDate } = req.query;
     let { officeId } = req.query;
+
     const { role } = req.user;
 
-    // Strict Data Isolation: Employees and HR can ONLY view requests from their own office
+    // Tenant Isolation
+    let legalEntityId = undefined;
+    if (role !== 'SUPER_ADMIN') {
+        legalEntityId = req.user.employee?.legalEntityId || req.user.legalEntityId;
+        
+        if (!legalEntityId) {
+             const userOfficeId = req.user.employee?.officeId || req.user.officeId;
+             if (userOfficeId) {
+                 const office = await prisma.office.findUnique({
+                      where: { id: userOfficeId },
+                      select: { legalEntityId: true }
+                 });
+                 if (office) legalEntityId = office.legalEntityId;
+             }
+        }
+
+        if (!legalEntityId) {
+            return res.status(200).json({ data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0 } });
+        }
+    }
+
+    // Strict Data Isolation: Employees and HR are bound to their assigned office
     if (role === 'EMPLOYEE' || role === 'HR') {
         const userOfficeId = req.user.employee?.officeId;
         if (userOfficeId) {
@@ -96,6 +119,7 @@ const getAllRequests = async (req, res) => {
     if (officeId) filters.officeId = officeId;
     if (startDate) filters.startDate = startDate;
     if (endDate) filters.endDate = endDate;
+    if (legalEntityId) filters.legalEntityId = legalEntityId;
 
     const result = await leaveService.getRequests(page, limit, filters);
     res.json(result);
@@ -151,9 +175,19 @@ const getLeaveStats = async (req, res) => {
   try {
     const { status, employeeId, startDate, endDate } = req.query;
     let { officeId } = req.query;
+
     const { role } = req.user;
 
-    // Strict Data Isolation: Employees and HR can ONLY view requests from their own office
+    // Tenant Isolation
+    let legalEntityId = undefined;
+    if (role !== 'SUPER_ADMIN') {
+        legalEntityId = req.user.employee?.legalEntityId || req.user.legalEntityId;
+        if (!legalEntityId) {
+            return res.status(200).json({ Pending: 0, Approved: 0, Rejected: 0 });
+        }
+    }
+
+    // Strict Data Isolation: Employees and HR are bound to their assigned office
     if (role === 'EMPLOYEE' || role === 'HR') {
         const userOfficeId = req.user.employee?.officeId;
         if (userOfficeId) {
@@ -169,6 +203,7 @@ const getLeaveStats = async (req, res) => {
     if (officeId) filters.officeId = officeId;
     if (startDate) filters.startDate = startDate;
     if (endDate) filters.endDate = endDate;
+    if (legalEntityId) filters.legalEntityId = legalEntityId;
 
     const stats = await leaveService.getStats(filters);
     res.json(stats);

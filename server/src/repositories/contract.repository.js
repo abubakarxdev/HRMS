@@ -20,12 +20,19 @@ const createContract = async (contractData) => {
 /**
  * Get all contracts with optional filtering
  */
-const getAllContracts = async (officeId) => {
+const getAllContracts = async (officeId, legalEntityId) => {
   try {
     const where = {};
     if (officeId) {
         where.employee = {
             officeId: officeId
+        };
+    }
+
+    if (legalEntityId) {
+        where.employee = {
+            ...where.employee,
+            legalEntityId: legalEntityId
         };
     }
 
