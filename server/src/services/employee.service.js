@@ -14,9 +14,51 @@ const generateEmployeeIdNumber = () =>
 /**
  * Get all employees
  */
-const getAllEmployees = async (officeId) => {
+const getAllEmployees = async (officeId, { page, limit, search, role, department, status } = {}) => {
   try {
-    return await employeeRepository.getAllEmployees(officeId);
+    const isPaginated = page !== undefined || limit !== undefined;
+    const take = isPaginated ? (parseInt(limit) || 10) : undefined;
+    const skip = isPaginated ? Math.max(0, ((parseInt(page) || 1) - 1) * take) : undefined;
+
+    const where = {};
+    if (officeId && officeId !== 'undefined' && officeId !== 'null') where.officeId = officeId;
+    if (status && status !== 'all') where.status = status;
+
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { workEmail: { contains: search, mode: 'insensitive' } },
+        { employeeIdNumber: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Filter by active contract details
+    if ((role && role !== 'all') || (department && department !== 'all')) {
+         where.contracts = {
+             some: {
+                isActive: true,
+                ...(role && role !== 'all' ? { position: role } : {}),
+                ...(department && department !== 'all' ? { department: department } : {}),
+             }
+         };
+    }
+
+    const { data, total } = await employeeRepository.getAllEmployees({ skip, take, where });
+
+    if (!isPaginated) {
+        return data; // Return raw array for backward compatibility
+    }
+
+    return {
+        data,
+        meta: {
+            total,
+            page: parseInt(page || 1),
+            limit: take,
+            totalPages: Math.ceil(total / take)
+        }
+    };
   } catch (error) {
     throw new Error(`Error fetching employees: ${error.message}`);
   }

@@ -7,12 +7,12 @@ import {
   CheckCircle2, AlertCircle, ArrowLeft 
 } from "lucide-react";
 
-import Button from "../ui/Button";
-import FormField from "../ui/FormField";
-import Card from "../ui/Card";
-import { useEmployees, useCreateEmployee, useUpdateEmployee } from "../../hooks/useEmployees";
-import { Role } from "../../types";
-import { useAuth } from "../../contexts/AuthContext";
+import Button from "@/components/ui/Button";
+import FormField from "@/components/ui/FormField";
+import Card from "@/components/ui/Card";
+import { useEmployees, useCreateEmployee, useUpdateEmployee } from "@/hooks/useEmployees";
+import { Role } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
 import { useOptionalOffice } from "@/contexts/OfficeContext";
 import { employeeSchema } from "@/validations/employeeValidation";
 import { NAVIGATION_PATHS } from "@/constants";
@@ -46,7 +46,7 @@ const initialEmployeeState = {
 
 type FormKeys = keyof typeof initialEmployeeState;
 
-const AddEmployeeForm: React.FC = () => {
+const AddEmployeePage: React.FC = () => {
   const { data: employees = [], isLoading: loading } = useEmployees();
   const createEmployeeMutation = useCreateEmployee();
   const updateEmployeeMutation = useUpdateEmployee();
@@ -517,4 +517,4 @@ const AddEmployeeForm: React.FC = () => {
   );
 };
 
-export default AddEmployeeForm;
+export default AddEmployeePage;

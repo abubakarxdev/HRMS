@@ -7,52 +7,55 @@ const prisma = require("../config/prisma");
 /**
  * Get all employees with their user information
  */
-const getAllEmployees = async (officeId) => {
+const getAllEmployees = async ({ skip, take, where } = {}) => {
   try {
-    const where = {};
-    if (officeId) {
-      where.officeId = officeId;
-    }
-
-    return await prisma.employee.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-            timezone: true,
+    const [employees, total] = await prisma.$transaction([
+      prisma.employee.findMany({
+        where,
+        skip,
+        take,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              timezone: true,
+              lastLogin: true,
+            }
+          },
+          legalEntity: {
+            select: {
+              id: true,
+              name: true,
+            }
+          },
+          office: {
+            select: {
+              id: true,
+              name: true,
+            }
+          },
+          manager: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            }
+          },
+          contracts: {
+             orderBy: { startDate: 'desc' },
+             take: 1
           }
         },
-        legalEntity: {
-          select: {
-            id: true,
-            name: true,
-          }
-        },
-        office: {
-          select: {
-            id: true,
-            name: true,
-          }
-        },
-        manager: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          }
-        },
-        contracts: {
-           orderBy: { startDate: 'desc' },
-           take: 1
+        orderBy: {
+          createdAt: 'desc'
         }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+      }),
+      prisma.employee.count({ where })
+    ]);
+
+    return { data: employees, total };
   } catch (error) {
     throw new Error(`Error fetching all employees: ${error.message}`);
   }

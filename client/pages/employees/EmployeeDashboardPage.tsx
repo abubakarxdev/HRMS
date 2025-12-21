@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useEmployeeAttendance } from '../../hooks/useAttendance';
-import { useMyLeaveRequests } from '../../hooks/useLeaves';
-import Card from '../ui/Card';
-import AttendanceCard from '../attendance/AttendanceCard';
-import AttendanceSummaryCard from '../attendance/AttendanceSummaryCard';
+import { useAuth } from '@/contexts/AuthContext';
+import { useEmployeeAttendance } from '@/hooks/useAttendance';
+import { useMyLeaveRequests } from '@/hooks/useLeaves';
+import Card from '@/components/ui/Card';
+import AttendanceCard from '@/components/attendance/AttendanceCard';
+import AttendanceSummaryCard from '@/components/attendance/AttendanceSummaryCard';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -18,7 +18,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import FourSquare from '../ui/FourSquare';
+import FourSquare from '@/components/ui/FourSquare';
 import dayjs from 'dayjs';
 
 ChartJS.register(
@@ -100,7 +100,7 @@ ChartJS.register(
     },
   };
 
-const EmployeeDashboard: React.FC = () => {
+const EmployeeDashboardPage: React.FC = () => {
   const { user } = useAuth();
   
   // Calculate date range for chart (last 7 days)
@@ -311,4 +311,4 @@ const EmployeeDashboard: React.FC = () => {
   );
 };
 
-export default EmployeeDashboard;
+export default EmployeeDashboardPage;

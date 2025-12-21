@@ -10,7 +10,7 @@ const asyncHandler = (fn) => (req, res, next) => {
  * Route: GET /api/employees
  */
 const getAllEmployees = asyncHandler(async (req, res) => {
-  let { officeId } = req.query;
+  let { officeId, page, limit, search, role: roleFilter, department, status } = req.query;
   const { role } = req.user;
 
   // Strict Data Isolation: Employees and HR can ONLY view employees from their own office
@@ -19,20 +19,24 @@ const getAllEmployees = asyncHandler(async (req, res) => {
       if (userOfficeId) {
           officeId = userOfficeId;
       } else {
-          // If a restricted user has no office assigned, they shouldn't see ALL employees.
-          // We'll treat this as "officeId required but missing" or return empty list?
-          // For safety, let's allow the filter to be undefined only if we are sure...
-          // Actually, if officeId is undefined, repo fetches all.
-          // We MUST prevent fetching all for restricted users.
-          // If no office assigned, fetch by a dummy ID or just return empty.
-          // Let's assume for now they have an office, but if not, logic implies they see all.
-          // Let's return empty if no office assigned for restricted user to be safe.
-          return res.status(200).json([]);
+          // Return empty paginated structure if no office assigned
+          return res.status(200).json({ 
+              data: [], 
+              meta: { total: 0, page: 1, limit: 10, totalPages: 0 } 
+          });
       }
   }
 
-  const employees = await employeeService.getAllEmployees(officeId);
-  res.status(200).json(employees);
+  const result = await employeeService.getAllEmployees(officeId, {
+      page,
+      limit,
+      search,
+      role: roleFilter,
+      department,
+      status
+  });
+  
+  res.status(200).json(result);
 });
 
 /**

@@ -1,49 +1,81 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Eye, Edit, Trash2, Search, Filter, Plus, Users, UserCheck, Briefcase } from "lucide-react";
-import Button from "../ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmployees, useDeleteEmployee } from "@/hooks/useEmployees";
 import { useNavigate } from "react-router-dom";
 import { NAVIGATION_PATHS } from "@/constants";
-import DeleteConfirmationModal from "../ui/DeleteConfirmationModal";
+import DeleteConfirmationModal from "@/components/ui/DeleteConfirmationModal";
 import { useOptionalOffice } from "@/contexts/OfficeContext";
-import Pagination from "../ui/Pagination";
+import Pagination from "@/components/ui/Pagination";
+import Button from "@/components/ui/Button";
 
-const EmployeeDirectory: React.FC = () => {
+const EmployeeDirectoryPage: React.FC = () => {
   const { user } = useAuth();
   const officeContext = useOptionalOffice();
   const currentOfficeId = officeContext?.currentOffice?.id;
   
   const canManageEmployees = user?.role === "ADMIN" || user?.role === "HR";
   
-  const { data: employees = [], isLoading } = useEmployees(canManageEmployees ? currentOfficeId : undefined);
+  // Pagination & Filter State
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [deptFilter, setDeptFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  // Fetch ALL employees for filter dropdown options (Role/Department)
+  // This matches AttendanceLogPage pattern of loading all employees for selector
+  const { data: allEmployeesData = [] } = useEmployees(canManageEmployees ? currentOfficeId : undefined);
+  
+  // Handle case where allEmployeesData might be wrapped (unlikely given logic, but safe cast)
+  const allEmployees = Array.isArray(allEmployeesData) ? allEmployeesData : [];
+
+  // Fetch PAGINATED employees for the table
+  const { data: paginatedResponse, isLoading } = useEmployees(canManageEmployees ? currentOfficeId : undefined, {
+    page,
+    limit,
+    search: searchTerm,
+    role: roleFilter,
+    department: deptFilter,
+    status: statusFilter
+  });
+
+  const employees = paginatedResponse?.data || [];
+  const meta = paginatedResponse?.meta;
 
   const deleteMutation = useDeleteEmployee();
-  const [searchTerm, setSearchTerm] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<{ id: string; name: string } | null>(null);
   const navigate = useNavigate();
 
-  const filteredEmployees = employees.filter(
-    (employee) => {
-      const fullName = `${employee.firstName} ${employee.lastName}`.toLowerCase();
-      const search = searchTerm.toLowerCase();
-      return fullName.includes(search) || 
-             employee.workEmail.toLowerCase().includes(search) ||
-             employee.employeeIdNumber.toLowerCase().includes(search);
-    }
-  );
+  // Stats Calculation - Should ideally come from backend aggregation, 
+  // but using "allEmployees" allows for accurate total stats client-side for now
+  const totalEmployees = allEmployees.length;
+  const activeEmployees = allEmployees.filter(e => e.status === 'Active').length;
+  const uniqueDepartmentsSet = new Set(allEmployees.map(e => {
+        const activeContract = e.contracts?.[0];
+        return activeContract?.department || (e as any).department;
+  }).filter(Boolean));
+  const departments = uniqueDepartmentsSet.size;
 
-  // Stats Calculation
-  const totalEmployees = employees.length;
-  const activeEmployees = employees.filter(e => e.status === 'Active').length;
-  const departments = new Set(employees.map(e => e.department).filter(Boolean)).size;
+  // Derive unique values for dropdowns from ALL employees
+  const uniqueDepartments = useMemo(() => {
+    return Array.from(uniqueDepartmentsSet).sort();
+  }, [allEmployees]);
 
+  const uniqueRoles = useMemo(() => {
+    const titles = new Set(allEmployees.map(e => {
+        const activeContract = e.contracts?.[0];
+        return activeContract?.position || (e as any).position;
+    }).filter(Boolean));
+    return Array.from(titles).sort();
+  }, [allEmployees]);
+  
   const handleAddEmployee = () => {
     if (user?.role === 'ADMIN') {
         navigate('/admin/employees/add');
     } else {
-        // HR and others use the standard path (defined in Main routes)
         navigate(`${NAVIGATION_PATHS.EMPLOYEES}/add`);
     }
   };
@@ -63,7 +95,6 @@ const EmployeeDirectory: React.FC = () => {
 
   const confirmDelete = async () => {
     if (!employeeToDelete) return;
-    
     try {
       await deleteMutation.mutateAsync(employeeToDelete.id);
       setDeleteModalOpen(false);
@@ -73,12 +104,9 @@ const EmployeeDirectory: React.FC = () => {
     }
   };
 
-  // Pagination State
-  const [page, setPage] = useState(1);
-  const limit = 10;
-
-  const paginatedEmployees = filteredEmployees.slice((page - 1) * limit, page * limit);
-  const totalPages = Math.ceil(filteredEmployees.length / limit);
+  // Safe access to pagination data
+  const totalPages = meta?.totalPages || 1;
+  const totalItems = meta?.total || 0;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
@@ -140,15 +168,78 @@ const EmployeeDirectory: React.FC = () => {
       {/* Main Content */}
       <div className="space-y-4">
         {/* Toolbar */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-500 w-full md:w-auto">
-                 <Filter size={18} />
-                 <span className="text-sm font-medium">Filter Directory:</span>
-                 {/* Placeholder for future filters */}
-                 <span className="text-xs bg-slate-100 px-2 py-1 rounded-md text-slate-600 font-medium">All Employees</span>
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex flex-col md:flex-row items-center gap-3 w-full xl:w-auto">
+                 <div className="flex items-center gap-2 text-slate-500 min-w-fit">
+                    <Filter size={18} />
+                    <span className="text-sm font-medium">Filter By:</span>
+                 </div>
+                 
+                 <div className="flex flex-wrap items-center gap-2 w-full">
+                    {/* Role Filter */}
+                    <select
+                        value={roleFilter}
+                        onChange={(e) => {
+                            setRoleFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-600 font-medium cursor-pointer hover:bg-slate-50 transition-colors"
+                    >
+                        <option value="all">All Roles</option>
+                        {uniqueRoles.map(role => (
+                            <option key={role as string} value={role as string}>{role as string}</option>
+                        ))}
+                    </select>
+
+                    {/* Department Filter */}
+                    <select
+                        value={deptFilter}
+                        onChange={(e) => {
+                            setDeptFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-600 font-medium cursor-pointer hover:bg-slate-50 transition-colors"
+                    >
+                        <option value="all">All Departments</option>
+                        {uniqueDepartments.map(dept => (
+                            <option key={dept as string} value={dept as string}>{dept as string}</option>
+                        ))}
+                    </select>
+
+                    {/* Status Filter */}
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-slate-600 font-medium cursor-pointer hover:bg-slate-50 transition-colors"
+                    >
+                        <option value="all">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="On Leave">On Leave</option>
+                        <option value="Terminated">Terminated</option>
+                    </select>
+
+                    {(roleFilter !== 'all' || deptFilter !== 'all' || statusFilter !== 'all') && (
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setRoleFilter('all');
+                                setDeptFilter('all');
+                                setStatusFilter('all');
+                                setPage(1);
+                            }}
+                            className="bg-white text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border-slate-200 hover:border-indigo-200 rounded-xl font-semibold transition-all px-4 py-2 h-auto ml-auto md:ml-0"
+                        >
+                            Reset
+                        </Button>
+                    )}
+                 </div>
             </div>
             
-             <div className="relative w-full md:w-80">
+             <div className="relative w-full xl:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input 
                     type="text" 
@@ -179,27 +270,39 @@ const EmployeeDirectory: React.FC = () => {
               <tbody className="bg-white divide-y divide-slate-100">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-20 text-center text-slate-500">
+                    <td colSpan={5} className="px-6 py-20 text-center text-slate-500">
                         <div className="flex flex-col items-center justify-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-4"></div>
                             <p className="text-sm font-medium text-slate-600">Loading directory...</p>
                         </div>
                     </td>
                   </tr>
-                ) : paginatedEmployees.length === 0 ? (
+                ) : employees.length === 0 ? (
                     <tr>
-                    <td colSpan={4} className="px-6 py-16 text-center text-slate-500">
+                    <td colSpan={5} className="px-6 py-16 text-center text-slate-500">
                         <div className="flex flex-col items-center justify-center">
                             <div className="h-16 w-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
                                 <Search size={32} />
                             </div>
                             <p className="font-medium text-slate-900">No employees found</p>
-                            <p className="text-sm text-slate-500">Try adjusting your search query.</p>
+                            <p className="text-sm text-slate-500">Try adjusting your filters or search query.</p>
+                            {(roleFilter !== 'all' || deptFilter !== 'all' || statusFilter !== 'all') && (
+                                <button 
+                                    onClick={() => {
+                                        setRoleFilter('all');
+                                        setDeptFilter('all');
+                                        setStatusFilter('all');
+                                    }}
+                                    className="mt-2 text-indigo-600 hover:text-indigo-700 font-medium text-sm"
+                                >
+                                    Clear all filters
+                                </button>
+                            )}
                         </div>
                     </td>
                   </tr>
                 ) : (
-                    paginatedEmployees.map((employee) => {
+                    employees.map((employee) => {
                     const fullName = `${employee.firstName} ${employee.lastName}`;
                     const initials = `${employee.firstName?.[0] || ''}${employee.lastName?.[0] || ''}`;
                     const activeContract = employee.contracts?.[0]; // Assuming backend returns active contract
@@ -299,7 +402,7 @@ const EmployeeDirectory: React.FC = () => {
               <Pagination
                   currentPage={page}
                   totalPages={totalPages}
-                  totalItems={filteredEmployees.length}
+                  totalItems={totalItems}
                   limit={limit}
                   onPageChange={(p) => setPage(p)}
               />
@@ -319,4 +422,4 @@ const EmployeeDirectory: React.FC = () => {
   );
 };
 
-export default EmployeeDirectory;
+export default EmployeeDirectoryPage;

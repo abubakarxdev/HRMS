@@ -7,10 +7,11 @@ import { toast } from 'sonner';
 /**
  * Hook to get all employees
  */
-export const useEmployees = (officeId?: string) => {
+export const useEmployees = (officeId?: string, params?: any) => {
   return useQuery({
-    queryKey: queryKeys.employees.all(officeId),
-    queryFn: () => employeeService.getAll(officeId),
+    queryKey: [...queryKeys.employees.all(officeId), params],
+    queryFn: () => employeeService.getAll(officeId, params),
+    placeholderData: (previousData) => previousData,
   });
 };
 

@@ -1,27 +1,27 @@
 import React, { useState, useMemo } from 'react';
 import dayjs from 'dayjs';
-import { useAuth } from '../../contexts/AuthContext';
-import { useEmployees } from '../../hooks/useEmployees';
-import { useAttendanceRecords, useEmployeeAttendance } from '../../hooks/useAttendance';
-import { useAllLeaveRequests } from '../../hooks/useLeaves';
-import ApprovalsPanel from './ApprovalsPanel';
-import AttendanceCard from '../attendance/AttendanceCard';
-import AttendanceSummaryCard from '../attendance/AttendanceSummaryCard';
-import ManageHolidaysModal from '../admin/ManageHolidaysModal';
-import MissedClockOutAlert from './MissedClockOutAlert';
-import ResolveMissingClockOutModal from '../attendance/ResolveMissingClockOutModal';
-import EmployeeDashboard from './EmployeeDashboard';
-import FourSquare from '../ui/FourSquare';
+import { useAuth } from '@/contexts/AuthContext';
+import { useEmployees } from '@/hooks/useEmployees';
+import { useAttendanceRecords, useEmployeeAttendance } from '@/hooks/useAttendance';
+import { useAllLeaveRequests } from '@/hooks/useLeaves';
+import ApprovalsPanel from '@/components/dashboard/ApprovalsPanel';
+import AttendanceCard from '@/components/attendance/AttendanceCard';
+import AttendanceSummaryCard from '@/components/attendance/AttendanceSummaryCard';
+import ManageHolidaysModal from '@/components/admin/ManageHolidaysModal';
+import MissedClockOutAlert from '@/components/dashboard/MissedClockOutAlert';
+import ResolveMissingClockOutModal from '@/components/attendance/ResolveMissingClockOutModal';
+import EmployeeDashboardPage from '../employees/EmployeeDashboardPage';
+import FourSquare from '@/components/ui/FourSquare';
 import { Users, UserCheck, UserMinus, FileClock, Calendar, Sparkles } from 'lucide-react';
 
-const Dashboard: React.FC = () => {
+const DashboardPage: React.FC = () => {
     const { user } = useAuth();
 
     if (!user) return null;
 
     // Route to EmployeeDashboard for regular employees
     if (user.role === 'EMPLOYEE') {
-        return <EmployeeDashboard />;
+        return <EmployeeDashboardPage />;
     }
 
     // Manager/HR Dashboard (original content)
@@ -222,4 +222,4 @@ const ManagerDashboard: React.FC = () => {
     );
 };
 
-export default Dashboard;
+export default DashboardPage;

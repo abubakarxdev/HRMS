@@ -13,12 +13,24 @@ export const employeeService = {
   /**
    * Get all employees
    */
-  getAll: async (officeId?: string): Promise<Employee[]> => {
+  getAll: async (officeId?: string, params: any = {}): Promise<any> => {
     let url = '/employees';
-    if (officeId) {
-      url += `?officeId=${officeId}`;
+    const queryParams = new URLSearchParams();
+
+    if (officeId) queryParams.append('officeId', officeId);
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.search) queryParams.append('search', params.search);
+    if (params.role && params.role !== 'all') queryParams.append('role', params.role);
+    if (params.department && params.department !== 'all') queryParams.append('department', params.department);
+    if (params.status && params.status !== 'all') queryParams.append('status', params.status);
+
+    const queryString = queryParams.toString();
+    if (queryString) {
+      url += `?${queryString}`;
     }
-    const response = await apiClient.get<Employee[]>(url);
+
+    const response = await apiClient.get<any>(url);
     return response.data;
   },
 

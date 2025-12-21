@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import Card from '../ui/Card';
-import Button from '../ui/Button';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEmployee, useEmployees } from '../../hooks/useEmployees';
 import { useEmployeeAttendance } from '../../hooks/useAttendance';
@@ -21,7 +21,7 @@ import {
   Filler,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import ProfileAttendanceWidget from './ProfileAttendanceWidget';
+import ProfileAttendanceWidget from '@/components/employees/ProfileAttendanceWidget';
 import { Clock, Calendar, TrendingUp, Coffee } from 'lucide-react';
 
 ChartJS.register(
@@ -64,7 +64,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string; 
   </div>
 );
 
-const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
+const EmployeeProfilePage: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   
@@ -354,4 +354,4 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ employeeId }) => {
   );
 };
 
-export default EmployeeProfile;
+export default EmployeeProfilePage;

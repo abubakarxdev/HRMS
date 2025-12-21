@@ -11,10 +11,10 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from './lib/queryClient';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from "./components/layout/Layout";
-import Dashboard from "./components/dashboard/Dashboard";
-import EmployeeDirectory from "./components/employees/EmployeeDirectory";
-import EmployeeProfile from "./components/employees/EmployeeProfile";
-import AddEmployeeForm from "./components/employees/AddEmployeeForm";
+import DashboardPage from "./pages/dashboard/DashboardPage";
+import EmployeeDirectoryPage from "./pages/employees/EmployeeDirectoryPage";
+import EmployeeProfilePage from "./pages/employees/EmployeeProfilePage";
+import AddEmployeePage from "./pages/employees/AddEmployeePage";
 import EmployeeContractsPage from "./pages/admin/EmployeeContractsPage";
 import AttendanceLogPage from "./pages/attendance/AttendanceLogPage";
 import SessionDetailsPage from "./pages/attendance/SessionDetailsPage";
@@ -106,10 +106,10 @@ const AdminRoutes: React.FC = () => {
         <Routes>
             <Route element={<AdminLayout />}>
                 <Route path="/admin" element={<AdminDashboardPage />} />
-                <Route path="/admin/employees" element={<EmployeeDirectory />} /> 
-                <Route path="/admin/employees/add" element={<AddEmployeeForm />} />
+                <Route path="/admin/employees" element={<EmployeeDirectoryPage />} /> 
+                <Route path="/admin/employees/add" element={<AddEmployeePage />} />
                 <Route path="/admin/employees/:employeeId" element={<EmployeeProfileWrapper />} />
-                <Route path="/admin/employees/edit/:employeeId" element={<AddEmployeeForm />} />
+                <Route path="/admin/employees/edit/:employeeId" element={<AddEmployeePage />} />
                 <Route path="/admin/contracts" element={<EmployeeContractsPage />} />
                 <Route path="/admin/attendance" element={<AttendanceLogPage />} />
                 <Route path="/attendance/session/:sessionId" element={<SessionDetailsPage />} />
@@ -132,7 +132,7 @@ const Main: React.FC = () => {
     <Layout>
       <Routes>
         {/* Dashboard - Default Route */}
-        <Route path={NAVIGATION_PATHS.DASHBOARD} element={<Dashboard />} />
+        <Route path={NAVIGATION_PATHS.DASHBOARD} element={<DashboardPage />} />
 
         {/* Employee Self-Service Routes */}
         {/* Helper function to keep generic routes working for Employees */}
@@ -145,15 +145,15 @@ const Main: React.FC = () => {
 
         <Route
           path={NAVIGATION_PATHS.EMPLOYEES}
-          element={<EmployeeDirectory />}
+          element={<EmployeeDirectoryPage />}
         />
         <Route
           path={`${NAVIGATION_PATHS.EMPLOYEES}/add`}
-          element={<AddEmployeeForm />}
+          element={<AddEmployeePage />}
         />
         <Route
           path={`${NAVIGATION_PATHS.EMPLOYEES}/edit/:employeeId`}
-          element={<AddEmployeeForm />}
+          element={<AddEmployeePage />}
         />
         <Route
           path={`${NAVIGATION_PATHS.EMPLOYEES}/:employeeId`}
@@ -231,7 +231,7 @@ const EmployeeProfileWrapper: React.FC = () => {
     return <Navigate to={NAVIGATION_PATHS.EMPLOYEES} replace />;
   }
 
-  return <EmployeeProfile employeeId={employeeId} />;
+  return <EmployeeProfilePage employeeId={employeeId} />;
 };
 
 export default App;
