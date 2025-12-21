@@ -36,23 +36,23 @@ async function main() {
   // ]);
 
   // 2. Create Organization Structure
-  let legalEntity = await prisma.legalEntity.findFirst({ where: { name: 'TechFlow Solutions' } });
+  let legalEntity = await prisma.legalEntity.findFirst({ where: { name: 'HRMS Solutions' } });
   if (!legalEntity) {
     legalEntity = await prisma.legalEntity.create({
       data: {
-        name: 'TechFlow Solutions',
+        name: 'HRMS Solutions',
         countryCode: 'PK',
         defaultCurrency: 'PKR',
       },
     });
   }
 
-  let office = await prisma.office.findFirst({ where: { name: 'Cogilent Solutions' } });
+  let office = await prisma.office.findFirst({ where: { name: 'HRMS Solutions' } });
   if (!office) {
     office = await prisma.office.create({
       data: {
-        name: 'Cogilent Solutions',
-        address: 'Evacuee Trust Complex , 2nd floor, 209 (A), Islamabad',
+        name: 'HRMS Solutions',
+        address: 'hostel city , chak shehzad , lane 10 , street 7B',
         timezone: 'Asia/Karachi',
         legalEntityId: legalEntity.id,
       },
@@ -97,57 +97,89 @@ async function main() {
       return emp;
     }
 
-    const employee = await prisma.employee.create({
-      data: {
-        firstName,
-        lastName,
-        workEmail: email,
-        employeeIdNumber: empId,
-        joiningDate: new Date('2020-01-01'),
-        legalEntityId: legalEntity.id,
-        officeId: office.id,
-        managerId: managerId || null, // Ensure valid value for Prisma
-        status: 'Active',
-        contracts: {
-          create: {
-            type: 'FULL_TIME',
-            position,
-            startDate: new Date('2020-01-01'),
-            currency: 'PKR',
-            salary,
-            isActive: true,
+    // Check if employee exists by email or ID (to avoid unique constraint errors)
+    let employee = await prisma.employee.findFirst({
+      where: {
+        OR: [
+          { workEmail: email },
+          { employeeIdNumber: empId }
+        ]
+      },
+      include: { user: true }
+    });
+
+    if (!employee) {
+      employee = await prisma.employee.create({
+        data: {
+          firstName,
+          lastName,
+          workEmail: email,
+          employeeIdNumber: empId,
+          joiningDate: new Date('2020-01-01'),
+          legalEntityId: legalEntity.id,
+          officeId: office.id,
+          managerId: managerId || null, // Ensure valid value for Prisma
+          status: 'Active',
+          contracts: {
+            create: {
+              type: 'FULL_TIME',
+              position,
+              startDate: new Date('2020-01-01'),
+              currency: 'PKR',
+              salary,
+              isActive: true,
+            },
           },
         },
-      },
-    });
-
-    if (role === 'EMPLOYEE' && email === 'abubakar.dev@cogilent.com') {
-      // Special case for initial leave balances for dev employee
-      await prisma.leaveBalance.createMany({
-        data: [
-          { employeeId: employee.id, year: 2025, leaveType: 'Annual', totalCredits: 14, usedCredits: 0 },
-          { employeeId: employee.id, year: 2025, leaveType: 'Sick', totalCredits: 10, usedCredits: 0 },
-        ]
+        include: { user: true }
       });
+
+      if (role === 'EMPLOYEE' && email === 'employee@gmail.com') {
+        // Special case for initial leave balances for dev employee
+        await prisma.leaveBalance.createMany({
+          data: [
+            { employeeId: employee.id, year: 2025, leaveType: 'Annual', totalCredits: 14, usedCredits: 0 },
+            { employeeId: employee.id, year: 2025, leaveType: 'Sick', totalCredits: 10, usedCredits: 0 },
+          ]
+        });
+      }
+    } else {
+      console.log(`Employee record for ${email} / ${empId} already exists.`);
     }
 
-    await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        role: role as any, // Cast to any or import Role enum if strict
-        employeeId: employee.id,
-      },
-    });
-    console.log(`✅ Created user: ${email}`);
+    if (employee.user) {
+      console.log(`User already exists for employee ${empId}. Updating credentials if needed.`);
+      // Optional: Update the existing user to match the seed email/role if it's different
+      // For now, we'll just log it. If strict seed is needed, we would update:
+      await prisma.user.update({
+        where: { id: employee.user.id },
+        data: {
+          email,
+          passwordHash,
+          role: role as any
+        }
+      });
+      console.log(`✅ Updated existing user to: ${email}`);
+    } else {
+      await prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          role: role as any, // Cast to any or import Role enum if strict
+          employeeId: employee.id,
+        },
+      });
+      console.log(`✅ Created user: ${email}`);
+    }
+
     return employee;
   };
 
-  const hrEmployee = await upsertUser('madiha.hr@cogilent.com', 'Madiha', 'Karim', 'EMP-3JL8GL8F', 'HR', 'HR Manager', 250000);
-  const devEmployee = await upsertUser('abubakar.dev@cogilent.com', 'Abu', 'Bakar', 'EMP-002', 'EMPLOYEE', 'Software Engineer', 65000, hrEmployee?.id);
+  const hrEmployee = await upsertUser('hr@gmail.com', 'HR', 'Manager', 'EMP-HR', 'HR', 'HR Manager', 250000);
+  const devEmployee = await upsertUser('employee@gmail.com', 'John', 'Doe', 'EMP-001', 'EMPLOYEE', 'Software Engineer', 65000, hrEmployee?.id);
 
-  await upsertUser('super.admin@cogilent.com', 'Super', 'Admin', 'EMP-000', 'SUPER_ADMIN', 'System Owner', 500000);
-  await upsertUser('admin@cogilent.com', 'System', 'Admin', 'EMP-ADMIN', 'ADMIN', 'Administrator', 400000);
+  await upsertUser('super.admin@gmail.com', 'Super', 'Admin', 'EMP-000', 'SUPER_ADMIN', 'System Owner', 500000);
+  await upsertUser('admin@gmail.com', 'System', 'Admin', 'EMP-ADMIN', 'ADMIN', 'Administrator', 400000);
 
   console.log('🌱 Seed finished.');
 }
