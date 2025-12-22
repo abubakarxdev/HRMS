@@ -10,6 +10,8 @@ export const useLeaveBalances = () => {
   return useQuery({
     queryKey: leaveKeys.balances(), // My balances (no employeeId)
     queryFn: () => leavesService.getMyBalances(),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -18,6 +20,8 @@ export const useMyLeaveRequests = (page = 1, limit = 10, status?: string, startD
     queryKey: leaveKeys.myRequests(page, limit, status, startDate, endDate),
     queryFn: () => leavesService.getMyRequests(page, limit, status, startDate, endDate),
     placeholderData: (previousData) => previousData,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -48,7 +52,8 @@ export const useAllLeaveRequests = (page = 1, limit = 10, status?: string, emplo
     queryFn: () => leavesService.getAllRequests(page, limit, status, employeeId, officeId, startDate, endDate),
     placeholderData: (previousData) => previousData,
     enabled,
-    staleTime: 1000 * 60, // Keep fresh for 1 minute
+    staleTime: 0, // Ensure requests are always fresh
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -63,10 +68,10 @@ export const useUpdateLeaveStatus = () => {
       queryClient.invalidateQueries({ queryKey: ['leaves', 'all'] });
       // Invalidate specific detail view
       queryClient.invalidateQueries({ queryKey: leaveKeys.detail(variables.id) });
-      // Invalidate balances as approval changes them
-      if (variables.status === 'Approved') {
-        queryClient.invalidateQueries({ queryKey: leaveKeys.balances() });
-      }
+
+      // Invalidate ALL balances (mine and employees) as approval/rejection might change them
+      queryClient.invalidateQueries({ queryKey: ['leaves', 'balances'] });
+
       toast.success('Leave status updated successfully');
     },
     onError: (error: any) => {
@@ -84,6 +89,7 @@ export const useEmployeeLeaveBalances = (employeeId?: string) => {
       return leavesService.getEmployeeBalances(employeeId);
     },
     enabled: !!employeeId,
+    staleTime: 0,
   });
 };
 export const useLeaveRequestDetails = (id: string, enabled: boolean = true) => {
@@ -91,6 +97,7 @@ export const useLeaveRequestDetails = (id: string, enabled: boolean = true) => {
     queryKey: leaveKeys.detail(id),
     queryFn: () => leavesService.getRequestById(id),
     enabled: !!id && enabled,
+    staleTime: 0,
   });
 };
 
@@ -98,6 +105,7 @@ export const useMyUpcomingApprovedLeaves = () => {
   return useQuery({
     queryKey: ['leaves', 'my', 'approved', 'upcoming'],
     queryFn: () => leavesService.getMyUpcomingApprovedLeaves(),
+    staleTime: 0,
   });
 };
 
@@ -106,6 +114,6 @@ export const useLeaveStats = (employeeId?: string, officeId?: string, startDate?
     queryKey: ['leaves', 'stats', employeeId, officeId, startDate, endDate],
     queryFn: () => leavesService.getStats(employeeId, officeId, startDate, endDate),
     // Keep stats fresh but don't over-fetch
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: 0, // Ensure stats are fresh
   });
 };
