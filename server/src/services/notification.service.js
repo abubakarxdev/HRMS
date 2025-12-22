@@ -97,10 +97,26 @@ const markAllAsRead = async (userId) => {
   return await notificationRepository.markAllAsRead(userId);
 };
 
+/**
+ * Delete a notification
+ */
+const deleteNotification = async (id) => {
+  return await notificationRepository.deleteNotification(id);
+};
+
+/**
+ * Clear all notifications for a user
+ */
+const clearAllNotifications = async (userId) => {
+  return await notificationRepository.clearAllNotifications(userId);
+};
+
 module.exports = {
   notifyAdminsAndHR,
   notifyEmployee,
   getUserNotifications,
   markAsRead,
   markAllAsRead,
+  deleteNotification,
+  clearAllNotifications,
 };

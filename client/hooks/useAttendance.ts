@@ -21,6 +21,8 @@ export const useAttendanceRecords = (page = 1, limit = 10, startDate?: string, e
     queryKey: queryKeys.attendance.list({ page, limit, startDate, endDate, status, officeId }),
     queryFn: () => attendanceService.getAll(page, limit, startDate, endDate, status, officeId),
     placeholderData: (previousData) => previousData,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -33,6 +35,7 @@ export const useEmployeeAttendance = (employeeId: string, startDate?: string, en
     queryFn: () => attendanceService.getByEmployeeId(employeeId, startDate, endDate, status, page, limit),
     enabled: !!employeeId,
     placeholderData: (previousData) => previousData,
+    staleTime: 0,
   });
 };
 
@@ -55,6 +58,8 @@ export const useTodayAttendance = (employeeId: string, date?: string) => {
     queryKey: queryKeys.attendance.today(employeeId, date),
     queryFn: () => attendanceService.getTodayAttendance(employeeId, date),
     enabled: !!employeeId,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -66,6 +71,8 @@ export const useAttendanceStats = (employeeId: string) => {
     queryKey: queryKeys.attendance.stats(employeeId),
     queryFn: () => attendanceService.getStats(employeeId),
     enabled: !!employeeId,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -76,6 +83,7 @@ export const useTeamStats = (officeId?: string) => {
   return useQuery({
     queryKey: ['attendance', 'team-stats', { officeId }],
     queryFn: () => attendanceService.getTeamStats(officeId),
+    staleTime: 0,
   });
 };
 

@@ -169,7 +169,7 @@ const LeaveRequestDetailsPage: React.FC = () => {
                             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[120px]">
                                 <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider mb-1">Duration</p>
                                 <p className="text-xl font-bold text-white">
-                                    {calculateWorkingDays(request.startDate, request.endDate)} Days
+                                    {calculateWorkingDays(request.startDate, request.endDate)} {calculateWorkingDays(request.startDate, request.endDate) === 1 ? 'Day' : 'Days'}
                                 </p>
                             </div>
                             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[120px]">
@@ -238,7 +238,7 @@ const LeaveRequestDetailsPage: React.FC = () => {
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Days</span>
                                     <div className="font-bold text-slate-800 text-sm flex items-center">
                                         <FiClock className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
-                                        {calculateWorkingDays(request.startDate, request.endDate)} Days
+                                        {calculateWorkingDays(request.startDate, request.endDate)} {calculateWorkingDays(request.startDate, request.endDate) === 1 ? 'Day' : 'Days'}
                                     </div>
                                 </div>
 

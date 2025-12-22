@@ -11,6 +11,7 @@ export const NAVIGATION_PATHS = {
     LEAVE_REQUESTS: '/leaves/requests',
     OFFICES: '/admin/offices',
     CONTRACTS: '/contracts',
+    NOTIFICATIONS: '/notifications',
 };
 
 

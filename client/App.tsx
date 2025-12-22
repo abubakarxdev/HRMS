@@ -34,6 +34,7 @@ import OfficesPage from "./pages/admin/OfficesPage";
 import AdminLayout from "./components/layout/AdminLayout";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import LeaveRequestDetailsPage from "./pages/admin/LeaveRequestDetailsPage";
+import NotificationsPage from "./pages/notifications/NotificationsPage";
 
 const App: React.FC = () => {
   return (
@@ -106,6 +107,7 @@ const AdminRoutes: React.FC = () => {
         <Routes>
             <Route element={<AdminLayout />}>
                 <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route path="/admin/notifications" element={<NotificationsPage />} />
                 <Route path="/admin/employees" element={<EmployeeDirectoryPage />} /> 
                 <Route path="/admin/employees/add" element={<AddEmployeePage />} />
                 <Route path="/admin/employees/:employeeId" element={<EmployeeProfileWrapper />} />
@@ -133,6 +135,7 @@ const Main: React.FC = () => {
       <Routes>
         {/* Dashboard - Default Route */}
         <Route path={NAVIGATION_PATHS.DASHBOARD} element={<DashboardPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
 
         {/* Employee Self-Service Routes */}
         {/* Helper function to keep generic routes working for Employees */}
