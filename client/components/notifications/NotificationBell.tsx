@@ -4,13 +4,18 @@ import { useNotifications } from '../../hooks/useNotifications';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { useAuth } from '../../contexts/AuthContext';
 
 dayjs.extend(relativeTime);
+
+import { useQueryClient } from '@tanstack/react-query';
 
 const NotificationBell: React.FC = () => {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const handleNotificationClick = (notification: any) => {
     if (!notification.isRead) {
@@ -22,7 +27,22 @@ const NotificationBell: React.FC = () => {
     
     if (navLink) {
       setIsOpen(false);
+      
+      // Invalidate leaves queries if navigating to leaves
+      if (typeof navLink === 'string' && navLink.includes('leaves')) {
+         queryClient.invalidateQueries({ queryKey: ['leaves'] });
+      }
+
       navigate(navLink);
+    }
+  };
+
+  const handleViewAllClick = () => {
+    setIsOpen(false);
+    if (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') {
+        navigate('/admin/notifications');
+    } else {
+        navigate('/notifications');
     }
   };
 
@@ -69,37 +89,49 @@ const NotificationBell: React.FC = () => {
                   <p className="text-sm">No notifications yet</p>
                 </div>
               ) : (
-                notifications.map((notification: any) => (
-                  <div
-                    key={notification.id}
-                    onClick={() => handleNotificationClick(notification)}
-                    className={`
-                      px-4 py-4 border-b border-slate-50 cursor-pointer transition-all duration-200 group
-                      ${!notification.isRead ? 'bg-indigo-50/50 hover:bg-indigo-50' : 'hover:bg-slate-50'}
-                    `}
-                  >
-                    <div className="flex gap-3 items-start">
-                      <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!notification.isRead ? 'bg-indigo-500 shadow-sm shadow-indigo-500/50' : 'bg-slate-300'}`} />
-                      
-                      <div className="flex-1 space-y-1">
-                        <p className={`text-sm leading-snug ${!notification.isRead ? 'font-bold text-slate-800' : 'font-medium text-slate-600'}`}>
-                          {notification.title} {notification.data?.status === 'Approved' && '😊'} {notification.data?.status === 'Rejected' && '😔'}
-                        </p>
-                        <p className="text-xs text-slate-500 line-clamp-2">
-                          {notification.message}
-                        </p>
-                        <div className="flex items-center justify-between mt-2">
-                           <span className="text-[10px] font-medium text-slate-400">
-                             {dayjs(notification.createdAt).fromNow()}
-                           </span>
-                           {notification.link && (
-                               <ExternalLink className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                           )}
+                <>
+                  {notifications.slice(0, 5).map((notification: any) => (
+                    <div
+                      key={notification.id}
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`
+                        px-4 py-4 border-b border-slate-50 cursor-pointer transition-all duration-200 group
+                        ${!notification.isRead ? 'bg-indigo-50/50 hover:bg-indigo-50' : 'hover:bg-slate-50'}
+                      `}
+                    >
+                      <div className="flex gap-3 items-start">
+                        <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!notification.isRead ? 'bg-indigo-500 shadow-sm shadow-indigo-500/50' : 'bg-slate-300'}`} />
+                        
+                        <div className="flex-1 space-y-1">
+                          <p className={`text-sm leading-snug ${!notification.isRead ? 'font-bold text-slate-800' : 'font-medium text-slate-600'}`}>
+                            {notification.title} {notification.data?.status === 'Approved' && '😊'} {notification.data?.status === 'Rejected' && '😔'}
+                          </p>
+                          <p className="text-xs text-slate-500 line-clamp-2">
+                            {notification.message}
+                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                             <span className="text-[10px] font-medium text-slate-400">
+                               {dayjs(notification.createdAt).fromNow()}
+                             </span>
+                             {notification.link && (
+                                 <ExternalLink className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                             )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  {notifications.length > 5 && (
+                     <div className="p-3 text-center bg-slate-50 border-t border-slate-100">
+                        <button 
+                            onClick={handleViewAllClick}
+                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                        >
+                           View all {notifications.length} notifications
+                        </button>
+                     </div>
+                  )}
+                </>
               )}
             </div>
           </div>
