@@ -112,7 +112,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Days</span>
                                     <div className="font-bold text-slate-800 text-sm flex items-center">
                                         <Clock className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
-                                        {calculateWorkingDays(request.startDate, request.endDate)} Days
+                                        {calculateWorkingDays(request.startDate, request.endDate)} {calculateWorkingDays(request.startDate, request.endDate) === 1 ? 'Day' : 'Days'}
                                     </div>
                                 </div>
                             </div>
