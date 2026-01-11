@@ -48,17 +48,17 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
     if (!request) return null;
 
     const getStatusColor = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'approved': return 'bg-green-100 text-green-800 border-green-200';
-            case 'rejected': return 'bg-red-100 text-red-800 border-red-200';
+        switch (status.toUpperCase()) {
+            case 'APPROVED': return 'bg-green-100 text-green-800 border-green-200';
+            case 'REJECTED': return 'bg-red-100 text-red-800 border-red-200';
             default: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
         }
     };
 
     const getStatusIcon = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'approved': return <CheckCircle className="w-5 h-5 mr-2" />;
-            case 'rejected': return <XCircle className="w-5 h-5 mr-2" />;
+        switch (status.toUpperCase()) {
+            case 'APPROVED': return <CheckCircle className="w-5 h-5 mr-2" />;
+            case 'REJECTED': return <XCircle className="w-5 h-5 mr-2" />;
             default: return <Clock className="w-5 h-5 mr-2" />;
         }
     };
@@ -74,9 +74,9 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
                     {/* Header */}
                     <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 sticky top-0 bg-white/95 backdrop-blur-sm z-20">
                         <div className="flex items-center gap-3">
-                             <div className={`p-2 rounded-lg ${
-                                request.leaveType === 'Sick' ? 'bg-red-50 text-red-600' :
-                                request.leaveType === 'Annual' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
+                            <div className={`p-2 rounded-lg ${
+                                request.leaveType.name === 'Sick' ? 'bg-red-50 text-red-600' :
+                                request.leaveType.name === 'Annual' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
                              }`}>
                                 {getStatusIcon(request.status)}
                              </div>
@@ -102,10 +102,10 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Type</span>
                                     <div className="font-bold text-slate-800 text-sm flex items-center">
                                          <div className={`w-2 h-2 rounded-full mr-2 ${
-                                            request.leaveType === 'Sick' ? 'bg-red-500' : 
-                                            request.leaveType === 'Annual' ? 'bg-blue-500' : 'bg-yellow-500'
+                                            request.leaveType.name === 'Sick' ? 'bg-red-500' : 
+                                            request.leaveType.name === 'Annual' ? 'bg-blue-500' : 'bg-yellow-500'
                                         }`}></div>
-                                        {request.leaveType}
+                                        {request.leaveType.name}
                                     </div>
                                 </div>
                                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
@@ -164,7 +164,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
                             )}
 
                             {/* Admin Actions (Compact) */}
-                            {request.status === 'Pending' && onApprove && onReject && !isSelfRequest && (
+                            {request.status === 'PENDING' && onApprove && onReject && !isSelfRequest && (
                                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 mt-2">
                                     <h4 className="text-xs font-bold text-slate-800 mb-3 uppercase tracking-wider">Review Request</h4>
                                     <textarea
@@ -195,7 +195,7 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
                             )}
 
                              {/* Approver Comments */}
-                             {request.status !== 'Pending' && request.approverComments && (
+                             {request.status !== 'PENDING' && request.approverComments && (
                                 <div>
                                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 pl-1">Approver Note</h4>
                                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-sm text-slate-600 italic">
@@ -253,12 +253,12 @@ const LeaveDetailsModal: React.FC<LeaveDetailsModalProps> = ({ isOpen, onClose, 
                                                 <tbody className="divide-y divide-slate-200">
                                                     {historyData?.data?.slice(0, 5).map(req => (
                                                         <tr key={req.id} className={req.id === request.id ? 'bg-indigo-50/50' : 'hover:bg-white transition-colors'}>
-                                                            <td className="px-3 py-2 font-medium text-slate-700">{req.leaveType}</td>
+                                                            <td className="px-3 py-2 font-medium text-slate-700">{req.leaveType.name}</td>
                                                             <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{dayjs(req.startDate).format('MMM D')}</td>
                                                             <td className="px-3 py-2 text-right">
                                                                 <div className={`inline-block w-2 h-2 rounded-full ${
-                                                                    req.status === 'Approved' ? 'bg-green-500' :
-                                                                    req.status === 'Rejected' ? 'bg-red-500' :
+                                                                    req.status === 'APPROVED' ? 'bg-green-500' :
+                                                                    req.status === 'REJECTED' ? 'bg-red-500' :
                                                                     'bg-amber-500'
                                                                 }`}></div>
                                                             </td>
