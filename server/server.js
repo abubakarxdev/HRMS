@@ -30,7 +30,9 @@ app.use((err, req, res, next) => {
   
   // Determine status code based on error type
   // Validation errors should return 400, not 500
-  const statusCode = err.statusCode || (err.message.includes('Invalid') || err.message.includes('must be') ? 400 : 500);
+  const statusCode = err.statusCode || 
+    (err.message.includes('Invalid') || err.message.includes('must be') ? 400 : 
+    err.message.includes('Access Denied') || err.message.includes('restricted') ? 403 : 500);
   
   res.status(statusCode).json({ 
     message: statusCode === 500 ? "Something went wrong!" : err.message,
