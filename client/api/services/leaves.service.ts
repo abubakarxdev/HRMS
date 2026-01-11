@@ -49,7 +49,7 @@ export const leavesService = {
 
   getMyUpcomingApprovedLeaves: async (): Promise<LeaveRequest[]> => {
     const today = new Date().toISOString().split('T')[0];
-    const url = `/leaves/my-requests?status=Approved&startDate=${today}&limit=100`;
+    const url = `/leaves/my-requests?status=APPROVED&startDate=${today}&limit=100`;
     const response = await apiClient.get<PaginatedResponse<LeaveRequest>>(url);
     return response.data.data;
   },
@@ -61,6 +61,12 @@ export const leavesService = {
     if (startDate) url += `&startDate=${startDate}`;
     if (endDate) url += `&endDate=${endDate}`;
     const response = await apiClient.get(url);
+    return response.data;
+  },
+
+  getLeaveTypes: async (officeId?: string): Promise<import('../types/leaves').LeaveType[]> => {
+    const url = officeId ? `/leaves/types?officeId=${officeId}` : '/leaves/types';
+    const response = await apiClient.get<import('../types/leaves').LeaveType[]>(url);
     return response.data;
   },
 };
