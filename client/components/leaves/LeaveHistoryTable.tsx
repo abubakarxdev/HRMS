@@ -5,6 +5,7 @@ import Button from '../ui/Button';
 import { Eye, Calendar, FileText } from 'lucide-react';
 import { LeaveRequest } from '../../api/types/leaves';
 import { calculateWorkingDays } from '../../utils/dateUtils';
+import NoTableData from '../ui/NoTableData';
 
 interface LeaveHistoryTableProps {
     requests: LeaveRequest[];
@@ -58,12 +59,11 @@ const LeaveHistoryTable: React.FC<LeaveHistoryTableProps> = ({ requests, loading
                                 </td>
                             </tr>
                         ) : requests.length === 0 ? (
-                            <tr>
-                                <td colSpan={6} className="px-6 py-16 text-center text-slate-500">
-                                    <FileText className="mx-auto mb-3 text-slate-300" size={40} />
-                                    <p className="font-medium text-slate-600">No leave requests found</p>
-                                </td>
-                            </tr>
+                            <NoTableData 
+                                title="No leave requests found"
+                                message="You haven't made any leave requests yet."
+                                icon={<FileText size={32} />}
+                            />
                         ) : (
                             requests.map((request) => (
                                 <tr key={request.id} className="hover:bg-slate-50/80 transition-colors group">
@@ -72,7 +72,7 @@ const LeaveHistoryTable: React.FC<LeaveHistoryTableProps> = ({ requests, loading
                                             <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
                                                 <Calendar size={16} />
                                             </div>
-                                            <span className="text-sm font-bold text-slate-700">{request.leaveType}</span>
+                                            <span className="text-sm font-bold text-slate-700">{request.leaveType.name}</span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
