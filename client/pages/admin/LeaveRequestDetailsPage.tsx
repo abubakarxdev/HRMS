@@ -89,17 +89,17 @@ const LeaveRequestDetailsPage: React.FC = () => {
     }
 
     const getStatusColor = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'approved': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-            case 'rejected': return 'bg-rose-50 text-rose-700 border-rose-200';
+        switch (status.toUpperCase()) {
+            case 'APPROVED': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            case 'REJECTED': return 'bg-rose-50 text-rose-700 border-rose-200';
             default: return 'bg-amber-50 text-amber-700 border-amber-200';
         }
     };
 
     const getStatusIcon = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'approved': return <FiCheckCircle className="w-5 h-5 mr-2" />;
-            case 'rejected': return <FiXCircle className="w-5 h-5 mr-2" />;
+        switch (status.toUpperCase()) {
+            case 'APPROVED': return <FiCheckCircle className="w-5 h-5 mr-2" />;
+            case 'REJECTED': return <FiXCircle className="w-5 h-5 mr-2" />;
             default: return <FiClock className="w-5 h-5 mr-2" />;
         }
     };
@@ -164,7 +164,7 @@ const LeaveRequestDetailsPage: React.FC = () => {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full md:w-auto">
                             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[120px]">
                                 <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider mb-1">Leave Type</p>
-                                <p className="text-xl font-bold text-white truncate">{request.leaveType}</p>
+                                <p className="text-xl font-bold text-white truncate">{request.leaveType.name}</p>
                             </div>
                             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[120px]">
                                 <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider mb-1">Duration</p>
@@ -175,8 +175,8 @@ const LeaveRequestDetailsPage: React.FC = () => {
                             <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[120px]">
                                 <p className="text-indigo-200 text-[10px] font-bold uppercase tracking-wider mb-1">Status</p>
                                 <div className={`inline-flex items-center px-2 py-0.5 rounded-lg text-sm font-bold border ${
-                                    request.status === 'Approved' ? 'bg-emerald-500/20 text-emerald-100 border-emerald-500/30' :
-                                    request.status === 'Rejected' ? 'bg-rose-500/20 text-rose-100 border-rose-500/30' :
+                                    request.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-100 border-emerald-500/30' :
+                                    request.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-100 border-rose-500/30' :
                                     'bg-amber-500/20 text-amber-100 border-amber-500/30'
                                 }`}>
                                     {request.status}
@@ -200,8 +200,8 @@ const LeaveRequestDetailsPage: React.FC = () => {
                     <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden relative">
                         {/* Decorative top bar */}
                         <div className={`h-2 w-full ${
-                             request.status === 'Approved' ? 'bg-green-500' :
-                             request.status === 'Rejected' ? 'bg-red-500' :
+                             request.status === 'APPROVED' ? 'bg-green-500' :
+                             request.status === 'REJECTED' ? 'bg-red-500' :
                              'bg-amber-500'
                         }`}></div>
 
@@ -226,10 +226,10 @@ const LeaveRequestDetailsPage: React.FC = () => {
                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Leave Type</span>
                                     <div className="font-bold text-slate-800 text-sm flex items-center">
                                          <div className={`w-2 h-2 rounded-full mr-2 shadow-sm ${
-                                            request.leaveType === 'Sick' ? 'bg-red-500' : 
-                                            request.leaveType === 'Annual' ? 'bg-blue-500' : 'bg-yellow-500'
+                                            request.leaveType.name === 'Sick' ? 'bg-red-500' : 
+                                            request.leaveType.name === 'Annual' ? 'bg-blue-500' : 'bg-yellow-500'
                                         }`}></div>
-                                        {request.leaveType}
+                                        {request.leaveType.name}
                                     </div>
                                 </div>
 
@@ -290,7 +290,7 @@ const LeaveRequestDetailsPage: React.FC = () => {
                     </div>
 
                     {/* Action Panel (Only if Pending) */}
-                    {request.status === 'Pending' && (
+                    {request.status === 'PENDING' && (
                         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden transform transition-all hover:scale-[1.01] duration-300">
                             <div className="p-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
                             <div className="p-8">
@@ -315,14 +315,14 @@ const LeaveRequestDetailsPage: React.FC = () => {
                                     <div className="flex flex-col sm:flex-row justify-end gap-4 pt-2">
                                         <Button 
                                             variant="danger" 
-                                            onClick={() => handleStatusUpdate('Rejected')}
+                                            onClick={() => handleStatusUpdate('REJECTED')}
                                             isLoading={updateStatusMutation.isPending}
                                             className="px-8 py-3 rounded-xl shadow-lg shadow-red-200 hover:shadow-red-300 transition-all"
                                         >
                                             Reject Request
                                         </Button>
                                         <Button 
-                                            onClick={() => handleStatusUpdate('Approved')}
+                                            onClick={() => handleStatusUpdate('APPROVED')}
                                             isLoading={updateStatusMutation.isPending}
                                             className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white border-transparent rounded-xl shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transition-all font-bold"
                                         >
@@ -335,7 +335,7 @@ const LeaveRequestDetailsPage: React.FC = () => {
                     )}
 
                     {/* Approver Comments (If already acted upon) */}
-                    {request.status !== 'Pending' && request.approverComments && (
+                    {request.status !== 'PENDING' && request.approverComments && (
                          <div className="bg-slate-50 rounded-2xl border border-slate-200 p-8">
                              <h3 className="font-bold text-slate-800 mb-4 flex items-center">
                                 <FiUser className="w-4 h-4 mr-2" />
