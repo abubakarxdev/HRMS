@@ -23,6 +23,12 @@ const protect = async (req, res, next) => {
           .json({ message: "Not authorized, user not found" });
       }
 
+      // Standardize user object to match token payload structure (for legacy/convenience)
+      if (req.user.employee) {
+          req.user.officeId = req.user.employee.officeId;
+          req.user.employeeId = req.user.employee.id; // ensure correct ID reference if needed
+      }
+
       next();
     } catch (error) {
       console.error("Auth middleware error:", error.message);

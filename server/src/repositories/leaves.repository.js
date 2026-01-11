@@ -10,6 +10,9 @@ const findLeaveBalances = async (employeeId, year) => {
         employeeId,
         year,
       },
+      include: {
+        leaveType: true
+      }
     });
   } catch (error) {
     throw new Error(`Error finding leave balances: ${error.message}`);
@@ -44,6 +47,36 @@ const updateLeaveBalance = async (id, data, tx = prisma) => {
 };
 
 /**
+ * Find Allowable Leave Types for an Office
+ */
+const findLeaveTypes = async (officeId) => {
+    return await prisma.leaveType.findMany({
+        where: { officeId, isActive: true }
+    });
+};
+
+/**
+ * Find Policy for Office + Contract + Type
+ */
+const findLeavePolicy = async (officeId, contractType, leaveTypeId, year) => {
+    const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
+    const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
+    
+    return await prisma.leavePolicy.findFirst({
+        where: {
+            officeId,
+            contractType,
+            leaveTypeId,
+            // Check for overlap with the target year
+            AND: [
+                { effectiveFrom: { lte: endOfYear } },
+                { effectiveTo: { gte: startOfYear } }
+            ]
+        }
+    });
+};
+
+/**
  * Create a leave request
  */
 const createLeaveRequest = async (data) => {
@@ -59,7 +92,7 @@ const createLeaveRequest = async (data) => {
 /**
  * Find leave requests with filtering and pagination
  */
-const findLeaveRequests = async ({ employeeId, status, officeId, legalEntityId, startDate, endDate, skip, take } = {}) => {
+const findLeaveRequests = async ({ employeeId, status, officeId, legalEntityId, startDate, endDate, skip, take, excludeEmployeeId, excludeRole } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
@@ -79,6 +112,8 @@ const findLeaveRequests = async ({ employeeId, status, officeId, legalEntityId, 
     
     // Date Filtering: Find leaves that overlap with the selected range
     // Logic: (Request Start <= Filter End) AND (Request End >= Filter Start)
+    // Date Filtering: Find leaves that overlap with the selected range
+    // Logic: (Request Start <= Filter End) AND (Request End >= Filter Start)
     if (startDate && endDate) {
       where.AND = [
         { startDate: { lte: new Date(endDate) } },
@@ -87,6 +122,23 @@ const findLeaveRequests = async ({ employeeId, status, officeId, legalEntityId, 
     } else if (startDate) {
         // If only start date provided, show leaves starting on or after
         where.startDate = { gte: new Date(startDate) };
+    }
+
+    // Exclude specific employee (e.g., HR viewing list, exclude self)
+    if (excludeEmployeeId) {
+         if (!employeeId) {
+             where.employeeId = { not: excludeEmployeeId };
+         }
+    }
+
+    // Exclude requests by specific Role (e.g. HR hiding other HRs)
+    if (excludeRole) {
+        where.employee = {
+            ...where.employee,
+            user: {
+                role: { not: excludeRole }
+            }
+        };
     }
 
     return await prisma.leaveRequest.findMany({
@@ -104,9 +156,10 @@ const findLeaveRequests = async ({ employeeId, status, officeId, legalEntityId, 
             lastName: true,
             employeeIdNumber: true,
             avatarUrl: true,
-            officeId: true, // Useful for frontend to know
+            officeId: true, 
           },
         },
+        leaveType: true, // Include Type info
       },
     });
   } catch (error) {
@@ -158,7 +211,7 @@ const findOverlappingRequests = async (employeeId, startDate, endDate) => {
   return await prisma.leaveRequest.findMany({
     where: {
       employeeId,
-      status: { in: ['Approved', 'Pending'] },
+      status: { in: ['APPROVED', 'PENDING'] },
       OR: [
         {
           // Case 1: Existing start date is within new range
@@ -205,6 +258,7 @@ const findLeaveRequestById = async (id) => {
             workEmail: true,
           },
         },
+        leaveType: true, // Include Type info
       },
     });
   } catch (error) {
@@ -229,7 +283,7 @@ const updateLeaveRequest = async (id, data, tx = prisma) => {
 /**
  * Get leave statistics grouped by status
  */
-const getLeaveStats = async ({ employeeId, officeId, legalEntityId, startDate, endDate } = {}) => {
+const getLeaveStats = async ({ employeeId, officeId, legalEntityId, startDate, endDate, excludeEmployeeId, excludeRole } = {}) => {
   try {
     const where = {};
     if (employeeId) where.employeeId = employeeId;
@@ -256,6 +310,22 @@ const getLeaveStats = async ({ employeeId, officeId, legalEntityId, startDate, e
       where.startDate = { gte: new Date(startDate) };
     }
 
+    // Exclusion Logic (Matches getRequests)
+    if (excludeEmployeeId) {
+         if (!employeeId) { // Only apply exclusion if not searching for a specific ID
+             where.employeeId = { not: excludeEmployeeId };
+         }
+    }
+
+    if (excludeRole) {
+        where.employee = {
+            ...where.employee,
+            user: {
+                role: { not: excludeRole }
+            }
+        };
+    }
+
     const stats = await prisma.leaveRequest.groupBy({
       by: ['status'],
       where,
@@ -272,7 +342,7 @@ const getLeaveStats = async ({ employeeId, officeId, legalEntityId, startDate, e
     };
 
     stats.forEach(group => {
-      const statusKey = group.status.charAt(0).toUpperCase() + group.status.slice(1);
+      const statusKey = group.status.charAt(0).toUpperCase() + group.status.slice(1).toLowerCase();
       if (result[statusKey] !== undefined) {
         result[statusKey] = group._count.status;
       }
@@ -295,4 +365,6 @@ module.exports = {
   updateLeaveRequest,
   findOverlappingRequests,
   getLeaveStats,
+  findLeaveTypes,
+  findLeavePolicy
 };

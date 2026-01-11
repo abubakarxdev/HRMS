@@ -11,6 +11,9 @@ const notifyAdminsAndHR = async (title, message, type, data = {}) => {
       role: {
         in: ["ADMIN", "HR", "SUPER_ADMIN"],
       },
+      NOT: {
+          id: data.excludeUserId // Exclude specific user (e.g., sender)
+      }
     },
     select: { id: true, role: true },
   });
