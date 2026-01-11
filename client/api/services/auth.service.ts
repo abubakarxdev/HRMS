@@ -71,6 +71,7 @@ export const authService = {
         timezone: decoded.timezone,
         firstName: decoded.firstName,
         lastName: decoded.lastName,
+        officeId: decoded.officeId,
       };
     } catch (error) {
       console.error('Failed to decode token:', error);

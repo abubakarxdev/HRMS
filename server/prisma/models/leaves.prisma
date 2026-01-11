@@ -1,50 +1,124 @@
-model LeaveSetting {
-  id            String @id @default(uuid())
-  legalEntityId String
-  policyType    String // 'FullTime', 'Probation'
-  config        Json // { annual: 14, sick: 10 }
+enum LeavePolicyType {
+  FULL_TIME
+  PROBATION
+  INTERN
+  CONTRACTUAL
+}
 
-  legalEntity LegalEntity @relation(fields: [legalEntityId], references: [id])
+model LeaveType {
+  id       String @id @default(uuid())
+  officeId String
 
-  @@map("leave_settings")
+  code        String // "ANNUAL", "SICK"
+  name        String // "Annual Leave"
+  description String?
+  isActive    Boolean @default(true)
+
+  isPaid       Boolean @default(true)
+  allowHalfDay Boolean @default(true)
+
+  office Office @relation(fields: [officeId], references: [id])
+
+  balances LeaveBalance[]
+  requests LeaveRequest[]
+  policies LeavePolicy[]
+
+  @@unique([officeId, code])
+  @@map("leave_types")
+}
+
+model LeavePolicy {
+  id           String       @id @default(uuid())
+  officeId     String
+  contractType ContractType
+
+  leaveTypeId String
+
+  annualQuotaMinutes Int
+
+  carryForwardAllowed    Boolean @default(false)
+  maxCarryForwardMinutes Int?
+
+  effectiveFrom DateTime  @db.Date
+  effectiveTo   DateTime? @db.Date
+
+  isArchived     Boolean       @default(false)
+  archivedAt     DateTime?
+  archivedByRole ApproverRole?
+
+  createdByRole ApproverRole @default(ADMIN)
+
+  office    Office    @relation(fields: [officeId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@unique([officeId, contractType, leaveTypeId, effectiveFrom])
+  @@map("leave_policies")
 }
 
 model LeaveBalance {
-  id         String @id @default(uuid())
-  employeeId String
-  year       Int
-  leaveType  String // 'Annual', 'Sick'
+  id          String @id @default(uuid())
+  employeeId  String
+  officeId    String
+  year        Int
+  leaveTypeId String
 
-  totalCredits Int
-  usedCredits  Int @default(0)
+  totalCreditsMinutes Int
+  usedCreditsMinutes  Int @default(0)
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
 
-  @@unique([employeeId, year, leaveType])
+  @@unique([employeeId, year, leaveTypeId])
   @@map("leave_balances")
+}
+
+enum LeaveDuration {
+  FULL_DAY
+  HALF_DAY_AM
+  HALF_DAY_PM
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApproverRole {
+  HR
+  ADMIN
+  SYSTEM
 }
 
 model LeaveRequest {
   id         String @id @default(uuid())
   employeeId String
+  officeId   String // For audit and easier scoping
 
-  leaveType String // 'Annual', 'Sick'
+  leaveTypeId String
 
-  startDate        DateTime @db.Date
-  endDate          DateTime @db.Date
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+
+  duration LeaveDuration @default(FULL_DAY)
+  status   LeaveStatus   @default(PENDING)
+
   reason           String?
   approverComments String?
-  status           String   @default("Pending") // Pending, Approved, Rejected
 
   attachmentUrl String?
 
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee  Employee  @relation(fields: [employeeId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  approverId String?
-  approver   Employee? @relation("LeaveApprover", fields: [approverId], references: [id])
+  approverId     String?
+  approver       Employee?     @relation("LeaveApprover", fields: [approverId], references: [id])
+  approvedByRole ApproverRole?
+  approvalReason String?
 
   @@map("leave_requests")
 }

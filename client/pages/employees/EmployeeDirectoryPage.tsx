@@ -8,6 +8,7 @@ import DeleteConfirmationModal from "@/components/ui/DeleteConfirmationModal";
 import { useOptionalOffice } from "@/contexts/OfficeContext";
 import Pagination from "@/components/ui/Pagination";
 import Button from "@/components/ui/Button";
+import NoTableData from "@/components/ui/NoTableData";
 
 const EmployeeDirectoryPage: React.FC = () => {
   const { user } = useAuth();
@@ -278,29 +279,16 @@ const EmployeeDirectoryPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : employees.length === 0 ? (
-                    <tr>
-                    <td colSpan={5} className="px-6 py-16 text-center text-slate-500">
-                        <div className="flex flex-col items-center justify-center">
-                            <div className="h-16 w-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
-                                <Search size={32} />
-                            </div>
-                            <p className="font-medium text-slate-900">No employees found</p>
-                            <p className="text-sm text-slate-500">Try adjusting your filters or search query.</p>
-                            {(roleFilter !== 'all' || deptFilter !== 'all' || statusFilter !== 'all') && (
-                                <button 
-                                    onClick={() => {
-                                        setRoleFilter('all');
-                                        setDeptFilter('all');
-                                        setStatusFilter('all');
-                                    }}
-                                    className="mt-2 text-indigo-600 hover:text-indigo-700 font-medium text-sm"
-                                >
-                                    Clear all filters
-                                </button>
-                            )}
-                        </div>
-                    </td>
-                  </tr>
+                    <NoTableData 
+                        title="No employees found"
+                        message="Try adjusting your filters or search query."
+                        onClearFilters={(roleFilter !== 'all' || deptFilter !== 'all' || statusFilter !== 'all') ? () => {
+                            setRoleFilter('all');
+                            setDeptFilter('all');
+                            setStatusFilter('all');
+                            setPage(1);
+                        } : undefined}
+                    />
                 ) : (
                     employees.map((employee) => {
                     const fullName = `${employee.firstName} ${employee.lastName}`;

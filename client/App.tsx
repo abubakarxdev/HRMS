@@ -16,6 +16,7 @@ import EmployeeDirectoryPage from "./pages/employees/EmployeeDirectoryPage";
 import EmployeeProfilePage from "./pages/employees/EmployeeProfilePage";
 import AddEmployeePage from "./pages/employees/AddEmployeePage";
 import EmployeeContractsPage from "./pages/admin/EmployeeContractsPage";
+import LeavePoliciesPage from "./pages/admin/LeavePoliciesPage";
 import AttendanceLogPage from "./pages/attendance/AttendanceLogPage";
 import SessionDetailsPage from "./pages/attendance/SessionDetailsPage";
 import TeamSnapshotPage from "./pages/attendance/TeamSnapshotPage";
@@ -35,6 +36,7 @@ import AdminLayout from "./components/layout/AdminLayout";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import LeaveRequestDetailsPage from "./pages/admin/LeaveRequestDetailsPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
+import HolidayManagementPage from "./pages/admin/HolidayManagementPage";
 
 const App: React.FC = () => {
   return (
@@ -122,6 +124,8 @@ const AdminRoutes: React.FC = () => {
                 {/* Alias for robust routing */}
                 <Route path="/hr-request/:id" element={<LeaveRequestDetailsPage />} />
                 <Route path="/admin/offices" element={<OfficesPage />} />
+                <Route path="/admin/holidays" element={<HolidayManagementPage />} />
+                <Route path="/admin/policies" element={<LeavePoliciesPage />} />
                 {/* Fallback to dashboard */}
                 <Route path="*" element={<Navigate to="/admin" replace />} />
             </Route>
@@ -206,6 +210,14 @@ const Main: React.FC = () => {
         <Route
           path={NAVIGATION_PATHS.CONTRACTS}
           element={<EmployeeContractsPage />}
+        />
+        <Route
+          path={NAVIGATION_PATHS.HOLIDAYS}
+          element={<HolidayManagementPage />}
+        />
+        <Route
+          path="/policies"
+          element={<LeavePoliciesPage />}
         />
         
         {/* Remove Admin Routes from Main since they are now in AdminRoutes */}

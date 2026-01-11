@@ -44,6 +44,14 @@ router.use("/notifications", notificationRoutes);
 // Mount upload routes
 router.use("/upload", uploadRoutes);
 
+// Mount holiday routes
+const holidayRoutes = require("./holiday.routes");
+router.use("/holidays", holidayRoutes);
+
+// Mount leave policy routes
+const leavePolicyRoutes = require("./leavePolicy.routes");
+router.use("/leave-policies", leavePolicyRoutes);
+
 // Mount employee routes
 router.use("/", employeeRoutes);
 

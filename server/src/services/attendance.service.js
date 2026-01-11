@@ -1,10 +1,11 @@
 const attendanceRepository = require("../repositories/attendance.repository");
+const holidayRepository = require("../repositories/holiday.repository");
 const dateUtil = require("../utils/date.util");
 
 /**
  * Helper to get employee and timezone from employeeId
  * @param {string} employeeId 
- * @returns {Promise<{employeeId: string, timezone: string}>}
+ * @returns {Promise<{employeeId: string, timezone: string, officeId: string}>}
  */
 const getEmployeeInfo = async (employeeId) => {
   try {
@@ -18,7 +19,8 @@ const getEmployeeInfo = async (employeeId) => {
     
     return {
       employeeId: employee.id,
-      timezone
+      timezone,
+      officeId: employee.officeId
     };
   } catch (error) {
     throw new Error(`Error fetching employee info: ${error.message}`);
@@ -124,7 +126,7 @@ const getAllAttendance = async (page = 1, limit = 10, startDate = null, endDate 
  */
 const ensureAttendanceRecords = async (employeeId, startDate, endDate) => {
   try {
-    const { employeeId: empId, timezone } = await getEmployeeInfo(employeeId);
+    const { employeeId: empId, timezone, officeId } = await getEmployeeInfo(employeeId);
     
     const now = dateUtil.getNow();
     const todayStart = dateUtil.getStartOfDay(now, timezone);
@@ -151,6 +153,9 @@ const ensureAttendanceRecords = async (employeeId, startDate, endDate) => {
       start.setDate(start.getDate() - 30);
     }
 
+    // Fetch Holidays for this range
+    const holidays = officeId ? await holidayRepository.findHolidays(officeId, start, end) : [];
+
     // Iterate and create missing records
     let currentDate = new Date(start);
     while (currentDate <= end) {
@@ -163,8 +168,30 @@ const ensureAttendanceRecords = async (employeeId, startDate, endDate) => {
             // Determine status using dayjs and timezone
             const dayOfWeek = dateUtil.dayjs(recordDate).tz(timezone).day(); // 0=Sun, 6=Sat
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-            const status = isWeekend ? 'OFF' : 'ABSENT';
             
+            let status = isWeekend ? 'OFF' : 'ABSENT';
+
+            // Holiday Check (Highest Priority)
+            // Check if recordDate falls into any holiday range
+            
+            // Note: Holidays define startDate and endDate as YYYY-MM-DD (db.Date)
+            // We need to compare carefully. Best to use ISO string YYYY-MM-DD
+            const currentDateStr = dateUtil.dayjs(recordDate).tz(timezone).format('YYYY-MM-DD');
+
+            const holiday = holidays.find(h => {
+                const hStart = dateUtil.dayjs(h.startDate).tz(timezone).format('YYYY-MM-DD');
+                const hEnd = dateUtil.dayjs(h.endDate).tz(timezone).format('YYYY-MM-DD');
+                return currentDateStr >= hStart && currentDateStr <= hEnd;
+            });
+
+            if (holiday) {
+                if (holiday.isHalfDay) {
+                    status = 'HALF_DAY'; 
+                } else {
+                    status = 'OFF';
+                }
+            }
+
             await attendanceRepository.createAttendanceRecord({
                 employeeId: empId,
                 date: recordDate,

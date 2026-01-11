@@ -120,6 +120,17 @@ const getAllRequests = async (req, res) => {
     if (startDate) filters.startDate = startDate;
     if (endDate) filters.endDate = endDate;
     if (legalEntityId) filters.legalEntityId = legalEntityId;
+    
+    // HR Specific Constraints
+    if (role === 'HR') {
+        // 1. HR cannot see their OWN requests in this view (Admin view vs My Requests)
+        if (req.user.employeeId) {
+            filters.excludeEmployeeId = req.user.employeeId;
+        }
+        
+        // 2. HR cannot see OTHER HRs' requests (Security/Conflict of Interest)
+        filters.excludeRole = 'HR'; 
+    }
 
     const result = await leaveService.getRequests(page, limit, filters);
     res.json(result);
@@ -137,11 +148,11 @@ const updateRequestStatus = async (req, res) => {
     const { status, approverComments } = req.body;
     const approverId = req.user.employeeId; // Get ID of the person performing the action
 
-    if (!['Approved', 'Rejected'].includes(status)) {
+    if (!['APPROVED', 'REJECTED'].includes(status)) {
       return res.status(400).json({ message: "Invalid status" });
     }
 
-    const updatedRequest = await leaveService.updateRequestStatus(id, status, approverComments, approverId, req.user.role);
+    const updatedRequest = await leaveService.updateRequestStatus(id, status, approverId, req.user.role, approverComments);
     res.json(updatedRequest);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -205,11 +216,37 @@ const getLeaveStats = async (req, res) => {
     if (endDate) filters.endDate = endDate;
     if (legalEntityId) filters.legalEntityId = legalEntityId;
 
+    // HR Specific Constraints (Actionable Workload)
+    if (role === 'HR') {
+        // Exclude Self (My leaves are not "work to do")
+        if (req.user.employeeId) {
+            filters.excludeEmployeeId = req.user.employeeId;
+        }
+        // Exclude Peer HRs (Cannot approve them)
+        filters.excludeRole = 'HR';
+    }
+
     const stats = await leaveService.getStats(filters);
     res.json(stats);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+/**
+ * Get leave types (Public/Protected)
+ */
+const getLeaveTypes = async (req, res) => {
+    try {
+        const officeId = req.user.employee?.officeId || req.user.officeId;
+        if (!officeId) {
+            return res.status(400).json({ message: "Office ID not found for user" });
+        }
+        const types = await leaveService.getLeaveTypes(officeId);
+        res.json(types);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
 module.exports = {
@@ -220,5 +257,7 @@ module.exports = {
   updateRequestStatus,
   getEmployeeBalances,
   getRequestById,
+  getRequestById,
   getLeaveStats,
+  getLeaveTypes,
 };

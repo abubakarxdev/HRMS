@@ -4,6 +4,7 @@ const leavesController = require("../controllers/leaves.controller");
 const { protect, authorize } = require("../middlewares/auth.middleware");
 
 // Employee Routes
+router.get("/types", protect, leavesController.getLeaveTypes);
 router.get("/my-balances", protect, leavesController.getMyBalances);
 router.get("/my-requests", protect, leavesController.getMyRequests);
 router.post("/request", protect, leavesController.createRequest);

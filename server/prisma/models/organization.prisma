@@ -5,10 +5,9 @@ model LegalEntity {
   defaultCurrency String // "USD", "PKR"
   logoUrl         String?
 
-  offices       Office[]
-  employees     Employee[]
-  taxBrackets   TaxBracket[]
-  leaveSettings LeaveSetting[]
+  offices     Office[]
+  employees   Employee[]
+  taxBrackets TaxBracket[]
 
   createdAt DateTime @default(now())
 
@@ -24,9 +23,11 @@ model Office {
   // Default Timezone for everyone in this office (e.g., 'Asia/Karachi')
   timezone String
 
-  employees   Employee[]
-  holidays    PublicHoliday[]
-  legalEntity LegalEntity     @relation(fields: [legalEntityId], references: [id])
+  employees     Employee[]
+  holidays      PublicHoliday[]
+  leaveTypes    LeaveType[]
+  leavePolicies LeavePolicy[]
+  legalEntity   LegalEntity     @relation(fields: [legalEntityId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -34,13 +35,19 @@ model Office {
 }
 
 model PublicHoliday {
-  id       String   @id @default(uuid())
+  id       String @id @default(uuid())
   officeId String
-  date     DateTime @db.Date
-  name     String
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+
+  name        String
+  description String?
+  isOptional  Boolean @default(false)
+  isHalfDay   Boolean @default(false)
 
   office Office @relation(fields: [officeId], references: [id])
 
-  @@unique([officeId, date])
+  @@index([officeId, startDate, endDate])
   @@map("public_holidays")
 }

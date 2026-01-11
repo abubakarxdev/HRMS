@@ -1,13 +1,25 @@
 export interface LeaveBalance {
   id: string;
-  leaveType: string;
+  leaveType: string; // This is the code/name string usually
+  leaveTypeId: string; // Added ID
   totalCredits: number;
   usedCredits: number;
+  isArchived?: boolean; // Added Archival Status
+}
+
+export interface LeaveType {
+  id: string;
+  name: string;
+  code: string;
+  isPaid: boolean;
+  allowHalfDay: boolean;
+  description?: string;
+  isActive: boolean;
 }
 
 export interface LeaveRequest {
   id: string;
-  leaveType: string;
+  leaveType: LeaveType;
   startDate: string;
   endDate: string;
   reason: string;
@@ -26,10 +38,12 @@ export interface LeaveRequest {
 }
 
 export interface CreateLeaveRequest {
-  leaveType: string;
+  leaveTypeId: string;
   startDate: string;
   endDate: string;
   reason: string;
+  duration?: string;
+  attachmentUrl?: string;
 }
 
 export interface PaginatedResponse<T> {
