@@ -12,6 +12,8 @@ export const NAVIGATION_PATHS = {
     OFFICES: '/admin/offices',
     CONTRACTS: '/contracts',
     NOTIFICATIONS: '/notifications',
+    HOLIDAYS: '/holidays',
+    LEAVE_POLICIES: '/policies',
 };
 
 
@@ -61,5 +63,15 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
         path: NAVIGATION_PATHS.OFFICES,
         label: 'Offices',
         roles: [Role.SUPER_ADMIN, Role.ADMIN],
+    },
+    {
+        path: NAVIGATION_PATHS.HOLIDAYS,
+        label: 'Holidays',
+        roles: [Role.SUPER_ADMIN, Role.ADMIN, Role.HR],
+    },
+    {
+        path: NAVIGATION_PATHS.LEAVE_POLICIES,
+        label: 'Leave Policies',
+        roles: [Role.SUPER_ADMIN, Role.ADMIN, Role.HR],
     },
 ];
