@@ -1,22 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Modal from '../ui/Modal';
-import { useMyUpcomingApprovedLeaves } from '../../hooks/useLeaves';
+import { useMyUpcomingApprovedLeaves, useLeaveBalances } from '../../hooks/useLeaves';
+import { useAuth } from '../../contexts/AuthContext';
 import Button from '../ui/Button';
 import { toast } from 'sonner';
 import { uploadFile } from '../../api/services/upload.service';
+import { leavesService } from '../../api/services/leaves.service';
+import { LeaveType } from '../../api/types/leaves';
 import { Upload, X, FileText } from 'lucide-react';
 
 interface LeaveRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (data: any) => Promise<void>;
-    leaveTypes: string[];
 }
 
-const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, onSubmit, leaveTypes }) => {
-    const [leaveType, setLeaveType] = useState(leaveTypes[0] || 'Annual');
+const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, onSubmit }) => {
+    const { user } = useAuth();
+    const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+    const [selectedTypeId, setSelectedTypeId] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [duration, setDuration] = useState('FULL_DAY');
     const [reason, setReason] = useState('');
     const [attachmentUrl, setAttachmentUrl] = useState('');
     const [attachmentName, setAttachmentName] = useState('');
@@ -25,6 +30,34 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
     
     // Fetch upcoming approved leaves for validation
     const { data: approvedLeaves = [] } = useMyUpcomingApprovedLeaves();
+    // Fetch balances to check for Archival status
+    const { data: balances = [] } = useLeaveBalances();
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchLeaveTypes();
+        }
+    }, [isOpen]);
+
+    const fetchLeaveTypes = async () => {
+        try {
+            const types = await leavesService.getLeaveTypes();
+            setLeaveTypes(types);
+            
+            // Auto-select first ACTIVE type
+            if (types.length > 0 && !selectedTypeId) {
+                const firstActive = types.find(t => {
+                    const bal = balances.find(b => b.leaveTypeId === t.id);
+                    return !bal?.isArchived;
+                });
+                if (firstActive) setSelectedTypeId(firstActive.id);
+                else setSelectedTypeId(types[0].id); // Fallback
+            }
+        } catch (error) {
+            console.error("Failed to fetch leave types", error);
+            toast.error("Failed to load leave types");
+        }
+    };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -56,19 +89,27 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
         // Client-side validation
         const start = new Date(startDate);
         const end = new Date(endDate);
+        const today = new Date();
+        today.setHours(0,0,0,0);
         
+        if (start < today) {
+            toast.error("Leave requests cannot be for past dates.");
+            setLoading(false);
+            return;
+        }
+
         if (start > end) {
             toast.error("Start date cannot be after end date");
             setLoading(false);
             return;
         }
 
+        const selectedType = leaveTypes.find(t => t.id === selectedTypeId);
+
         // Check for overlaps with approved leaves
         const hasOverlap = approvedLeaves.some(leave => {
             const leaveStart = new Date(leave.startDate);
             const leaveEnd = new Date(leave.endDate);
-            
-            // Check if ranges overlap
             return (start <= leaveEnd && end >= leaveStart);
         });
 
@@ -77,9 +118,17 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
             setLoading(false);
             return;
         }
+        
+        // Final Archival Check (Client Side)
+        const balance = balances.find(b => b.leaveTypeId === selectedTypeId);
+        if (balance?.isArchived) {
+             toast.error("This leave type is archived and cannot be used for new requests.");
+             setLoading(false);
+             return;
+        }
 
         try {
-            await onSubmit({ leaveType, startDate, endDate, reason, attachmentUrl });
+            await onSubmit({ leaveTypeId: selectedTypeId, startDate, endDate, reason, attachmentUrl, duration });
             toast.success("Leave request submitted successfully");
             onClose();
             // Reset form
@@ -90,11 +139,14 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
             setAttachmentName('');
         } catch (error: any) {
             console.error(error);
-            toast.error(error.response?.data?.message || "Failed to submit request. Please check your balance.");
+            toast.error(error.response?.data?.message || "Failed to submit request.");
         } finally {
             setLoading(false);
         }
     };
+
+    const selectedType = leaveTypes.find(t => t.id === selectedTypeId);
+    const allowHalfDay = selectedType?.allowHalfDay;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Request Leave">
@@ -102,14 +154,19 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Leave Type</label>
                     <select
-                        value={leaveType}
-                        onChange={(e) => setLeaveType(e.target.value)}
+                        value={selectedTypeId}
+                        onChange={(e) => setSelectedTypeId(e.target.value)}
                         className="w-full p-2 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                         required
                     >
-                        {leaveTypes.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                        ))}
+                         {leaveTypes.map(type => {
+                             const isArchived = balances.find(b => b.leaveTypeId === type.id)?.isArchived;
+                             return (
+                                <option key={type.id} value={type.id} disabled={!!isArchived}>
+                                    {type.name} {isArchived ? '(Archived - Unavailable)' : ''}
+                                </option>
+                             );
+                         })}
                     </select>
                 </div>
                 
@@ -119,7 +176,13 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
                         <input
                             type="date"
                             value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            onChange={(e) => {
+                                setStartDate(e.target.value);
+                                if (!endDate || new Date(e.target.value) > new Date(endDate)) {
+                                    setEndDate(e.target.value);
+                                }
+                            }}
                             className="w-full p-2 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                             required
                         />
@@ -129,12 +192,35 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
                         <input
                             type="date"
                             value={endDate}
+                            min={startDate || new Date().toISOString().split('T')[0]}
                             onChange={(e) => setEndDate(e.target.value)}
                             className="w-full p-2 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
                             required
                         />
                     </div>
                 </div>
+
+                {/* Duration Field - Only show for Single Day AND if Allowed */}
+                {startDate && endDate && startDate === endDate && allowHalfDay && (
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>
+                        <select
+                            value={duration}
+                            onChange={(e) => setDuration(e.target.value)}
+                            className="w-full p-2 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        >
+                            <option value="FULL_DAY">Full Day</option>
+                            <option value="HALF_DAY_AM">First Half (AM)</option>
+                            <option value="HALF_DAY_PM">Second Half (PM)</option>
+                        </select>
+                    </div>
+                )}
+                 {startDate && endDate && startDate === endDate && !allowHalfDay && (
+                    <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-100">
+                        Note: Half-day requests are not enabled for {selectedType?.name}.
+                    </div>
+                )}
+
 
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Reason</label>
@@ -191,6 +277,11 @@ const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({ isOpen, onClose, 
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">
+                     {user?.role === 'ADMIN' && (
+                        <div className="flex-1 flex items-center text-xs text-amber-600 font-medium bg-amber-50 px-3 py-2 rounded-lg border border-amber-100 mr-2">
+                             Note: Your leave will be auto-approved as per company policy.
+                        </div>
+                     )}
                     <Button type="button" variant="secondary" onClick={onClose} disabled={loading || uploading}>
                         Cancel
                     </Button>
