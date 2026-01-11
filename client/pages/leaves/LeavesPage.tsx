@@ -26,12 +26,22 @@ const LeavesPage: React.FC = () => {
         await createRequestMutation.mutateAsync(data);
     };
 
-    const leaveTypes = balances?.map(b => b.leaveType) || ['Annual', 'Medical', 'Casual', 'Maternity', 'Others'];
+
 
     // Calculate aggregated stats
-    const totalLeaves = balances?.reduce((acc, curr) => acc + curr.totalCredits, 0) || 0;
+    // Used: Count everything (History remains)
     const totalUsed = balances?.reduce((acc, curr) => acc + curr.usedCredits, 0) || 0;
-    const totalRemaining = totalLeaves - totalUsed;
+    
+    // Available: Only count from Active policies (Archived credits are lost)
+    const totalRemaining = balances?.reduce((acc, curr) => {
+        if (curr.isArchived) return acc;
+        return acc + (curr.totalCredits - curr.usedCredits);
+    }, 0) || 0;
+
+    // Total: Effective Total (Used + Available). 
+    // This represents "Useful Credits" (what you used + what you have left).
+    const totalLeaves = totalUsed + totalRemaining;
+
     const pendingRequests = requestsData?.data?.filter(r => r.status === 'PENDING').length || 0;
 
     return (
@@ -66,9 +76,9 @@ const LeavesPage: React.FC = () => {
                     {/* Quick Stats Row */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 mt-2 border-t border-white/10">
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10">
-                            <div className="flex items-center gap-2 text-indigo-200 mb-1">
+                            <div className="flex items-center gap-2 text-indigo-200 mb-1" title="Effective Credits = Available credits from active policies + historical usage from archived policies">
                                 <Clock size={16} />
-                                <span className="text-xs font-bold uppercase tracking-wider">Total Credits</span>
+                                <span className="text-xs font-bold uppercase tracking-wider">Effective Credits</span>
                             </div>
                             <p className="text-2xl font-bold text-white">{totalLeaves}</p>
                         </div>
@@ -119,6 +129,7 @@ const LeavesPage: React.FC = () => {
                                 type={balance.leaveType}
                                 total={balance.totalCredits}
                                 used={balance.usedCredits}
+                                isArchived={balance.isArchived} // Pass backend status
                             />
                         ))}
                     </div>
@@ -216,7 +227,6 @@ const LeavesPage: React.FC = () => {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSubmit={handleCreateRequest}
-                leaveTypes={leaveTypes}
             />
         </div>
     );
