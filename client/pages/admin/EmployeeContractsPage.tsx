@@ -10,6 +10,7 @@ import ContractModal from "@/components/contracts/ContractModal";
 import ContractHistoryModal from "@/components/contracts/ContractHistoryModal";
 import DeleteConfirmationModal from "@/components/ui/DeleteConfirmationModal";
 import Pagination from "@/components/ui/Pagination";
+import NoTableData from "@/components/ui/NoTableData";
 
 const EmployeeContractsPage: React.FC = () => {
     const officeContext = useOptionalOffice();
@@ -307,15 +308,11 @@ const EmployeeContractsPage: React.FC = () => {
                                     </tr>
                                 ))
                             ) : filteredContracts.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="px-6 py-20 text-center">
-                                        <div className="flex flex-col items-center text-slate-400">
-                                            <Briefcase size={40} className="mb-4 text-slate-200" />
-                                            <p className="font-medium text-slate-600">No contracts found</p>
-                                            <p className="text-sm">Try adjusting filters or create a new contract.</p>
-                                        </div>
-                                    </td>
-                                </tr>
+                                <NoTableData 
+                                    title="No contracts found"
+                                    message="Try adjusting filters or create a new contract."
+                                    icon={<Briefcase size={40} />}
+                                />
                             ) : (
                                 paginatedContracts.map((contract) => (
                                     <tr key={contract.id} className="group hover:bg-slate-50/50 transition-colors">
