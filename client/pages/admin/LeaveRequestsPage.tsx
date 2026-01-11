@@ -251,7 +251,7 @@ const LeaveRequestsPage: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200">
-                                            {request.leaveType}
+                                            {request.leaveType.name}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
