@@ -150,6 +150,12 @@ export interface AuditLog {
 }
 
 export interface PublicHoliday {
-  date: string; // YYYY-MM-DD
+  id: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
   name: string;
+  description?: string;
+  isOptional?: boolean;
+  isHalfDay?: boolean;
+  officeId?: string;
 }
