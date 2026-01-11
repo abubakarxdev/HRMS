@@ -61,19 +61,53 @@ async function main() {
 
   console.log('🏢 Organization ensured:', legalEntity.name);
 
-  // 3. Create Leave Settings
-  const existingSettings = await prisma.leaveSetting.findFirst({ where: { legalEntityId: legalEntity.id } });
-  if (!existingSettings) {
-    await prisma.leaveSetting.create({
-      data: {
-        legalEntityId: legalEntity.id,
-        policyType: 'Standard Full-Time',
-        config: {
-          annual: 14,
-          sick: 10,
-          casual: 8,
-        },
+  // 3. Create Leave Types & Policies (Office Scoped)
+  const leaveTypesData = [
+    { code: 'ANNUAL', name: 'Annual Leave', isPaid: true, quotaDays: 14 },
+    { code: 'SICK', name: 'Sick Leave', isPaid: true, quotaDays: 10 },
+    { code: 'CASUAL', name: 'Casual Leave', isPaid: true, quotaDays: 8 },
+  ];
+
+  const leaveTypesMap = new Map(); // code -> LeaveType
+
+  for (const typeData of leaveTypesData) {
+    const leaveType = await prisma.leaveType.upsert({
+      where: { officeId_code: { officeId: office.id, code: typeData.code } },
+      update: {},
+      create: {
+        officeId: office.id,
+        code: typeData.code,
+        name: typeData.name,
+        isPaid: typeData.isPaid,
+        isActive: true
+      }
+    });
+    leaveTypesMap.set(typeData.code, leaveType);
+
+    // Create Policy for Standard Full Time
+    await prisma.leavePolicy.upsert({
+      where: {
+        officeId_contractType_leaveTypeId_effectiveFrom: {
+          officeId: office.id,
+          contractType: 'FULL_TIME',
+          leaveTypeId: leaveType.id,
+          effectiveFrom: new Date('2025-01-01')
+        }
       },
+      update: {
+        annualQuotaMinutes: typeData.quotaDays * 480,
+        effectiveTo: new Date('2025-12-31')
+      },
+      create: {
+        officeId: office.id,
+        contractType: 'FULL_TIME',
+        leaveTypeId: leaveType.id,
+        annualQuotaMinutes: typeData.quotaDays * 480, // 8 hours * 60
+        effectiveFrom: new Date('2025-01-01'),
+        effectiveTo: new Date('2025-12-31'),
+        carryForwardAllowed: typeData.code === 'ANNUAL',
+        createdByRole: 'SYSTEM'
+      }
     });
   }
 
@@ -97,7 +131,7 @@ async function main() {
       return emp;
     }
 
-    // Check if employee exists by email or ID (to avoid unique constraint errors)
+    // Check if employee exists by email or ID
     let employee = await prisma.employee.findFirst({
       where: {
         OR: [
@@ -118,7 +152,7 @@ async function main() {
           joiningDate: new Date('2020-01-01'),
           legalEntityId: legalEntity.id,
           officeId: office.id,
-          managerId: managerId || null, // Ensure valid value for Prisma
+          managerId: managerId || null,
           status: 'Active',
           contracts: {
             create: {
@@ -135,13 +169,27 @@ async function main() {
       });
 
       if (role === 'EMPLOYEE' && email === 'employee@gmail.com') {
-        // Special case for initial leave balances for dev employee
-        await prisma.leaveBalance.createMany({
-          data: [
-            { employeeId: employee.id, year: 2025, leaveType: 'Annual', totalCredits: 14, usedCredits: 0 },
-            { employeeId: employee.id, year: 2025, leaveType: 'Sick', totalCredits: 10, usedCredits: 0 },
-          ]
-        });
+        // Create Balances using LeaveType Relation and Minutes
+        const balancesData = [
+          { code: 'ANNUAL', days: 14 },
+          { code: 'SICK', days: 10 }
+        ];
+
+        for (const data of balancesData) {
+          const type = leaveTypesMap.get(data.code);
+          if (type) {
+            await prisma.leaveBalance.create({
+              data: {
+                employeeId: employee.id,
+                officeId: office.id,
+                year: 2025,
+                leaveTypeId: type.id,
+                totalCreditsMinutes: data.days * 480,
+                usedCreditsMinutes: 0
+              }
+            });
+          }
+        }
       }
     } else {
       console.log(`Employee record for ${email} / ${empId} already exists.`);
